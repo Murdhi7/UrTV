@@ -166,7 +166,7 @@
   .subline .dot{width:5px;height:5px;border-radius:50%;background:var(--gold);opacity:.9}
 
   .bottom{
-    display:grid;grid-template-columns:1fr .9fr 1.3fr;
+    display:grid;grid-template-columns:1fr 1fr .9fr 1.3fr;
     gap:2.4vw;align-items:start;
     border-top:1px solid rgba(220,184,111,.30);
     padding-top:2.1vh;
@@ -190,6 +190,8 @@
 
   .p-prayer{text-align:right}
   .p-prayer .big{justify-content:flex-start}
+  .p-work{text-align:center}
+  .p-work .big{display:block;text-align:center;line-height:1.06}
   .p-mid{text-align:center}
   .p-mid .big{display:block;text-align:center;line-height:1.06}
   .p-mid .num{font-size:1.3em;line-height:1}
@@ -298,6 +300,12 @@
       <div class="label" id="prayer-label">الصلاة القادمة</div>
       <div class="big"><span id="prayer-name">—</span><span class="num" id="prayer-time"></span></div>
       <div class="sub" id="prayer-count">—</div>
+    </div>
+
+    <div class="panel p-work">
+      <div class="label">باقي على ١٠ م</div>
+      <div class="big"><span class="num" id="work-count">—</span></div>
+      <div class="sub" id="work-sub">—</div>
     </div>
 
     <div class="panel p-mid">
@@ -503,6 +511,18 @@ function isFriday(){
   return new Intl.DateTimeFormat('en-US',{timeZone:CONFIG.timezone,weekday:'short'}).format(new Date()) === 'Fri';
 }
 function prayerName(x){ return x.key === 'Dhuhr' && isFriday() ? 'الجمعة' : x.name; }
+
+function tickWork(){
+  const el = document.getElementById('work-count'), sub = document.getElementById('work-sub');
+  if(!el || !sub) return;
+  const p = riyadhParts(), nowM = p.h*60 + p.mi + p.s/60;
+  const leftM = Math.max(0, 22*60 - nowM);
+  el.textContent = humanRemaining(Math.ceil(leftM*60));
+  const weekday = new Intl.DateTimeFormat('en-US',{timeZone:CONFIG.timezone,weekday:'short'}).format(new Date());
+  const day = ({Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6})[weekday];
+  const days = (4-day+7)%7;
+  sub.textContent = days === 0 ? 'اليوم الخميس' : 'الخميس بعد ' + qty(days, UNIT.day);
+}
 
 function tickPrayer(){
   const elL=document.getElementById('prayer-label'),
@@ -1249,7 +1269,7 @@ function boot(){
   applyBackground(true);
   loadPhotoIndex().then(() => applyBackground(true));
   setInterval(() => applyBackground(false), 60*1000);
-  tickClock(); tickDates(); tickRamadan();
+  tickClock(); tickDates(); tickRamadan(); tickWork();
   TICKERS.forEach(loadTicker);
   if(CONFIG.panel === 'none') document.querySelector('.week').style.display = 'none';
   else if(CONFIG.panel !== 'shows') renderPanel(false);   // its own data arrives with prayers, weather, matches
@@ -1257,7 +1277,7 @@ function boot(){
   applyNight(); pixelShift();
 
   setInterval(tickClock, 1000);
-  setInterval(()=>{ tickDates(); tickPrayer(); tickRamadan(); if(CONFIG.panel === 'prayers') renderPanel(false); }, 15000);
+  setInterval(()=>{ tickDates(); tickPrayer(); tickRamadan(); tickWork(); if(CONFIG.panel === 'prayers') renderPanel(false); }, 15000);
   setInterval(() => renderMatches(false), 60000);
   setInterval(() => renderMatches(true), CONFIG.matchPageMs);
   setInterval(loadLive, 2*60000);
