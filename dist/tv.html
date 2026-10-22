@@ -192,6 +192,7 @@
   .p-prayer .big{justify-content:flex-start}
   .p-work{text-align:center}
   .p-work .big{display:block;text-align:center;line-height:1.06}
+  .p-work .sub{text-align:right;padding-right:.35em}
   .p-mid{text-align:center}
   .p-mid .big{display:block;text-align:center;line-height:1.06}
   .p-mid .num{font-size:1.3em;line-height:1}
@@ -524,8 +525,9 @@ function tickWork(){
   el.textContent = humanRemaining(Math.ceil(leftM*60));
   const weekday = new Intl.DateTimeFormat('en-US',{timeZone:CONFIG.timezone,weekday:'short'}).format(new Date());
   const day = ({Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6})[weekday];
-  const days = (4-day+7)%7;
-  sub.textContent = days === 0 ? 'اليوم الخميس' : 'الخميس بعد ' + qty(days, UNIT.day);
+  // Always count down to the next Thursday, including when today is Thursday.
+  const days = ((4-day+7)%7) || 7;
+  sub.textContent = 'باقي ' + qty(days, UNIT.day) + ' على الخميس';
 }
 
 function tickPrayer(){
