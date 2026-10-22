@@ -192,6 +192,7 @@
   .p-prayer .big{justify-content:flex-start}
   .p-work{text-align:center}
   .p-work .big{display:block;text-align:center;line-height:1.06}
+  .p-work .label,.p-work .sub{position:relative;left:.4em}
   .p-work .sub{text-align:right;padding-right:.35em}
   .p-mid{text-align:center}
   .p-mid .big{display:block;text-align:center;line-height:1.06}
@@ -523,7 +524,7 @@ function tickWork(){
   const day = ({Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6})[weekday];
   // Always count down to the next Thursday, including when today is Thursday.
   const days = ((4-day+7)%7) || 7;
-  sub.textContent = 'باقي ' + qty(days, UNIT.day) + ' على الخميس';
+  sub.textContent = 'الخميس • باقي ' + qty(days, UNIT.day);
 }
 
 function tickPrayer(){
