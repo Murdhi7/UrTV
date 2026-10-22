@@ -1,0 +1,41 @@
+name: Build personal screensaver
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/work-countdown-thursday]
+    paths:
+      - 'src/**'
+      - 'assets/**'
+      - 'android/app/**'
+      - '.github/workflows/personal-screensaver.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  screensaver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the page
+        run: python3 src/build.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build personal screensaver APK
+        env:
+          URTV_PERSONAL: '1'
+          URTV_OWNER: Murdhi7
+          URTV_BRANCH: codex/work-countdown-thursday
+        run: gradle -p android :app:assembleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: urtv-personal-screensaver
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14

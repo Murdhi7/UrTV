@@ -2,12 +2,20 @@ plugins {
     id 'com.android.application'
 }
 
+def personalBuild = System.getenv('URTV_PERSONAL') == '1'
+def screensaverAppId = personalBuild ? 'sa.murdhi7.urtv.screensaver' : 'sa.urtv.screensaver'
+def repositoryOwner = System.getenv('URTV_OWNER') ?: 'tshi-dev'
+
 android {
     namespace 'sa.urtv.screensaver'
     compileSdk 34
 
     defaultConfig {
-        applicationId 'sa.urtv.screensaver'
+        applicationId screensaverAppId
+        manifestPlaceholders = [
+            screensaverPermission: "${screensaverAppId}.READ_CONFIG",
+            screensaverAuthority: "${screensaverAppId}.config"
+        ]
         minSdk 21
         targetSdk 34
         // CI passes its run number so every build installs over the previous one; 3.x since the new signing key,
@@ -16,6 +24,7 @@ android {
         versionName "3.${System.getenv('GITHUB_RUN_NUMBER') ?: '0'}"
         // the branch the page, fonts and photos are fetched from: CI passes the one it builds, a local build follows master
         buildConfigField "String", "BRANCH", "\"${System.getenv('URTV_BRANCH') ?: 'master'}\""
+        buildConfigField "String", "REPOSITORY_OWNER", "\"${repositoryOwner}\""
     }
 
     buildFeatures {

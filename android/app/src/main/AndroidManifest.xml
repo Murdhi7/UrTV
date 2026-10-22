@@ -9,7 +9,7 @@
 
     <!-- the launcher (same signing key) reads the settings for its home-screen card -->
     <permission
-        android:name="sa.urtv.screensaver.READ_CONFIG"
+        android:name="${screensaverPermission}"
         android:protectionLevel="signature" />
 
     <!-- opens the launcher's «ترتيب المفضلة» from settings -->
@@ -90,8 +90,8 @@
 
         <provider
             android:name=".ConfigProvider"
-            android:authorities="sa.urtv.screensaver.config"
+            android:authorities="${screensaverAuthority}"
             android:exported="true"
-            android:readPermission="sa.urtv.screensaver.READ_CONFIG" />
+            android:readPermission="${screensaverPermission}" />
     </application>
 </manifest>
