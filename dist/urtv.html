@@ -192,8 +192,7 @@
   .p-prayer .big{justify-content:flex-start}
   .p-work{text-align:center}
   .p-work .big{display:block;text-align:center;line-height:1.06}
-  .p-work .label,.p-work .sub{position:relative;left:.4em}
-  .p-work .sub{text-align:right;padding-right:.35em}
+  .p-work .sub{text-align:center}
   .p-mid{text-align:center}
   .p-mid .big{display:block;text-align:center;line-height:1.06}
   .p-mid .num{font-size:1.3em;line-height:1}
@@ -511,6 +510,25 @@ function shortRemaining(ms){
   if(h && out.length < 2) out.push(qty(h,UNIT.hour));
   if(!out.length) out.push(qty(Math.max(1, Math.ceil(ms/60000)), UNIT.min));
   return out.join(' و ');
+}
+
+function alignWorkWithCity(){
+  const cityEl = document.getElementById('clock-sub');
+  const panel = document.querySelector('.bottom .p-work');
+  const node = cityEl && cityEl.firstChild;
+  if(!node || !panel || node.nodeType !== Node.TEXT_NODE) return;
+  const text = node.textContent || '';
+  const city = String(CONFIG.city || '').trim().split(/\s+/).pop();
+  const start = city ? text.lastIndexOf(city) : -1;
+  if(start < 0) return;
+  const range = document.createRange();
+  range.setStart(node, start);
+  range.setEnd(node, start + city.length);
+  panel.style.transform = 'none';
+  const wordRect = range.getBoundingClientRect();
+  const panelRect = panel.getBoundingClientRect();
+  const shift = (wordRect.left + wordRect.right - panelRect.left - panelRect.right) / 2;
+  panel.style.transform = `translateX(${Math.round(shift)}px)`;
 }
 
 function isFriday(){
@@ -1272,6 +1290,9 @@ function boot(){
   if(wxCity) wxCity.textContent = CONFIG.city;
   const cs = document.getElementById('clock-sub');
   if(cs) cs.textContent = 'بتوقيت ' + CONFIG.city;
+  addEventListener('resize', alignWorkWithCity);
+  requestAnimationFrame(alignWorkWithCity);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(alignWorkWithCity);
   document.title = 'شاشة تلفزيونك';
   applyBackground(true);
   loadPhotoIndex().then(() => applyBackground(true));
