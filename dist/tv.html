@@ -522,11 +522,11 @@ function alignFooterPanels(){
   matches.style.transform = 'none';
   if(window.matchMedia('(max-aspect-ratio:5/4)').matches) return;
   const gap = Math.round(window.innerWidth * .025);
-  const workRect = work.getBoundingClientRect();
-  const ramadanRect = ramadan.getBoundingClientRect();
+  const textBounds = el => { const range = document.createRange(); range.selectNodeContents(el); return range.getBoundingClientRect(); }; const workRect = textBounds(work);
+  const ramadanRect = textBounds(ramadan);
   ramadan.style.transform = `translateX(${Math.round(workRect.left - gap - ramadanRect.right)}px)`;
-  const alignedRamadanRect = ramadan.getBoundingClientRect();
-  const matchesRect = matches.getBoundingClientRect();
+  const alignedRamadanRect = textBounds(ramadan);
+  const matchesRect = textBounds(matches);
   matches.style.transform = `translateX(${Math.round(alignedRamadanRect.left - gap - matchesRect.right)}px)`;
 }
 
