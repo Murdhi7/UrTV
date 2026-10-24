@@ -294,7 +294,14 @@ public class MainActivity extends Activity {
         LinearLayout clockRow = new LinearLayout(this);
         clockRow.setGravity(Gravity.BOTTOM);
         clockRow.setGravity(Gravity.TOP);
-        clock = text(58, "display", 0xFFFFFDF6);
+        // Match the screensaver clock's responsive size (clamp(120px, min(17vw, 31vh), 345px)).
+        // The header stays pinned to the same top-right position; only the clock's size changes.
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        float viewportWidth = metrics.widthPixels / metrics.density;
+        float viewportHeight = metrics.heightPixels / metrics.density;
+        float clockPx = Math.max(120f, Math.min(Math.min(viewportWidth * .17f, viewportHeight * .31f), 345f));
+        float fontScale = metrics.scaledDensity / metrics.density;
+        clock = text(clockPx / fontScale, "display", 0xFFFFFDF6);
         clock.setIncludeFontPadding(false);
         ampm = text(16, "medium", GOLD);
         clockRow.addView(ampm, llp(-2, -2, 0, dp(6), dp(8), 0));
