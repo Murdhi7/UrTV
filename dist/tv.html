@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+  <meta name="urtv-build" content="20261024161105">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>شاشة تلفزيونك</title>
@@ -352,7 +353,7 @@ const CONFIG = {
   // the card beside the clock: shows | prayers | forecast | matches | verse | none (#week=0 from older builds = none)
   panel: (p => ['shows','prayers','forecast','matches','verse','none'].includes(p) ? p : 'verse')
          (_Q.get('panel') || (_Q.get('week') === '0' ? 'none' : 'verse')),
-  matchesPerPage: 2,
+  matchesPerPage: 1,
   matchPageMs: 15000,
   // minutes from adhan to iqama (Ministry of Islamic Affairs defaults); Friday Dhuhr has none
   iqama: {Fajr:25, Dhuhr:20, Asr:20, Maghrib:10, Isha:20},
