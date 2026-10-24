@@ -231,9 +231,11 @@ def main():
     bgs = json.loads((bg_dir / "backgrounds.json").read_text(encoding="utf-8"))
     for name, inline in (("urtv.html", True), ("tv.html", False)):
         page = html
+        # Keep the Thmanyah faces inside both pages. The Android WebView sometimes cannot load the raw
+        # GitHub font URLs (and its local preview has a file:// origin), so remote fonts silently fall back
+        # to a different Arabic typeface. The font files are supplied by the private-font checkout in CI.
         for token, font in FONTS.items():
-            page = page.replace(token, data_uri(ROOT / "assets/fonts" / font, "font/woff2") if inline
-                                else REPO + "assets/fonts/" + font)
+            page = page.replace(token, data_uri(ROOT / "assets/fonts" / font, "font/woff2"))
         entries = []
         for bg in bgs:
             u = data_uri(bg_dir / bg["file"], "image/jpeg") if inline else REPO + "assets/backgrounds/" + bg["file"]
