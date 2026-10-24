@@ -191,7 +191,7 @@
   .p-prayer{text-align:right}
   .p-prayer .big{justify-content:flex-start}
   .p-work{text-align:center}
-  .p-work .big{display:block;text-align:center;line-height:1.06}
+  .p-work .big{display:block;text-align:center;line-height:1.06;font-size:clamp(30px,2.2vw,42px)}.p-work .num{direction:ltr;unicode-bidi:isolate;display:inline-block}
   .p-work .sub{text-align:center}
   .p-mid{text-align:center}
   .p-mid .big{display:block;text-align:center;line-height:1.06}
@@ -519,7 +519,7 @@ function alignFooterPanels(){
   const matches = document.querySelector('.bottom .p-match');
   if(!work || !ramadan || !matches) return;
   ramadan.style.transform = 'none';
-  matches.style.transform = 'none';
+  matches.style.transform = 'none'; return;
   if(window.matchMedia('(max-aspect-ratio:5/4)').matches) return;
   const gap = Math.round(window.innerWidth * .025);
   const textBounds = el => { const range = document.createRange(); range.selectNodeContents(el); return range.getBoundingClientRect(); }; const workRect = textBounds(work);
@@ -540,7 +540,7 @@ function tickWork(){
   if(!el || !sub) return;
   const p = riyadhParts(), nowM = p.h*60 + p.mi + p.s/60;
   const leftM = Math.max(0, 22*60 - nowM);
-  el.textContent = humanRemaining(Math.ceil(leftM*60));
+  const minutesLeft = Math.ceil(leftM), hours = Math.floor(minutesLeft/60), minutes = minutesLeft%60; el.textContent = ar(`${hours}:${String(minutes).padStart(2,'0')}`);
   const weekday = new Intl.DateTimeFormat('en-US',{timeZone:CONFIG.timezone,weekday:'short'}).format(new Date());
   const day = ({Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6})[weekday];
   // Always count down to the next Thursday, including when today is Thursday.
