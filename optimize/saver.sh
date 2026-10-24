@@ -14,7 +14,7 @@
 #   optimize/saver.sh langs Arabic,English         episodes card: English Arabic Korean Japanese Turkish Spanish
 #                                                  French Hindi German  ("" = all)
 #   optimize/saver.sh minrating 7                  episodes card: lowest rating shown: 0 6 6.5 7 7.5 8
-#   optimize/saver.sh photos 15                    change the photo every N minutes: 5 10 15 30 60 (default 30)
+#   optimize/saver.sh photos 3                     change the photo every N minutes: 3 5 10 15 30 60 (default 30)
 #   optimize/saver.sh idle 10                      the TV starts the screensaver after N idle minutes: 1 2 5 10 15 30
 #                                                  (the TV's own timer; left alone unless you run this)
 #   optimize/saver.sh update                       download the latest screen now

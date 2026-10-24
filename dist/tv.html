@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta name="urtv-build" content="20261024161105">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>شاشة تلفزيونك</title>
@@ -192,7 +191,7 @@
   .p-prayer{text-align:right}
   .p-prayer .big{justify-content:flex-start}
   .p-work{text-align:center}
-  .p-work .big{display:block;text-align:center;line-height:1.06;font-size:clamp(30px,2.2vw,42px)}.p-work .num{direction:ltr;unicode-bidi:isolate;display:inline-block}
+  .p-work .big{display:block;text-align:center;line-height:1.06}
   .p-work .sub{text-align:center}
   .p-mid{text-align:center}
   .p-mid .big{display:block;text-align:center;line-height:1.06}
@@ -366,8 +365,8 @@ const CONFIG = {
     minRating: _num('minrating', 7),
   },
   weekWindowDays: 7,
-  // minutes between background photos: #photos=5|10|15|30|60 (anything else = 30)
-  photoMinutes: (m => [5,10,15,30,60].includes(m) ? m : 30)(_num('photos', 30)),
+  // minutes between background photos: #photos=3|5|10|15|30|60 (anything else = 30)
+  photoMinutes: (m => [3,5,10,15,30,60].includes(m) ? m : 30)(_num('photos', 30)),
   // #widget=1: only the card, on a transparent page (the launcher's home screen shows it)
   widget: _Q.get('widget') === '1',
 };
@@ -520,14 +519,14 @@ function alignFooterPanels(){
   const matches = document.querySelector('.bottom .p-match');
   if(!work || !ramadan || !matches) return;
   ramadan.style.transform = 'none';
-  matches.style.transform = 'none'; return;
+  matches.style.transform = 'none';
   if(window.matchMedia('(max-aspect-ratio:5/4)').matches) return;
   const gap = Math.round(window.innerWidth * .025);
-  const textBounds = el => { const range = document.createRange(); range.selectNodeContents(el); return range.getBoundingClientRect(); }; const workRect = textBounds(work);
-  const ramadanRect = textBounds(ramadan);
+  const workRect = work.getBoundingClientRect();
+  const ramadanRect = ramadan.getBoundingClientRect();
   ramadan.style.transform = `translateX(${Math.round(workRect.left - gap - ramadanRect.right)}px)`;
-  const alignedRamadanRect = textBounds(ramadan);
-  const matchesRect = textBounds(matches);
+  const alignedRamadanRect = ramadan.getBoundingClientRect();
+  const matchesRect = matches.getBoundingClientRect();
   matches.style.transform = `translateX(${Math.round(alignedRamadanRect.left - gap - matchesRect.right)}px)`;
 }
 
@@ -541,7 +540,7 @@ function tickWork(){
   if(!el || !sub) return;
   const p = riyadhParts(), nowM = p.h*60 + p.mi + p.s/60;
   const leftM = Math.max(0, 22*60 - nowM);
-  const minutesLeft = Math.ceil(leftM), hours = Math.floor(minutesLeft/60), minutes = minutesLeft%60; el.textContent = ar(`${hours}:${String(minutes).padStart(2,'0')}`);
+  el.textContent = humanRemaining(Math.ceil(leftM*60));
   const weekday = new Intl.DateTimeFormat('en-US',{timeZone:CONFIG.timezone,weekday:'short'}).format(new Date());
   const day = ({Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6})[weekday];
   // Always count down to the next Thursday, including when today is Thursday.

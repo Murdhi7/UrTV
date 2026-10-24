@@ -154,7 +154,7 @@ Use the TV's clock or wait for the real moment; take a screenshot at each.
 | T8 | `optimize/venv/bin/python -I optimize/random-clubs.py 8 1` | `seed: 1` and 8 names; the same on every run |
 | T9 | `optimize/reset.sh`, then `optimize/venv/bin/python -I optimize/tv.py pm list packages sa.urtv` and `optimize/venv/bin/python -I optimize/tv.py settings get secure screensaver_enabled` | The package list is empty; `screensaver_enabled` is the value in `optimize/run-*/backup.txt` (under «== screensaver»: the components line, then this one; `null` means unset) |
 | T10 | Put a `!!` line in `optimize/run/report.md` and run `optimize/run.sh` | It ends with «Done, with problems:» and that line, exit code 1; no «All steps done» |
-| T11 | `optimize/saver.sh photos 15`, then `optimize/saver.sh show`; then `optimize/saver.sh photos 7` | `saved`, `show` lists `photos: 15`; the second prints `error: photos is one of 5 10 15 30 60` and changes nothing; put it back with `photos 30` |
+| T11 | `optimize/saver.sh photos 3`, then `optimize/saver.sh show`; then `optimize/saver.sh photos 7` | `saved`, `show` lists `photos: 3`; the second prints `error: photos is one of 3 5 10 15 30 60` and changes nothing; put it back with `photos 30` |
 | T12 | `optimize/saver.sh idle 10`, then `optimize/saver.sh show` and `optimize/venv/bin/python -I optimize/tv.py settings get system screen_off_timeout`; then `optimize/saver.sh idle 3` | `idle: 10` (set by the app, or «set from the shell» when the app may not), `show` lists `idle: 10`, the setting prints `600000`; `idle 3` prints `error: idle is one of 1 2 5 10 15 30`; put the TV's old value back afterwards |
 
 ---

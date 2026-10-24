@@ -58,7 +58,7 @@ final class Prefs {
     static final String[] MIN_RATINGS = {"0", "6", "6.5", "7", "7.5", "8"};
 
     // minutes between background photos (sent to the page as #photos=; 30 is what it always did)
-    static final String[] PHOTO_MINUTES = {"5", "10", "15", "30", "60"};
+    static final String[] PHOTO_MINUTES = {"3", "5", "10", "15", "30", "60"};
 
     // minutes of idle before Android starts the screensaver (the TV's own screen_off_timeout; not stored here)
     static final String[] IDLE_MINUTES = {"1", "2", "5", "10", "15", "30"};

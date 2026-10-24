@@ -352,7 +352,7 @@ const CONFIG = {
   // the card beside the clock: shows | prayers | forecast | matches | verse | none (#week=0 from older builds = none)
   panel: (p => ['shows','prayers','forecast','matches','verse','none'].includes(p) ? p : 'verse')
          (_Q.get('panel') || (_Q.get('week') === '0' ? 'none' : 'verse')),
-  matchesPerPage: 2,
+  matchesPerPage: 1,
   matchPageMs: 15000,
   // minutes from adhan to iqama (Ministry of Islamic Affairs defaults); Friday Dhuhr has none
   iqama: {Fajr:25, Dhuhr:20, Asr:20, Maghrib:10, Isha:20},
@@ -365,8 +365,8 @@ const CONFIG = {
     minRating: _num('minrating', 7),
   },
   weekWindowDays: 7,
-  // minutes between background photos: #photos=5|10|15|30|60 (anything else = 30)
-  photoMinutes: (m => [5,10,15,30,60].includes(m) ? m : 30)(_num('photos', 30)),
+  // minutes between background photos: #photos=3|5|10|15|30|60 (anything else = 30)
+  photoMinutes: (m => [3,5,10,15,30,60].includes(m) ? m : 30)(_num('photos', 30)),
   // #widget=1: only the card, on a transparent page (the launcher's home screen shows it)
   widget: _Q.get('widget') === '1',
 };
@@ -512,23 +512,22 @@ function shortRemaining(ms){
   return out.join(' و ');
 }
 
-function alignWorkWithCity(){
-  const cityEl = document.getElementById('clock-sub');
-  const panel = document.querySelector('.bottom .p-work');
-  const node = cityEl && cityEl.firstChild;
-  if(!node || !panel || node.nodeType !== Node.TEXT_NODE) return;
-  const text = node.textContent || '';
-  const city = String(CONFIG.city || '').trim().split(/\s+/).pop();
-  const start = city ? text.lastIndexOf(city) : -1;
-  if(start < 0) return;
-  const range = document.createRange();
-  range.setStart(node, start);
-  range.setEnd(node, start + city.length);
-  panel.style.transform = 'none';
-  const wordRect = range.getBoundingClientRect();
-  const panelRect = panel.getBoundingClientRect();
-  const shift = (wordRect.left + wordRect.right - panelRect.left - panelRect.right) / 2;
-  panel.style.transform = `translateX(${Math.round(shift)}px)`;
+function alignFooterPanels(){
+  const cityEl=document.getElementById('clock-sub'),panel=document.querySelector('.bottom .p-work'),node=cityEl&&cityEl.firstChild;if(node&&panel&&node.nodeType===Node.TEXT_NODE){const text=node.textContent||'',city=String(CONFIG.city||'').trim().split(/\s+/).pop(),start=city?text.lastIndexOf(city):-1;if(start>=0){const range=document.createRange();range.setStart(node,start);range.setEnd(node,start+city.length);panel.style.transform='none';const wordRect=range.getBoundingClientRect(),panelRect=panel.getBoundingClientRect(),shift=(wordRect.left+wordRect.right-panelRect.left-panelRect.right)/2;panel.style.transform=`translateX(${Math.round(shift)}px)`;}}
+  const work = document.querySelector('.bottom .p-work');
+  const ramadan = document.querySelector('.bottom .p-mid');
+  const matches = document.querySelector('.bottom .p-match');
+  if(!work || !ramadan || !matches) return;
+  ramadan.style.transform = 'none';
+  matches.style.transform = 'none';
+  if(window.matchMedia('(max-aspect-ratio:5/4)').matches) return;
+  const gap = Math.round(window.innerWidth * .025);
+  const workRect = work.getBoundingClientRect();
+  const ramadanRect = ramadan.getBoundingClientRect();
+  ramadan.style.transform = `translateX(${Math.round(workRect.left - gap - ramadanRect.right)}px)`;
+  const alignedRamadanRect = ramadan.getBoundingClientRect();
+  const matchesRect = matches.getBoundingClientRect();
+  matches.style.transform = `translateX(${Math.round(alignedRamadanRect.left - gap - matchesRect.right)}px)`;
 }
 
 function isFriday(){
@@ -1290,9 +1289,9 @@ function boot(){
   if(wxCity) wxCity.textContent = CONFIG.city;
   const cs = document.getElementById('clock-sub');
   if(cs) cs.textContent = 'بتوقيت ' + CONFIG.city;
-  addEventListener('resize', alignWorkWithCity);
-  requestAnimationFrame(alignWorkWithCity);
-  if(document.fonts && document.fonts.ready) document.fonts.ready.then(alignWorkWithCity);
+  addEventListener('resize', alignFooterPanels);
+  requestAnimationFrame(alignFooterPanels);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(alignFooterPanels);
   document.title = 'شاشة تلفزيونك';
   applyBackground(true);
   loadPhotoIndex().then(() => applyBackground(true));
