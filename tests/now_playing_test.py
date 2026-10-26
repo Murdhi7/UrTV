@@ -36,7 +36,9 @@ check("MainActivity: the sleep timer's minutes follow the clock's existing minut
 check("NowPlaying: shown only for a surah or a station, never for the adhan or nothing",
       "source != Prefs.SOURCE_SURAH && !radio) return new State(false" in now)
 check("MainActivity: OK pauses or plays, a long OK opens the player",
-      "nowCard.setOnClickListener(v -> NowPlaying.toggle(this))" in main and "nowCard.setOnLongClickListener(v -> { startActivity(NowPlaying.player(this)); return true; })" in main)
+      "nowCard.setOnClickListener(v -> NowPlaying.toggle(this))" in main
+      and ("nowCard.setOnLongClickListener(v -> { startActivity(NowPlaying.player(this)); return true; })" in main
+           or "nowCard.setOnLongClickListener(v -> { launchGuarded(ParentalPolicy.PILL_LISTEN, NowPlaying.player(this)" in main))   # the second once the family lock is in
 check("MainActivity: ◀ is the previous surah and ▶ the next while the card has the focus, for a surah only (a station: ◀ goes on to the pills)",
       "NowPlaying.prev(this); else NowPlaying.next(this)" in main and "if (s.show && !s.radio) {" in main and "KEYCODE_DPAD_LEFT) NowPlaying.prev" in main)
 check("MainActivity: it is the first child of the pills row, a pill's height, hidden until something plays: the pills do not move",
