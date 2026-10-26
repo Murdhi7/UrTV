@@ -158,7 +158,7 @@ final class PhoneApi implements PhoneServer.Handler {
         String header = r.header(HEADER);
         String cookie = cookie(r.header("cookie"));
         if (header == null || cookie == null || !header.matches("[0-9a-f]{64}") || !Pairing.same(header, cookie)) return null;
-        return control.sessionOk(header) ? header : null;
+        return control.sessionOk(header, r.client) ? header : null;   // only from the address the phone was allowed from
     }
 
     static String cookie(String all) {

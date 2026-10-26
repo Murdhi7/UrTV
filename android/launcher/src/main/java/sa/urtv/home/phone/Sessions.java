@@ -65,6 +65,19 @@ public final class Sessions {
         return true;
     }
 
+    /**
+     * check(), and the request must come from the address the phone was allowed from: the transport is plain HTTP on the home Wi-Fi, so a
+     * session value seen in one request by another device on that network is no use from that device's own address.
+     */
+    public synchronized boolean checkFrom(String secret, String ip, long now) {
+        sweep(now);
+        S hit = null;
+        for (S s : all) if (Pairing.same(s.secret, secret)) hit = s;
+        if (hit == null || ip == null || !ip.equals(hit.ip)) return false;
+        hit.lastUsed = now;
+        return true;
+    }
+
     /** The id (not the secret) of the session this value belongs to, or null. Does not count as use. */
     public synchronized String idOf(String secret, long now) {
         sweep(now);

@@ -105,8 +105,13 @@ public final class PhoneRun {
         }
     }
 
+    /** When set, requests leave from this local address (another 127.x address stands in for another phone on the network). */
+    static String source;
+
     static Reply raw(int port, byte[] request) throws IOException {
-        Socket s = new Socket(InetAddress.getByAddress(LOOP), port);
+        Socket s = new Socket();
+        if (source != null) s.bind(new java.net.InetSocketAddress(InetAddress.getByName(source), 0));
+        s.connect(new java.net.InetSocketAddress(InetAddress.getByAddress(LOOP), port));
         s.setSoTimeout(6000);
         s.getOutputStream().write(request);
         s.getOutputStream().flush();
@@ -337,7 +342,7 @@ public final class PhoneRun {
             {"set", "{\"adhan_on\":true}", true}, {"set", "{\"adhan_on\":\"true\"}", false}, {"set", "{\"adhan_voice\":21}", true}, {"set", "{\"adhan_voice\":22}", false},
             {"set", "{\"adhan_voice\":0}", false}, {"set", "{\"adhan_fajr_voice\":1}", true}, {"set", "{\"adhan_volume\":10}", true}, {"set", "{\"adhan_volume\":9}", false},
             {"set", "{\"adhan_volume\":101}", false}, {"set", "{\"adhan_volume\":50.5}", false}, {"set", "{\"adhan_short\":false,\"adhan_stopkey\":true}", true},
-            {"set", "{\"pin\":\"1234\"}", false}, {"set", "{\"adhan_on\":true,\"pin\":\"1234\"}", true}, {"set", "{\"adhan_on\":true,\"pin\":\"12\"}", false},
+            {"set", "{\"pin\":\"1234\"}", false}, {"set", "{\"adhan_on\":true,\"pin\":\"1234\"}", true}, {"set", "{\"adhan_on\":true,\"pin\":\"12\"}", false}, {"set", "{\"adhan_on\":true,\"pin\":\"12345\"}", false}, {"set", "{\"adhan_on\":true,\"pin\":\"12345678\"}", false},
             {"set", "{\"adhan_on\":true,\"pin\":1234}", false}, {"set", "{\"reset\":true}", false}, {"set", "{\"uninstall\":\"x\"}", false}, {"set", "{}", false},
             {"quran", "{\"op\":\"play\",\"reciter\":\"abdulbasit_murattal\",\"surah\":18}", true}, {"quran", "{\"op\":\"play\",\"surah\":18}", false},
             {"quran", "{\"op\":\"play\",\"reciter\":\"x y\",\"surah\":1}", false}, {"quran", "{\"op\":\"play\",\"reciter\":\"r\",\"surah\":115}", false},
@@ -544,6 +549,22 @@ public final class PhoneRun {
         for (int i = 0; i < 60 && !stoppedByLogout; i++) { stoppedByLogout = !e.ctl.isOn(); if (!stoppedByLogout) Thread.sleep(50); }
         check("logging out ends the session, and as it was the last one the server stops", stoppedByLogout && e.ctl.phones().isEmpty() && "ended".equals(e.ctl.lastStop()), e.ctl.lastStop());
         check("and nothing answers any more", refusedConnection(e.port), "");
+
+        // a session value is good only from the address the phone was allowed from
+        e = started();
+        sess = pair(e);
+        check("a session works from the address it was allowed from", authed(e, "GET", "/api/state", null, sess).status == 200, "");
+        source = "127.0.0.2";
+        try {
+            Reply other = authed(e, "GET", "/api/state", null, sess);
+            check("the same session value from a second address is refused (no_session)", other.status == 401 && "no_session".equals(other.json().get("error")), other.head);
+            Reply otherPost = authed(e, "POST", "/api/key", "{\"key\":\"up\"}", sess);
+            check("and so is an action from it", otherPost.status == 401 && e.actions.calls.isEmpty(), otherPost.head + e.actions.calls);
+        } finally {
+            source = null;
+        }
+        check("the allowed address still has its session, the refusals did not end it", authed(e, "GET", "/api/state", null, sess).status == 200 && e.ctl.phones().size() == 1, "");
+        e.ctl.stop("owner");
 
         // the PIN hook
         e = started();

@@ -135,7 +135,7 @@ public final class Schema {
     }
 
     private static boolean pin(Map<String, Object> b) {
-        return !b.containsKey("pin") || (b.get("pin") instanceof String && ((String) b.get("pin")).matches("[0-9]{4,8}"));
+        return !b.containsKey("pin") || (b.get("pin") instanceof String && ((String) b.get("pin")).matches("[0-9]{4}"));
     }
 
     private static boolean range(Object v, int lo, int hi) {

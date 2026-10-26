@@ -275,8 +275,8 @@ public final class PhoneControl {
         return new String[] {"approved", secret};
     }
 
-    synchronized boolean sessionOk(String secret) {
-        return sessions != null && sessions.check(secret, clock.now());
+    synchronized boolean sessionOk(String secret, String clientIp) {
+        return sessions != null && sessions.checkFrom(secret, clientIp, clock.now());
     }
 
     synchronized long secondsLeft(String secret) {
