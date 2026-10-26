@@ -202,6 +202,23 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
   "$PY" -I optimize/tv.py "pm grant sa.urtv.home android.permission.ACCESS_FINE_LOCATION" || true
   # exact alarms for the adhan (Android 12 and newer; older TVs need nothing)
   "$PY" -I optimize/tv.py "appops set sa.urtv.home SCHEDULE_EXACT_ALARM allow" || true
+  # «تحديث تلفزيوني» (the TV's own update) hands the new apps to Android's install screen, which needs «install unknown apps» for the home app:
+  # given ahead of time so the owner isn't sent to a settings screen first. The mode it had is kept, once (a second run must not take our own
+  # «allow» for the original), and optimize/reset.sh puts back exactly that. If the TV doesn't answer, nothing is changed: the TV's update
+  # screen asks for the permission itself when it is needed.
+  appop_file="${URTV_RUN_DIR:-optimize/run}/install-appop.txt"   # APPOP-BEGIN
+  if [ ! -s "$appop_file" ]; then
+    appop_now=$("$PY" -I optimize/tv.py "appops get sa.urtv.home REQUEST_INSTALL_PACKAGES" 2>/dev/null | tr -d '\r' || true)
+    appop_mode=$(sed -n 's/^REQUEST_INSTALL_PACKAGES: *\(allow\|ignore\|deny\|default\|foreground\).*/\1/p' <<< "$appop_now" | head -n 1)
+    if [ -z "$appop_mode" ] && grep -q "No operations" <<< "$appop_now"; then appop_mode=default; fi   # never set: Android's own default
+    if [ -n "$appop_mode" ]; then
+      mkdir -p "$(dirname "$appop_file")"
+      printf '%s\n' "$appop_mode" > "$appop_file"
+    fi
+  fi
+  if [ -s "$appop_file" ]; then
+    "$PY" -I optimize/tv.py "appops set sa.urtv.home REQUEST_INSTALL_PACKAGES allow" || true
+  fi   # APPOP-END
 
   # The setup wizard (setupwraith) is turned off only when it really answers Home. Disabling it can delete the Wi-Fi network
   # that was saved during the first-run wizard (CleanYourTV's README, github.com/Gathin23/cleanyourtv, MIT: a network saved

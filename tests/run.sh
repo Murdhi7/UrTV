@@ -74,5 +74,6 @@ python3 tests/adhan_reply_test.py
 python3 tests/clock_zone_test.py
 python3 tests/phone_test.py
 python3 tests/phone_qr_test.py
+python3 tests/update_test.py
 python3 tests/countdown_text_test.py
 node tests/page.test.mjs
