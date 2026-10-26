@@ -2,12 +2,14 @@
 # Measure the TV's memory and load, fairly.
 #   optimize/measure.sh before                 restart, 3 minutes on the home screen, then read (about 5 minutes)
 #   optimize/measure.sh after --now            read right away, no restart
+#   optimize/measure.sh power                  what UrTV holds right now: Doze, wake locks, alarms, jobs (read-only, see optimize/power.sh)
 #   optimize/measure.sh saver --screensaver    start the screensaver, read after 60 s while it runs, then leave it
 # The TV is kept awake while it settles (its screensaver timeout is stretched, then put back), so a screensaver
 # kicking in can't spoil an idle reading. Writes optimize/run/ram-<label>.txt, adds a line to optimize/run/summary.md.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PY:-optimize/venv/bin/python}"
+[ "${1:-}" != power ] || exec optimize/power.sh   # what UrTV holds right now (Doze, wake locks, alarms, jobs); read-only
 label="${1:?usage: optimize/measure.sh LABEL [--now|--screensaver]}"
 mode="${2:-}"
 RUN="${URTV_RUN_DIR:-optimize/run}"
