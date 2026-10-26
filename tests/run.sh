@@ -25,6 +25,7 @@ python3 tests/settings_audit_test.py
 python3 tests/power_test.py
 python3 tests/familydns_test.py
 python3 tests/family_dns_test.py
+python3 tests/restore_scripts_test.py
 python3 tests/key_home_test.py
 python3 tests/dock_names_test.py
 python3 tests/dock_sleep_test.py

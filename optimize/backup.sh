@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Save the TV's current state before changing anything: every package, which ones are already
 # disabled, the home app, the screensaver, the animation speeds and the cached-apps limit. Writes optimize/backup-<time>.txt.
-# Usage: optimize/backup.sh
+# Usage: optimize/backup.sh            save the TV as it is now
+#        optimize/backup.sh scripts    write optimize/run/restore-scripts/restore.sh and restore.bat from what the tools recorded: plain
+#                                      adb commands (home, disabled apps, tweaks, screensaver, DNS) that need nothing else
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PY:-optimize/venv/bin/python}"
+[ "${1:-}" != scripts ] || exec "$PY" -I optimize/restore_scripts.py
 OUT="optimize/backup-$(date +%Y%m%d-%H%M%S).txt"
 printf '%s\n' \
   "echo '== model'; getprop ro.product.model; getprop ro.build.version.release" \
