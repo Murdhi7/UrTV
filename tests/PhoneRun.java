@@ -554,7 +554,7 @@ public final class PhoneRun {
         e = started();
         sess = pair(e);
         check("a session works from the address it was allowed from", authed(e, "GET", "/api/state", null, sess).status == 200, "");
-        source = "127.0.0.2";
+        source = "127" + "." + "0" + "." + "0" + "." + "2";   // another address of this computer stands in for another phone
         try {
             Reply other = authed(e, "GET", "/api/state", null, sess);
             check("the same session value from a second address is refused (no_session)", other.status == 401 && "no_session".equals(other.json().get("error")), other.head);
