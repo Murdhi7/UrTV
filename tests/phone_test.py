@@ -102,13 +102,20 @@ settings = text(ROOT / "docs/SETTINGS.md")
 check("FEATURES.md has «تحكم من الجوال» and says honestly what the phone page can't do", "تحكم من الجوال" in features and "لا يقدر" in features.split("تحكم من الجوال", 1)[1], "")
 check("SETTINGS.md has a row for it", "تحكم من الجوال" in settings, "")
 
+# ---- the family PIN: the phone asks the same store as the TV's keypad
+activity = text(JAVA / "PhoneActivity.java")
+check("PhoneActivity puts the family lock's PinStore behind the phone's PIN gate before anything can be asked",
+      "setPinGate(new sa.urtv.home.phone.PinStoreGate(Parental.pin(this)" in activity)
+check("the gate asks PinStore.verify (the shared lockout), never a PIN of its own", "store.verify(pin, clock.now())" in text(PHONE / "PinStoreGate.java"))
+
 # ---- the logic itself
 if not shutil.which("javac"):
     print("SKIP phone control logic: no javac here")
     sys.exit(1 if failed else 0)
-pure = ["Json", "Schema", "Pairing", "Sessions", "Guard", "QrCode", "UpdateRules", "PinGate", "Actions", "PhoneServer", "PhoneControl", "PhoneApi"]
+pure = ["Json", "Schema", "Pairing", "Sessions", "Guard", "QrCode", "UpdateRules", "PinGate", "PinStoreGate", "Actions", "PhoneServer", "PhoneControl", "PhoneApi"]
+family = [str(JAVA / "PinStore.java"), str(JAVA / "PinCrypto.java")]   # the family lock's PIN store, which the gate stands on
 with tempfile.TemporaryDirectory() as tmp:
-    subprocess.run(["javac", "-encoding", "UTF-8", "-d", tmp] + [str(PHONE / f"{n}.java") for n in pure] + [str(ROOT / "tests/PhoneRun.java")], check=True)
+    subprocess.run(["javac", "-encoding", "UTF-8", "-d", tmp] + [str(PHONE / f"{n}.java") for n in pure] + family + [str(ROOT / "tests/PhoneRun.java")], check=True)
     run = subprocess.run(["java", "-Dfile.encoding=UTF-8", "-cp", tmp, "sa.urtv.home.phone.PhoneRun"], capture_output=True)
 out = run.stdout.decode("utf-8")
 print(out, end="")

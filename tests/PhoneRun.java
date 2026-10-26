@@ -566,6 +566,68 @@ public final class PhoneRun {
         check("the allowed address still has its session, the refusals did not end it", authed(e, "GET", "/api/state", null, sess).status == 200 && e.ctl.phones().size() == 1, "");
         e.ctl.stop("owner");
 
+        // the family PIN: the same store as the TV's keypad, so one lockout for both
+        {
+            final java.util.Map<String, String> kv = new java.util.HashMap<>();
+            final sa.urtv.home.PinStore store = new sa.urtv.home.PinStore(new sa.urtv.home.PinStore.Backing() {
+                @Override public String get(String k) { return kv.get(k); }
+                @Override public void put(String k, String v) { kv.put(k, v); }
+                @Override public void remove(String k) { kv.remove(k); }
+            });
+            e = started();
+            final Env env = e;
+            e.ctl.setPinGate(new PinStoreGate(store, new PinStoreGate.Clock() { @Override public long now() { return env.now[0]; } }));
+            sess = pair(e);
+            e.actions.calls.clear();
+            check("no family PIN set: a setting from the phone goes through without one (nothing changes for those who never set a PIN)",
+                authed(e, "POST", "/api/set", "{\"adhan_on\":true}", sess).status == 200 && e.actions.calls.contains("set:[adhan_on]"), e.actions.calls.toString());
+            e.actions.calls.clear();
+            store.set("4321");
+            Reply none = authed(e, "POST", "/api/set", "{\"adhan_on\":true}", sess);
+            check("a family PIN set: /api/set without the PIN is 403 pin_required and nothing was done", none.status == 403 && "pin_required".equals(none.json().get("error")) && e.actions.calls.isEmpty(), none.body);
+            Reply inst = authed(e, "POST", "/api/update", "{\"op\":\"install\"}", sess);
+            check("so is an update install", inst.status == 403 && "pin_required".equals(inst.json().get("error")) && !e.actions.calls.contains("update:install"), inst.body);
+            check("the Quran and the keys stay open", authed(e, "POST", "/api/key", "{\"key\":\"up\"}", sess).status == 200, "");
+            e.actions.calls.clear();
+            Reply wrong = authed(e, "POST", "/api/set", "{\"adhan_on\":true,\"pin\":\"0000\"}", sess);
+            check("a wrong PIN is refused, and it counts in the TV's own store (shared tries)", wrong.status == 403 && "pin_wrong".equals(wrong.json().get("error")) && store.fails() == 1 && e.actions.calls.isEmpty(), wrong.body + store.fails());
+            Reply right = authed(e, "POST", "/api/set", "{\"adhan_on\":true,\"pin\":\"4321\"}", sess);
+            check("the right PIN lets it through (and the tries start over)", right.status == 200 && e.actions.calls.contains("set:[adhan_on]") && store.fails() == 0, right.body);
+            e.ctl.stop("owner");
+
+            // five wrong tries typed on the TV lock the phone out too, until the wait is over
+            e = started();
+            final Env env2 = e;
+            e.ctl.setPinGate(new PinStoreGate(store, new PinStoreGate.Clock() { @Override public long now() { return env2.now[0]; } }));
+            sess = pair(e);
+            e.actions.calls.clear();
+            for (int i = 0; i < sa.urtv.home.PinStore.TRIES; i++) store.verify("0000", e.now[0]);   // typed on the TV's keypad
+            check("the TV's keypad is locked after five wrong tries", store.waitLeft(e.now[0]) > 0, "");
+            Reply locked = authed(e, "POST", "/api/set", "{\"adhan_on\":true,\"pin\":\"4321\"}", sess);
+            check("the right PIN from the phone is turned away while the TV's lock lasts (403, nothing done)", locked.status == 403 && e.actions.calls.isEmpty(), locked.body);
+            e.now[0] += 61_000L;
+            Reply later = authed(e, "POST", "/api/set", "{\"adhan_on\":true,\"pin\":\"4321\"}", sess);
+            check("after the wait the right PIN works again", later.status == 200 && e.actions.calls.contains("set:[adhan_on]"), later.body);
+            e.ctl.stop("owner");
+
+            // five wrong tries from phones lock the keypad on the TV, and a new session has no fresh tries
+            store.clear();
+            store.set("4321");
+            e = started();
+            final Env env3 = e;
+            e.ctl.setPinGate(new PinStoreGate(store, new PinStoreGate.Clock() { @Override public long now() { return env3.now[0]; } }));
+            sess = pair(e);
+            int lastStatus = 0;
+            for (int i = 0; i < 5; i++) lastStatus = authed(e, "POST", "/api/set", "{\"adhan_on\":true,\"pin\":\"0000\"}", sess).status;
+            check("five wrong PINs from a phone end its session", lastStatus == 401, "" + lastStatus);
+            check("and they locked the TV's own keypad too (the same store)", store.waitLeft(e.now[0]) > 0, "");
+            String second = pair(e);
+            e.actions.calls.clear();
+            Reply fresh = authed(e, "POST", "/api/set", "{\"adhan_on\":true,\"pin\":\"4321\"}", second);
+            check("a new phone session gets no fresh tries: the right PIN is still refused while the lock lasts", fresh.status == 403 && e.actions.calls.isEmpty(), fresh.body);
+            e.ctl.stop("owner");
+        }
+
         // the PIN hook
         e = started();
         final String[] gatePin = {"1234"};

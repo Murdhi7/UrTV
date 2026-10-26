@@ -52,6 +52,7 @@ public class PhoneActivity extends Activity implements PrivateScreen {
         super.onCreate(b);
         Digits.init(this);
         control = PhoneHost.get(this);
+        control.setPinGate(new sa.urtv.home.phone.PinStoreGate(Parental.pin(this), System::currentTimeMillis));   // with a family PIN, the phone's changes ask for it (same lockout as the TV's keypad)
         ScrollView scroll = new ScrollView(this);
         scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFF0A2016, 0xFF04120C, 0xFF020806}));
         scroll.setVerticalScrollBarEnabled(false);
