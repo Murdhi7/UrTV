@@ -14,6 +14,10 @@
 #   optimize/dock.sh sleep                 how the timer stands: minutes left, and what its end will do
 #   optimize/dock.sh sleep cancel          stop it
 #   optimize/dock.sh sleep-setup           turn on the sleep service (an accessibility service, once) so the end turns the screen off
+#   optimize/dock.sh pin set 1234         «الرقابة الأبوية»: the master PIN (4 digits), set or changed from here without the old one; never printed back
+#   optimize/dock.sh pin status            what is set: PIN or not, what is locked, kids mode, wrong tries (never the PIN)
+#   optimize/dock.sh pin off               no PIN: nothing asks, kids mode ends; the apps chosen stay for the next PIN
+#   optimize/dock.sh pin reset             the PIN was forgotten: everything parental back to nothing (the PIN, the locks, kids mode, the wrong tries)
 # The home screen redraws at once; the sleep timer's pill too. Only ADB can do this (sa.urtv.home/.DockReceiver needs the shell's DUMP).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -56,6 +60,16 @@ case "${1:-}:$#" in
     esac
     "$PY" -I optimize/tv.py "settings put secure accessibility_enabled 1" >/dev/null
     echo "the sleep service is on: the end of «مؤقت النوم» turns the screen off" ;;
+  pin:*)
+    shift
+    case "${1:-}:$#" in
+      set:2) [[ "$2" =~ ^[0-9]{4}$ ]] || { echo "usage: optimize/dock.sh pin set <4 digits>"; exit 1; }
+             send PIN_SET "--es pin $2" ;;
+      status:1) send PIN_STATUS ;;
+      off:1) send PIN_OFF ;;
+      reset:1) send PIN_RESET ;;
+      *) echo "usage: optimize/dock.sh pin set <4 digits> | status | off | reset"; exit 1 ;;
+    esac ;;
   names:1) send NAMES ;;
   names-clear:1) send CLEAR_NAMES ;;
   name:*)
@@ -69,5 +83,5 @@ case "${1:-}:$#" in
       shift 2
     done
     send SET_NAMES "--es names '$pairs'" ;;
-  *) sed -n '2,17p' "$0"; exit 1 ;;
+  *) sed -n '2,21p' "$0"; exit 1 ;;
 esac

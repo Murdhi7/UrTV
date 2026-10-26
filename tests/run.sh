@@ -75,4 +75,8 @@ python3 tests/clock_zone_test.py
 python3 tests/phone_test.py
 python3 tests/phone_qr_test.py
 python3 tests/countdown_text_test.py
+python3 tests/pin_store_test.py
+python3 tests/parental_policy_test.py
+python3 tests/parental_wiring_test.py
+python3 tests/dock_pin_test.py
 node tests/page.test.mjs
