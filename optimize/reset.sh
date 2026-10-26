@@ -73,6 +73,15 @@ if [ -f "$RUNDIR/accessibility-before.txt" ]; then
     } | tv --batch > /dev/null
   fi
 fi
+# «حماية العائلة (DNS)»: the Private DNS the TV had comes back (while the app, which may have set it, is still there), then the
+# permission install.sh granted is taken back
+if [ -f "${URTV_RUN_DIR:-optimize/run}/family-dns-journal.txt" ]; then
+  optimize/familydns.sh off || echo "!! familydns: the TV's Private DNS could not be put back: run optimize/dock.sh familydns off"
+fi
+tv "am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.FAMILY_DNS --es mode off" > /dev/null 2>&1 || true   # set from the TV's row: the app puts back what it recorded
+if [ -f "${URTV_RUN_DIR:-optimize/run}/grants-journal.txt" ]; then
+  while read -r perm; do [[ "$perm" =~ ^android\.permission\.[A-Z_]+$ ]] && tv "pm revoke sa.urtv.home $perm" > /dev/null 2>&1 || true; done < "${URTV_RUN_DIR:-optimize/run}/grants-journal.txt"
+fi
 echo "3/4 Removing our apps (old and new names; missing ones are skipped)…"
 # the appop the launcher was given for the adhan (it vanishes with the app anyway)
 tv "appops set sa.urtv.home SCHEDULE_EXACT_ALARM default" > /dev/null 2>&1 || true

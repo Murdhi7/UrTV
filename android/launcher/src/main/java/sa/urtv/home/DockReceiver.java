@@ -24,6 +24,8 @@ import java.util.Map;
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.SET_NAMES --es names 'pkg|الاسم;pkg2|'   (empty: back)
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.CLEAR_NAMES
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.SLEEP_TV [--ei minutes 30 | 0 = cancel]   «مؤقت النوم» for the whole TV
+ *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.FAMILY_DNS --es mode on|off|status   «حماية العائلة (DNS)»: on/off
+ *      answer at once with "started" and finish on a background thread (the internet check takes up to ~25 s); ask status for the end
  *
  * The answer is in the "data" of am's output. optimize/dock.sh wraps them all. People use «ترتيب المفضلة»
  * (DockActivity) instead.
@@ -84,6 +86,21 @@ public class DockReceiver extends BroadcastReceiver {
                     SleepTimer.start(c, m);
                 }
                 setResultData(SleepTimer.status(c));
+                return;
+            }
+            case "sa.urtv.home.FAMILY_DNS": {   // Private DNS -> AdGuard Family, see FamilyDns. mode: on | off | status
+                String m = String.valueOf(i.getStringExtra("mode"));
+                if (!m.equals("on") && !m.equals("off") && !m.equals("status")) { setResultData("error: add --es mode on|off|status"); return; }
+                if (!m.equals("status")) {
+                    boolean started = FamilyDnsAndroid.run(c, m.equals("on"), null);
+                    setResultData(started ? "family-dns: started (" + m + "); ask status in ~30 s" : "family-dns: busy, still working on the last request");
+                    return;
+                }
+                FamilyDns.Status st = FamilyDnsAndroid.status(c);
+                String last = FamilyDnsAndroid.lastResult(c);
+                setResultData("family-dns: " + st + (FamilyDnsAndroid.busy() ? "; working" : "")
+                    + "; grant=" + (c.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) == android.content.pm.PackageManager.PERMISSION_GRANTED ? "yes" : "no")
+                    + (last.isEmpty() ? "" : "; last=" + last));
                 return;
             }
             case "sa.urtv.home.GET_DOCK":

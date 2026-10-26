@@ -22,6 +22,10 @@
     <!-- the adhan sets the TV's volume to its own level and puts it back afterwards -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
+    <!-- «حماية العائلة (DNS)»: Private DNS (Settings.Global). Granted only over ADB by optimize/install.sh `pm grant`;
+         without it the feature says so and does nothing. -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+
     <!-- the screensaver (same signing key) asks what is playing, for its «يُتلى الآن» card -->
     <permission
         android:name="sa.urtv.home.READ_NOW_PLAYING"
@@ -92,6 +96,14 @@
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.Material.NoActionBar" />
 
+        <!-- «حماية العائلة (DNS)»: Private DNS to AdGuard Family, opened from the screensaver's settings -->
+        <activity
+            android:name=".FamilyDnsActivity"
+            android:exported="true"
+            android:label="حماية العائلة"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
         <!-- «المهام»: the tasks kept by the screensaver app, with a mic (speech recognizer) -->
         <activity
             android:name=".TasksActivity"
@@ -113,6 +125,7 @@
                 <action android:name="sa.urtv.home.HIDDEN" />
                 <action android:name="sa.urtv.home.HIDE" />
                 <action android:name="sa.urtv.home.SHOW" />
+                <action android:name="sa.urtv.home.FAMILY_DNS" />
             </intent-filter>
         </receiver>
 

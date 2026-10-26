@@ -188,6 +188,9 @@ public class SettingsActivity extends Activity {
         row("ترتيب التطبيقات المفضلة", "قائمة ترتّب فيها المفضلة بالأسهم", R.drawable.ic_star,
             new Runnable() { public void run() { openDockSettings(); } });
 
+        row("حماية العائلة", "تفعيل أو إيقاف، ويرجع الإعداد القديم تلقائياً", R.drawable.ic_eye,
+            new Runnable() { public void run() { openFamilyDns(); } });
+
         if ("shows".equals(prefs.panel()) || prefs.homePanels().contains("shows")) {   // only matter for the shows card
         header("جديد المسلسلات");
         row("التصنيفات", labels(Prefs.GENRES, prefs.list("genres"), "الكل"),
@@ -488,6 +491,15 @@ public class SettingsActivity extends Activity {
                     render();
                 }).show();
         }));
+    }
+
+    /** «حماية العائلة (DNS)» lives in the launcher too: it holds the permission to write the Private DNS setting. */
+    private void openFamilyDns() {
+        try {
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.FamilyDnsActivity"));
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
     }
 
     /** «ترتيب المفضلة» lives in the launcher (it owns the row). */

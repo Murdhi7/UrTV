@@ -205,7 +205,7 @@ if [ -n "$tv_id" ] && [ "$(cat "$RUN/.tv" 2> /dev/null || true)" != "$tv_id" ]; 
   [ -f "$RUN/.tv" ] && echo "A different TV than the last run: starting from the first step."
   rm -f "$RUN"/.done-* "$RUN/steps.log"
   # what the last TV had is not this TV's (its backup, tweaks and home switch journals)
-  rm -f "$RUN/backup.txt" "$RUN/tweaks-journal.txt" "$RUN/tweaks-journal.done" "$RUN/home-switch.json" "$RUN/accessibility-before.txt" "$RUN/.screen-off-timeout"
+  rm -f "$RUN/backup.txt" "$RUN/tweaks-journal.txt" "$RUN/family-dns-journal.txt" "$RUN/family-dns-journal.done" "$RUN/grants-journal.txt" "$RUN/tweaks-journal.done" "$RUN/home-switch.json" "$RUN/accessibility-before.txt" "$RUN/.screen-off-timeout"
   echo "$tv_id" > "$RUN/.tv"
 fi
 

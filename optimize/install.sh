@@ -206,6 +206,13 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
   # 1. The new home must be installed and working BEFORE anything is disabled.
   push_install urtv-home.apk sa.urtv.home
   "$PY" -I optimize/tv.py "pm grant sa.urtv.home android.permission.ACCESS_FINE_LOCATION" || true
+  # «حماية العائلة» (Private DNS) is switched from the TV's own settings only if the app may write secure settings: granted here over
+  # ADB, recorded (optimize/run/grants-journal.txt) so optimize/reset.sh takes it back. It does nothing until the person turns the row on.
+  if "$PY" -I optimize/tv.py "pm grant sa.urtv.home android.permission.WRITE_SECURE_SETTINGS" > /dev/null 2>&1; then
+    mkdir -p "${URTV_RUN_DIR:-optimize/run}"
+    grep -qx 'android.permission.WRITE_SECURE_SETTINGS' "${URTV_RUN_DIR:-optimize/run}/grants-journal.txt" 2> /dev/null \
+      || echo 'android.permission.WRITE_SECURE_SETTINGS' >> "${URTV_RUN_DIR:-optimize/run}/grants-journal.txt"
+  fi
   # exact alarms for the adhan (Android 12 and newer; older TVs need nothing)
   "$PY" -I optimize/tv.py "appops set sa.urtv.home SCHEDULE_EXACT_ALARM allow" || true
 

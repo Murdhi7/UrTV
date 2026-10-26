@@ -1,0 +1,117 @@
+package sa.urtv.home;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.provider.Settings;
+
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.URL;
+
+/**
+ * FamilyDns on a real TV: Settings.Global through the ContentResolver (needs WRITE_SECURE_SETTINGS, granted only over ADB by
+ * optimize/install.sh `pm grant`), the record of the originals in the launcher's SharedPreferences. Everything here may block
+ * (the network): run it through {@link #run}, never on the UI thread.
+ */
+final class FamilyDnsAndroid implements FamilyDns.Ports {
+    private static final String K_HAS = "fdns_has", K_MODE = "fdns_mode", K_MODE_NULL = "fdns_mode_null",
+        K_SPEC = "fdns_spec", K_SPEC_NULL = "fdns_spec_null", K_LAST = "fdns_last";
+    private static final String CHECK = "https://connectivitycheck.gstatic.com/generate_204";
+    private static Thread worker;
+
+    private final Context c;
+    FamilyDnsAndroid(Context c) { this.c = c.getApplicationContext(); }
+
+    interface Done { void done(FamilyDns.Result r); }
+
+    /** on or off on a background thread (one at a time); the result is kept (lastResult) and handed to `done` on that thread. */
+    static synchronized boolean run(Context c, boolean enable, Done done) {
+        if (worker != null && worker.isAlive()) return false;
+        final Context app = c.getApplicationContext();
+        worker = new Thread(() -> {
+            FamilyDns f = new FamilyDns(new FamilyDnsAndroid(app));
+            FamilyDns.Result r = enable ? f.enable() : f.disable();
+            Dock.prefs(app).edit().putString(K_LAST, r.name()).commit();
+            if (done != null) done.done(r);
+        }, "family-dns");
+        worker.start();
+        return true;
+    }
+
+    static synchronized boolean busy() { return worker != null && worker.isAlive(); }
+
+    /** The last result of run(), or "" if none yet. */
+    static String lastResult(Context c) { return Dock.prefs(c).getString(K_LAST, ""); }
+
+    /** Reading is quick and local: fine anywhere. */
+    static FamilyDns.Status status(Context c) { return new FamilyDns(new FamilyDnsAndroid(c)).status(); }
+
+    @Override public boolean canWriteSecure() {
+        return c.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @Override public boolean probe(String host, int port, int timeoutMs) {
+        try (Socket s = new Socket()) {
+            s.connect(new InetSocketAddress(host, port), timeoutMs);   // the name is resolved here too
+            return true;
+        } catch (Exception e) { return false; }
+    }
+
+    @Override public String getGlobal(String key) {
+        try { return Settings.Global.getString(c.getContentResolver(), key); }
+        catch (RuntimeException e) { return FamilyDns.UNREADABLE; }
+    }
+
+    @Override public boolean putGlobal(String key, String value) {
+        try { return Settings.Global.putString(c.getContentResolver(), key, value); }
+        catch (RuntimeException e) { return false; }
+    }
+
+    /** There is no delete in the public API: putting null removes the value (it reads back as null, "not set"). */
+    @Override public boolean deleteGlobal(String key) {
+        try { return Settings.Global.putString(c.getContentResolver(), key, null); }
+        catch (RuntimeException e) { return false; }
+    }
+
+    @Override public boolean internetWorks(int totalMs) {
+        long end = System.currentTimeMillis() + totalMs;
+        while (true) {
+            long left = end - System.currentTimeMillis();
+            if (left <= 0) return false;
+            HttpURLConnection h = null;
+            try {
+                h = (HttpURLConnection) new URL(CHECK).openConnection();
+                int t = (int) Math.max(500, Math.min(4000, left));
+                h.setConnectTimeout(t);
+                h.setReadTimeout(t);
+                h.setInstanceFollowRedirects(false);
+                int code = h.getResponseCode();
+                if (code == 204 || code == 200) return true;
+            } catch (Exception e) {
+                // not yet: try again until the time is up
+            } finally {
+                if (h != null) h.disconnect();
+            }
+            try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
+        }
+    }
+
+    @Override public FamilyDns.Record loadRecord() {
+        SharedPreferences p = Dock.prefs(c);
+        if (!p.getBoolean(K_HAS, false)) return null;
+        return new FamilyDns.Record(p.getBoolean(K_MODE_NULL, false) ? null : p.getString(K_MODE, null),
+                                    p.getBoolean(K_SPEC_NULL, false) ? null : p.getString(K_SPEC, null));
+    }
+
+    @Override public boolean saveRecord(FamilyDns.Record r) {
+        return Dock.prefs(c).edit().putBoolean(K_HAS, true)
+            .putBoolean(K_MODE_NULL, r.mode == null).putString(K_MODE, r.mode)
+            .putBoolean(K_SPEC_NULL, r.specifier == null).putString(K_SPEC, r.specifier).commit();
+    }
+
+    @Override public void clearRecord() {
+        Dock.prefs(c).edit().remove(K_HAS).remove(K_MODE).remove(K_MODE_NULL).remove(K_SPEC).remove(K_SPEC_NULL).commit();
+    }
+}
