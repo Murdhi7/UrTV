@@ -54,6 +54,7 @@ with tempfile.TemporaryDirectory() as tmp:
         "am set-standby-bucket com.android.vending frequent", "cmd appops set com.android.vending RUN_IN_BACKGROUND ignore",
         "settings delete secure screensaver_default_component", "settings put secure screensaver_components com.tv.own/.Saver",
         "settings put secure screensaver_enabled 1", "settings put system screen_off_timeout 600000",
+        "am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.FAMILY_DNS --es mode off",
         "settings put global private_dns_mode opportunistic", "settings delete global private_dns_specifier",
     ]
     check("every command, exactly: home, apps (not the one already off before, not one the TV never had), tweaks, screensaver, DNS", cmds == want,
@@ -63,7 +64,7 @@ with tempfile.TemporaryDirectory() as tmp:
     sh, bat = rs.render_sh(sections), rs.render_bat(sections)
     grammar = re.compile(r'^adb shell "(pm enable [\w.]+|cmd role add-role-holder --user 0 android\.app\.role\.HOME [\w.]+|cmd package set-home-activity --user 0 [\w./]+|'
                          r'input keyevent KEYCODE_HOME|settings (put|delete) (global|secure|system) \w+( [A-Za-z0-9_.,:/@=+-]+)?|'
-                         r'device_config (put|delete) activity_manager max_cached_processes( \d+)?|am set-standby-bucket com\.android\.vending \w+|'
+                         r'am broadcast -n sa\.urtv\.home/\.DockReceiver -a sa\.urtv\.home\.FAMILY_DNS --es mode off|device_config (put|delete) activity_manager max_cached_processes( \d+)?|am set-standby-bucket com\.android\.vending \w+|'
                          r'cmd appops set com\.android\.vending \w+ \w+)"$')
     adb_lines = [l for l in sh.splitlines() if l.startswith("adb ")]
     check("restore.sh: every adb line is one of the known commands, in double quotes, nothing else runs", len(adb_lines) == len(want) and all(grammar.match(l) for l in adb_lines),
@@ -84,14 +85,25 @@ with tempfile.TemporaryDirectory() as tmp:   # another holder before the switch,
     cmds = commands(sections)
     check("the previous home is the one that gets the role (and no set-home-activity for the stock one)",
           "cmd role add-role-holder --user 0 android.app.role.HOME com.other.launcher" in cmds and not any("set-home-activity" in c for c in cmds), str(cmds))
+    check("and that launcher is enabled first, like the journal restore does", cmds.index("pm enable com.other.launcher") < cmds.index("cmd role add-role-holder --user 0 android.app.role.HOME com.other.launcher"), str(cmds))
     check("a value with a character they do not send is left out and said; an exempted bucket is not forced",
           not any("reboot" in c or "window_animation" in c or "standby" in c for c in cmds) and any("0.5;reboot" in v for v in skipped), str(skipped))
+
+with tempfile.TemporaryDirectory() as tmp:   # the TV had a screensaver with an unusual name: never deleted
+    run, lists = sample(tmp)
+    b = (run / "backup.txt").read_text().replace("com.tv.own/.Saver", "com.tv.own/.Saver$Inner")
+    (run / "backup.txt").write_text(b)
+    sections, skipped = rs.build(run, lists)
+    cmds = commands(sections)
+    check("a screensaver name with a character they do not send: left as it is (not deleted), and said",
+          "settings delete secure screensaver_components" not in cmds and not any("screensaver_components" in c for c in cmds) and any("Saver$Inner" in v for v in skipped), str(cmds))
 
 with tempfile.TemporaryDirectory() as tmp:   # nothing recorded
     run = Path(tmp) / "run"; run.mkdir()
     sections, skipped = rs.build(run, Path(tmp) / "nolists")
     cmds = commands(sections)
-    check("nothing recorded: no commands, only comments saying so", cmds == [] and all(any(c.startswith("#") for c in cmds_) for _, cmds_ in sections), str(sections))
+    check("nothing recorded: only the (harmless) ask to the home app to switch its DNS off, and comments saying so",
+          cmds == ["am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.FAMILY_DNS --es mode off"] and all(any(c.startswith("#") for c in cmds_) for _, cmds_ in sections), str(sections))
 
 with tempfile.TemporaryDirectory() as tmp:   # through optimize/backup.sh scripts, with the real entry point
     run, lists = sample(tmp)

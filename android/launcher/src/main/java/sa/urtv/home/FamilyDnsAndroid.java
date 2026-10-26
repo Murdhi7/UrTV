@@ -3,6 +3,10 @@ package sa.urtv.home;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.Network;
+import android.os.Build;
 import android.provider.Settings;
 
 import java.net.HttpURLConnection;
@@ -12,17 +16,37 @@ import java.net.URL;
 
 /**
  * FamilyDns on a real TV: Settings.Global through the ContentResolver (needs WRITE_SECURE_SETTINGS, granted only over ADB by
- * optimize/install.sh `pm grant`), the record of the originals in the launcher's SharedPreferences. Everything here may block
+ * `optimize/dock.sh familydns grant`), the record of the originals in the launcher's SharedPreferences. Everything here may block
  * (the network): run it through {@link #run}, never on the UI thread.
  */
 final class FamilyDnsAndroid implements FamilyDns.Ports {
     private static final String K_HAS = "fdns_has", K_MODE = "fdns_mode", K_MODE_NULL = "fdns_mode_null",
-        K_SPEC = "fdns_spec", K_SPEC_NULL = "fdns_spec_null", K_LAST = "fdns_last";
+        K_SPEC = "fdns_spec", K_SPEC_NULL = "fdns_spec_null", K_LAST = "fdns_last", K_CHECKING = "fdns_checking_since";
+    private static boolean recovered;
     private static final String CHECK = "https://connectivitycheck.gstatic.com/generate_204";
     private static Thread worker;
 
     private final Context c;
     FamilyDnsAndroid(Context c) { this.c = c.getApplicationContext(); }
+
+    /** Once per process (and at boot, SleepBootReceiver): a 20 s check cut short by a crash or a reboot puts the originals back. */
+    static synchronized void recover(Context c) {
+        recovered = true;
+        if (busy()) return;
+        new FamilyDns(new FamilyDnsAndroid(c)).recover();
+    }
+
+    private static synchronized void recoverOnce(Context c) { if (!recovered) recover(c); }
+
+    /** "off": no network call, so it runs where it is called. The result is kept (lastResult). */
+    static FamilyDns.Result disableNow(Context c) {
+        recoverOnce(c);
+        FamilyDns.Result r = new FamilyDns(new FamilyDnsAndroid(c)).disable();
+        Dock.prefs(c).edit().putString(K_LAST, r.name()).commit();
+        return r;
+    }
+
+    static boolean supported(Context c) { return new FamilyDns(new FamilyDnsAndroid(c)).supported(); }
 
     interface Done { void done(FamilyDns.Result r); }
 
@@ -30,6 +54,7 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
     static synchronized boolean run(Context c, boolean enable, Done done) {
         if (worker != null && worker.isAlive()) return false;
         final Context app = c.getApplicationContext();
+        recoverOnce(app);
         worker = new Thread(() -> {
             FamilyDns f = new FamilyDns(new FamilyDnsAndroid(app));
             FamilyDns.Result r = enable ? f.enable() : f.disable();
@@ -46,7 +71,7 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
     static String lastResult(Context c) { return Dock.prefs(c).getString(K_LAST, ""); }
 
     /** Reading is quick and local: fine anywhere. */
-    static FamilyDns.Status status(Context c) { return new FamilyDns(new FamilyDnsAndroid(c)).status(); }
+    static FamilyDns.Status status(Context c) { recoverOnce(c); return new FamilyDns(new FamilyDnsAndroid(c)).status(); }
 
     @Override public boolean canWriteSecure() {
         return c.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED;
@@ -75,6 +100,28 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
         catch (RuntimeException e) { return false; }
     }
 
+    @Override public int sdkInt() { return Build.VERSION.SDK_INT; }
+
+    /** The active network says Private DNS is active with our host (API 28+): only then is an answer not from the old resolver. */
+    @Override public boolean privateDnsValidated(String host, int ms) {
+        if (Build.VERSION.SDK_INT < FamilyDns.MIN_SDK) return false;
+        long end = System.currentTimeMillis() + ms;
+        try {
+            ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
+            while (System.currentTimeMillis() < end) {
+                Network n = cm.getActiveNetwork();
+                LinkProperties lp = n == null ? null : cm.getLinkProperties(n);
+                if (lp != null && lp.isPrivateDnsActive() && host.equals(lp.getPrivateDnsServerName())) return true;
+                Thread.sleep(500);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (RuntimeException e) {
+            // no connectivity service: not validated
+        }
+        return false;
+    }
+
     @Override public boolean internetWorks(int totalMs) {
         long end = System.currentTimeMillis() + totalMs;
         while (true) {
@@ -86,6 +133,8 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
                 int t = (int) Math.max(500, Math.min(4000, left));
                 h.setConnectTimeout(t);
                 h.setReadTimeout(t);
+                h.setUseCaches(false);
+                h.setRequestProperty("Cache-Control", "no-cache");
                 h.setInstanceFollowRedirects(false);
                 int code = h.getResponseCode();
                 if (code == 204 || code == 200) return true;
@@ -97,6 +146,10 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
             try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
         }
     }
+
+    @Override public long checkingSince() { return Dock.prefs(c).getLong(K_CHECKING, 0); }
+    @Override public boolean markChecking() { return Dock.prefs(c).edit().putLong(K_CHECKING, System.currentTimeMillis()).commit(); }
+    @Override public void clearChecking() { Dock.prefs(c).edit().remove(K_CHECKING).commit(); }
 
     @Override public FamilyDns.Record loadRecord() {
         SharedPreferences p = Dock.prefs(c);

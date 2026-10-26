@@ -25,7 +25,12 @@ import java.util.Map;
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.CLEAR_NAMES
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.SLEEP_TV [--ei minutes 30 | 0 = cancel]   «مؤقت النوم» for the whole TV
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.FAMILY_DNS --es mode on|off|status   «حماية العائلة (DNS)»: on/off
- *      answer at once with "started" and finish on a background thread (the internet check takes up to ~25 s); ask status for the end
+ *      answers (the shell script depends on these exact lines):
+ *        off     runs here, at once (no network call): "family-dns: RESTORED | NOTHING_TO_RESTORE | RESTORE_FAILED | CHANGED_BY_SOMEONE_ELSE"
+ *                (or "family-dns: busy" while an "on" check runs)
+ *        on      "family-dns: started (on)" and the ~20 s check runs on a background thread; or "family-dns: busy",
+ *                "family-dns: NEEDS_GRANT", "family-dns: UNSUPPORTED"
+ *        status  "family-dns: <on|off|unknown> (<us|other|none>); grant=<yes|no>; last=<RESULT or none>[; working]; supported=<yes|no>"
  *
  * The answer is in the "data" of am's output. optimize/dock.sh wraps them all. People use «ترتيب المفضلة»
  * (DockActivity) instead.
@@ -91,16 +96,23 @@ public class DockReceiver extends BroadcastReceiver {
             case "sa.urtv.home.FAMILY_DNS": {   // Private DNS -> AdGuard Family, see FamilyDns. mode: on | off | status
                 String m = String.valueOf(i.getStringExtra("mode"));
                 if (!m.equals("on") && !m.equals("off") && !m.equals("status")) { setResultData("error: add --es mode on|off|status"); return; }
-                if (!m.equals("status")) {
-                    boolean started = FamilyDnsAndroid.run(c, m.equals("on"), null);
-                    setResultData(started ? "family-dns: started (" + m + "); ask status in ~30 s" : "family-dns: busy, still working on the last request");
+                if (m.equals("off")) {
+                    if (FamilyDnsAndroid.busy()) { setResultData("family-dns: busy"); return; }
+                    setResultData("family-dns: " + FamilyDnsAndroid.disableNow(c).name());
+                    return;
+                }
+                boolean grant = c.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                boolean supported = FamilyDnsAndroid.supported(c);
+                if (m.equals("on")) {
+                    if (!supported) { setResultData("family-dns: UNSUPPORTED"); return; }
+                    if (!grant) { setResultData("family-dns: NEEDS_GRANT"); return; }
+                    setResultData(FamilyDnsAndroid.run(c, true, null) ? "family-dns: started (on)" : "family-dns: busy");
                     return;
                 }
                 FamilyDns.Status st = FamilyDnsAndroid.status(c);
                 String last = FamilyDnsAndroid.lastResult(c);
-                setResultData("family-dns: " + st + (FamilyDnsAndroid.busy() ? "; working" : "")
-                    + "; grant=" + (c.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) == android.content.pm.PackageManager.PERMISSION_GRANTED ? "yes" : "no")
-                    + (last.isEmpty() ? "" : "; last=" + last));
+                setResultData("family-dns: " + st + "; grant=" + (grant ? "yes" : "no") + "; last=" + (last.isEmpty() ? "none" : last)
+                    + (FamilyDnsAndroid.busy() ? "; working" : "") + "; supported=" + (supported ? "yes" : "no"));
                 return;
             }
             case "sa.urtv.home.GET_DOCK":

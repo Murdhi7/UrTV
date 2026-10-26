@@ -16,8 +16,11 @@ import android.widget.TextView;
 
 /**
  * «حماية العائلة (DNS)»: one switch, with the remote. On sets Android's Private DNS to AdGuard Family after checking the service can
- * be reached, and puts the old setting back by itself if the internet stops working (see FamilyDns). Without the permission the
- * switch says «يحتاج تفعيل من الكمبيوتر» and does nothing. Opened from the screensaver's settings (الشاشة الرئيسية ← حماية العائلة)
+ * be reached. The old setting goes back by itself only during the 20-second check after switching on (if Private DNS does not
+ * validate or the internet stops); after that the person turns it off from the row, and it works offline (see FamilyDns). Without
+ * the permission the switch says «يحتاج تفعيل من الكمبيوتر» and does nothing; on Android below 9 (API 28) it says it is unsupported;
+ * when Private DNS already points at our host without our record (set from the computer) the switch does nothing either.
+ * Exported, but guarded by the signature permission sa.urtv.home.FAMILY_DNS (the screensaver has the same key). Opened from the screensaver's settings (الشاشة الرئيسية ← حماية العائلة)
  * or `am start -n sa.urtv.home/.FamilyDnsActivity`. The page polls once a second only while a check is running and the screen is
  * in front.
  */
@@ -26,7 +29,7 @@ public class FamilyDnsActivity extends Activity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable poll = new Runnable() { public void run() { refresh(); } };
-    private TextView state, message, button;
+    private TextView state, message, button, hint;
     private String last = "";
 
     @Override
@@ -62,7 +65,9 @@ public class FamilyDnsActivity extends Activity {
         col.addView(button, right(dp(16)));
 
         message = text("", 14, "Regular", DIM);
-        col.addView(message, right(0));
+        col.addView(message, right(dp(10)));
+        hint = text("يرجع الإعداد القديم تلقائياً فقط أثناء الفحص (٢٠ ثانية). بعدها توقفها من هنا، وتشتغل بدون إنترنت.", 13, "Regular", DIM);
+        col.addView(hint, right(0));
         setContentView(scroll);
         button.requestFocus();
     }
@@ -75,8 +80,10 @@ public class FamilyDnsActivity extends Activity {
     }
 
     private void toggle() {
-        if (!new FamilyDnsAndroid(this).canWriteSecure() || FamilyDnsAndroid.busy()) return;   // no permission: the switch does nothing
-        final boolean enable = FamilyDnsAndroid.status(this).state != FamilyDns.State.ON;
+        if (!FamilyDnsAndroid.supported(this) || !new FamilyDnsAndroid(this).canWriteSecure() || FamilyDnsAndroid.busy()) return;
+        FamilyDns.Status now = FamilyDnsAndroid.status(this);
+        if (now.state == FamilyDns.State.ON && "other".equals(now.by)) return;   // set from the computer: no second record
+        final boolean enable = now.state != FamilyDns.State.ON;
         FamilyDnsAndroid.run(this, enable, new FamilyDnsAndroid.Done() {
             public void done(final FamilyDns.Result r) {
                 runOnUiThread(new Runnable() { public void run() { last = FamilyDns.arabic(r); refresh(); } });
@@ -87,15 +94,22 @@ public class FamilyDnsActivity extends Activity {
 
     private void refresh() {
         handler.removeCallbacks(poll);
+        if (!FamilyDnsAndroid.supported(this)) {
+            state.setText("غير مدعومة في هذا التلفزيون (أندرويد قديم)");
+            button.setText("غير متاح");
+            button.setAlpha(.5f);
+            message.setText("");
+            return;
+        }
         if (!new FamilyDnsAndroid(this).canWriteSecure()) {
             state.setText("يحتاج تفعيل من الكمبيوتر");
             button.setText("غير متاح");
             button.setAlpha(.5f);
-            message.setText("اطلب من وكيلك تشغيل التثبيت من جديد (optimize/install.sh launcher) ليعطي الواجهة الإذن.");
+            message.setText("اطلب من وكيلك تشغيل: optimize/dock.sh familydns grant");
             return;
         }
         button.setAlpha(1f);
-        if (FamilyDnsAndroid.busy()) {   // a check takes up to about 25 seconds
+        if (FamilyDnsAndroid.busy()) {   // a check takes up to about 20 seconds
             state.setText("جارٍ الفحص…");
             button.setText("انتظر");
             message.setText("");
@@ -103,6 +117,13 @@ public class FamilyDnsActivity extends Activity {
             return;
         }
         FamilyDns.Status s = FamilyDnsAndroid.status(this);
+        if (s.state == FamilyDns.State.ON && "other".equals(s.by)) {
+            state.setText("مفعّلة من الكمبيوتر، أوقفها من هناك");
+            button.setText("غير متاح");
+            button.setAlpha(.5f);
+            message.setText(last);
+            return;
+        }
         state.setText("الحالة: " + FamilyDns.arabic(s));
         button.setText(s.state == FamilyDns.State.ON ? "إيقاف الحماية" : "تفعيل الحماية");
         message.setText(last);

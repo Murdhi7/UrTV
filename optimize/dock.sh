@@ -13,7 +13,7 @@
 #   optimize/dock.sh sleep 30              «مؤقت النوم» for the whole TV: 15 30 60 90, or any 1 to 600 minutes; then the TV goes to sleep
 #   optimize/dock.sh sleep                 how the timer stands: minutes left, and what its end will do
 #   optimize/dock.sh sleep cancel          stop it
-#   optimize/dock.sh familydns on|off|status   «حماية العائلة (DNS)»: Private DNS to AdGuard Family, checked and undone by optimize/familydns.sh
+#   optimize/dock.sh familydns on|off|status|grant   «حماية العائلة (DNS)»: Private DNS to AdGuard Family, checked and undone by optimize/familydns.sh
 #   optimize/dock.sh sleep-setup           turn on the sleep service (an accessibility service, once) so the end turns the screen off
 # The home screen redraws at once; the sleep timer's pill too. Only ADB can do this (sa.urtv.home/.DockReceiver needs the shell's DUMP).
 set -euo pipefail

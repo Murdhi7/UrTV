@@ -75,6 +75,8 @@ def build(run, lists):
         if stock and ok(stock, pkg, holder):
             home += [f"pm enable {pkg}", f"pm enable {WRAITH}"]
             home += [f"pm enable {p}" for p in listed(lists / "home-replaced.txt") if ok(p)]
+            if holder != pkg:   # another launcher was home before: it must be on for the role to go back to it
+                home += [f"pm enable {holder}"]
             home += [f"cmd role add-role-holder --user 0 android.app.role.HOME {holder}"]
             if holder == pkg:
                 home += [f"cmd package set-home-activity --user 0 {stock}"]
@@ -134,10 +136,13 @@ def build(run, lists):
     if len(vals) >= 3:
         comps, enabled, timeout = vals[0].strip(), vals[1].strip(), vals[2].strip()
         ss.append("settings delete secure screensaver_default_component")
-        if re.match(r"^[A-Za-z0-9_.]+/[A-Za-z0-9_.]+(,[A-Za-z0-9_.]+/[A-Za-z0-9_.]+)*$", comps) and OURS not in comps and ok(comps):
-            ss.append(f"settings put secure screensaver_components {comps}")
-        else:
+        if comps in ("", "null") or OURS in comps:   # none before, or ours from an earlier setup: the TV picks its own
             ss.append("settings delete secure screensaver_components")
+        elif re.match(r"^[A-Za-z0-9_.]+/[A-Za-z0-9_.]+(,[A-Za-z0-9_.]+/[A-Za-z0-9_.]+)*$", comps) and ok(comps):
+            ss.append(f"settings put secure screensaver_components {comps}")
+        else:   # the TV had one, but its name has a character these scripts do not send: left as it is, never deleted
+            skipped.append(comps)
+            ss.append("# the TV's own screensaver could not be written here (an unusual name); it is left as it is")
         for key, ns, val in (("screensaver_enabled", "secure", enabled), ("screen_off_timeout", "system", timeout)):
             if val == "null":
                 ss.append(f"settings delete {ns} {key}")
@@ -148,7 +153,8 @@ def build(run, lists):
     out.append(("The screensaver the TV had", ss))
 
     # 5. Private DNS
-    dns = []
+    dns = ["# if «حماية العائلة» was switched on from the TV's settings, the home app puts the old setting back (harmless if it was not)",
+           f"am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.FAMILY_DNS --es mode off"]
     d = read(run / "family-dns-journal.txt")
     if d is None:
         dns += ["# no family DNS journal here: the Private DNS setting was not changed by these tools (or is already back)"]

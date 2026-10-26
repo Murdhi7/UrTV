@@ -1,5 +1,6 @@
-"""optimize/dock.sh familydns on|off|status (optimize/familydns.sh): the probe, the record, the read-back, the internet check and the
-exact restore, against a fake TV whose settings are files. No TV needed.
+"""optimize/dock.sh familydns (optimize/familydns.sh) against a fake TV whose settings are files, with and without the home app on
+it: the probe, the record, the TV-side watchdog, the read-back, the internet check, the exact restore, an interrupted run, an old
+Android, and reset.sh stopping when the original cannot be put back. No TV needed.
 
     python3 tests/familydns_test.py
 """
@@ -10,23 +11,43 @@ ROOT = Path(__file__).resolve().parent.parent
 STUB = r'''#!/usr/bin/env bash
 shift 2
 S="$T/tv"; mkdir -p "$S"
+echo "$1" >> "$T/calls"
+[ -f "$T/dropped" ] && exit 1   # the connection is gone (after the put batch, when DROP_AFTER_PUT is set)
 refused() { case " $REFUSE " in *" $1 "*) return 0 ;; esac; return 1; }
+unset_key() { mv "$S/$1" "$T/gone.$1" 2> /dev/null || true; }   # a setting that is not set is a missing file
 apply_line() { set -- $1
   case "$1 $2" in
     "settings put") refused "$4" || echo "$5" > "$S/$4" ;;
-    "settings delete") refused "$4" || rm -f "$S/$4" ;;
+    "settings delete") refused "$4" || unset_key "$4" ;;
   esac; }
+app_status() { echo "family-dns: $( [ "$(cat "$S/private_dns_mode" 2>/dev/null)" = hostname ] && echo on || echo off ) ($( [ -f "$S/app_record" ] && echo us || echo none)); grant=$(cat "$S/grant" 2>/dev/null || echo "$GRANT"); last=$(cat "$S/last" 2>/dev/null || echo none); supported=yes"; }
 case "$1" in
-  --batch) while read -r l; do echo "$l" >> "$T/batch"; apply_line "$l"; done ;;
+  --batch) while read -r l; do echo "$l" >> "$T/batch"; apply_line "$l"; done
+           [ -n "$DROP_AFTER_PUT" ] && grep -q "private_dns_mode hostname" "$T/batch" && touch "$T/dropped"; exit 0 ;;
+  "getprop ro.build.version.sdk") echo "$SDK" ;;
+  "pm list packages sa.urtv.home") [ "$HOMEAPP" = yes ] && echo "package:sa.urtv.home" ;;
+  "pm grant "*) [ "$GRANT_REFUSED" = yes ] && exit 1; echo yes > "$S/grant"; echo "grant" >> "$T/events" ;;
   "settings get global "*) k=${1##* }; [ "$UNREADABLE" = yes ] && exit 1; f="$S/$k"; [ -f "$f" ] && cat "$f" || echo null ;;
-  *"nc --help"*) [ "$NONC" = yes ] && echo "toybox: Unknown command nc" || echo "usage: netcat [-46ELlntUu] [-pPORT] [-sADDR] [-wSECS] ..." ;;
-  *"nc -z"*) host=$(echo "$1" | awk '{for (i = 1; i <= NF; i++) if ($i == "-z") { print $(i + 3); exit }}')
+  *"--help"*) [ "$NONC" = yes ] && echo "toybox: Unknown command nc" || echo "usage: netcat [-46ELlntUu] ..." ;;
+  *"nc -w 3"*) host=$(echo "$1" | awk '{for (i = 1; i <= NF; i++) if ($i == "-w") { print $(i + 2); exit }}')
        [ "$NONC" = yes ] && { echo "toybox: Unknown command nc"; exit 0; }
        case "$host" in
          family.adguard-dns.com) [ "$NOFAMILY" = yes ] && echo NOREACH || echo REACH ;;
-         connectivitycheck.gstatic.com) echo ping >> "$T/pings"; [ "$BREAK" = yes ] && [ "$(cat "$S/private_dns_mode" 2>/dev/null)" = hostname ] && echo NOREACH || echo REACH ;;
+         connectivitycheck.gstatic.com|www.gstatic.com) [ "$BREAK" = yes ] && [ "$(cat "$S/private_dns_mode" 2>/dev/null)" = hostname ] && echo NOREACH || echo REACH ;;
          *) echo NOREACH ;;
        esac ;;
+  "dumpsys connectivity"*) if [ "$(cat "$S/private_dns_mode" 2>/dev/null)" = hostname ] && [ "$NOVALID" != yes ]; then echo "    PrivateDnsConfig{family.adguard-dns.com:[]}"; fi ;;
+  "touch "*) echo "$1" >> "$T/events" ;;
+  *"FAMILY_DNS --es mode status") echo "Broadcast completed: result=0, data=\"$(app_status)\"" ;;
+  *"FAMILY_DNS --es mode on") if [ "$(cat "$S/grant" 2>/dev/null || echo "$GRANT")" != yes ]; then echo 'Broadcast completed: result=0, data="family-dns: NEEDS_GRANT"'
+       else echo "app-on" >> "$T/events"
+         if [ -n "$APP_RESULT" ] && [ "$APP_RESULT" != ENABLED ]; then echo "$APP_RESULT" > "$S/last"
+         else echo hostname > "$S/private_dns_mode"; echo family.adguard-dns.com > "$S/private_dns_specifier"; echo x > "$S/app_record"; echo ENABLED > "$S/last"; fi
+         echo 'Broadcast completed: result=0, data="family-dns: started (on)"'; fi ;;
+  *"FAMILY_DNS --es mode off") echo "app-off" >> "$T/events"
+       if [ -n "$OFF_RESULT" ]; then r=$OFF_RESULT
+       elif [ -f "$S/app_record" ]; then unset_key app_record; unset_key private_dns_mode; unset_key private_dns_specifier; r=RESTORED; else r=NOTHING_TO_RESTORE; fi
+       echo "Broadcast completed: result=0, data=\"family-dns: $r\"" ;;
 esac
 exit 0
 '''
@@ -39,14 +60,15 @@ def check(name, ok, detail=""):
 class Tv:
     def __init__(self, **settings):
         self.t = Path(tempfile.mkdtemp()); self.tree = self.t / "tree"; (self.tree / "optimize").mkdir(parents=True)
-        for f in ("familydns.sh",): shutil.copy(ROOT / "optimize" / f, self.tree / "optimize")
+        shutil.copy(ROOT / "optimize" / "familydns.sh", self.tree / "optimize")
         (self.t / "py").write_text(STUB); (self.t / "py").chmod(0o755)
         (self.t / "sleep").write_text("#!/bin/sh\nexit 0\n"); (self.t / "sleep").chmod(0o755)
         (self.t / "tv").mkdir()
         for k, v in settings.items(): (self.t / "tv" / k).write_text(v + "\n")
     def run(self, *args, **env):
-        e = dict(os.environ, T=str(self.t), PY=str(self.t / "py"), PATH=f"{self.t}:{os.environ['PATH']}", REFUSE="", UNREADABLE="", NONC="", NOFAMILY="", BREAK="")
-        e.update({k.upper(): v for k, v in env.items()})
+        e = dict(os.environ, T=str(self.t), PY=str(self.t / "py"), PATH=f"{self.t}:{os.environ['PATH']}", REFUSE="", UNREADABLE="", NONC="", NOFAMILY="", BREAK="",
+                 SDK="30", HOMEAPP="", GRANT="no", NOVALID="", DROP_AFTER_PUT="", APP_RESULT="", OFF_RESULT="", GRANT_REFUSED="")
+        e.update({("HOMEAPP" if k == "app" else k.upper()): v for k, v in env.items()})
         r = subprocess.run(["bash", str(self.tree / "optimize" / "familydns.sh"), *args], env=e, capture_output=True, text=True, cwd=self.tree)
         return r.returncode, r.stdout + r.stderr
     def get(self, k):
@@ -55,53 +77,114 @@ class Tv:
     def batch(self):
         f = self.t / "batch"
         return f.read_text() if f.exists() else ""
+    def events(self):
+        f = self.t / "events"
+        return f.read_text() if f.exists() else ""
     def journal(self):
         f = self.tree / "optimize" / "run" / "family-dns-journal.txt"
         return f.read_text() if f.exists() else None
 
 H = "family.adguard-dns.com"
-# on, then off: exact restore of values the TV had
+# ---- no home app on the TV: the script does it, with a watchdog on the TV
 tv = Tv(private_dns_mode="opportunistic", private_dns_specifier="dns.example")
 rc, out = tv.run("on")
-check("on: probed, recorded, set, internet checked", rc == 0 and tv.get("private_dns_mode") == "hostname" and tv.get("private_dns_specifier") == H
-      and "private_dns_mode=opportunistic" in tv.journal() and "private_dns_specifier=dns.example" in tv.journal() and "!!" not in out, f"{out} {tv.journal()}")
+b = tv.batch()
+check("script on: probed, recorded, set, validated, internet checked", rc == 0 and tv.get("private_dns_mode") == "hostname" and tv.get("private_dns_specifier") == H
+      and "private_dns_mode=opportunistic" in tv.journal() and "!!" not in out, f"{out} {tv.journal()}")
+check("a watchdog is armed on the TV BEFORE the put, with the old values, and the marker is touched only after the internet check",
+      "nohup sh -c 'sleep 45;" in b and b.index("nohup sh -c") < b.index("settings put global private_dns_mode hostname")
+      and "settings put global private_dns_mode opportunistic" in b.split("nohup sh -c")[1].split("\n")[0] and "touch /data/local/tmp/urtv_dns_ok." in tv.events(), b + tv.events())
 rc, out = tv.run("status")
 check("status: on, and what was recorded", "on (" + H in out and "opportunistic" in out, out)
 rc, out = tv.run("off")
-check("off: exactly what the TV had", rc == 0 and tv.get("private_dns_mode") == "opportunistic" and tv.get("private_dns_specifier") == "dns.example" and tv.journal() is None, f"{out}")
+check("script off: exactly what the TV had", rc == 0 and tv.get("private_dns_mode") == "opportunistic" and tv.get("private_dns_specifier") == "dns.example" and tv.journal() is None, out)
 rc, out = tv.run("off")
-check("a second off changes nothing", rc == 0 and "already switched off" in out)
+check("a second off changes nothing", rc == 0 and "already switched off" in out, out)
 
-# values that were not set are deleted, not written as defaults
 tv = Tv()
 tv.run("on"); rc, out = tv.run("off")
 check("off of values that were not set: deleted (null), never a default", tv.get("private_dns_mode") == "null" and tv.get("private_dns_specifier") == "null"
       and "settings delete global private_dns_mode" in tv.batch(), tv.batch())
 
-# the probe refuses: nothing changes
 tv = Tv(private_dns_mode="off")
 rc, out = tv.run("on", nofamily="yes")
-check("the service cannot be reached: a !! line, nothing changed, nothing recorded", rc == 1 and "!! familydns: this TV cannot reach family.adguard-dns.com on port 853" in out
+check("the service cannot be reached: a !! line, nothing changed, nothing recorded, no watchdog", rc == 1 and "!! familydns: this TV cannot reach family.adguard-dns.com on port 853" in out
       and tv.get("private_dns_mode") == "off" and tv.journal() is None and tv.batch() == "", out)
 rc, out = tv.run("on", nonc="yes")
-check("no tool to test with: refused, nothing changed", rc == 1 and "no tool to test" in out and tv.get("private_dns_mode") == "off" and tv.journal() is None, out)
+check("no tool to test with (an old toybox): refused, nothing changed", rc == 1 and "no tool to test" in out and tv.get("private_dns_mode") == "off" and tv.journal() is None, out)
 tv2 = Tv(private_dns_mode="off")
 rc, out = tv2.run("on", unreadable="yes")
 check("a setting that cannot be read: refused, never recorded as null", rc == 1 and "could not read" in out and tv2.journal() is None, out)
-
-# the internet breaks: put back at once
 tv = Tv(private_dns_mode="opportunistic")
 rc, out = tv.run("on", **{"break": "yes"})
 check("the internet breaks under it: the recorded values are back at once, with a !! line", rc == 1 and "!! familydns: the internet did not work" in out
       and tv.get("private_dns_mode") == "opportunistic" and tv.get("private_dns_specifier") == "null", f"{out} {tv.get('private_dns_mode')}")
-
-# the TV refuses the setting
+tv = Tv(private_dns_mode="opportunistic")
+rc, out = tv.run("on", novalid="yes")
+check("the system never shows the private DNS as validated: the old values are back (a cached answer is not enough)", rc == 1 and "did not work" in out and tv.get("private_dns_mode") == "opportunistic", out)
 tv = Tv(private_dns_mode="off")
 rc, out = tv.run("on", refuse="private_dns_specifier")
 check("the TV does not take the setting: put back, with a !! line", rc == 1 and "did not take" in out and tv.get("private_dns_mode") == "off", out)
 
-# a second on does not overwrite the record with our own values
+# an interrupted run: the computer drops after the put batch
 tv = Tv(private_dns_mode="opportunistic")
-tv.run("on"); first = tv.journal(); tv.run("on")
-check("on twice: the first record stays", tv.journal() == first and "opportunistic" in first)
+rc, out = tv.run("on", drop_after_put="yes")
+check("the connection drops after the put: not silent (a !! line), the TV-side watchdog was armed first and puts the old values back itself",
+      rc != 0 and "!! familydns" in out and "could not be put back from here" in out and "within 45 seconds" in out and "nohup sh -c 'sleep 45;" in tv.batch() and tv.journal() is not None, f"{rc} {out}")
+
+# an old Android
+tv = Tv(private_dns_mode="off")
+rc, out = tv.run("on", sdk="26")
+check("Android 8 (API 26) has no Private DNS: refused, nothing changed", rc == 1 and "older than 9" in out and tv.get("private_dns_mode") == "off" and tv.journal() is None and tv.batch() == "", out)
+
+# only while the value is still ours
+tv = Tv(private_dns_mode="opportunistic")
+tv.run("on"); (tv.t / "tv" / "private_dns_specifier").write_text("other.example\n")
+rc, out = tv.run("off")
+check("off after someone else changed the setting: left as it is, the record dropped, and it says so", rc == 0 and tv.get("private_dns_specifier") == "other.example"
+      and "changed by someone else" in out and tv.journal() is None, out)
+
+# ---- the home app is on the TV: it does the work and keeps the record
+tv = Tv(private_dns_mode="opportunistic")
+rc, out = tv.run("on", app="yes", grant="yes")
+check("with the app and the grant: the app is asked, the script waits for its answer, and writes no record of its own",
+      rc == 0 and "app-on" in tv.events() and "switched by the home app" in out and tv.journal() is None and tv.get("private_dns_mode") == "hostname", f"{out} {tv.events()}")
+rc, out = tv.run("off", app="yes", grant="yes")
+check("off with the app: the app puts it back (synchronous answer RESTORED)", rc == 0 and "app-off" in tv.events() and "put back by the home app" in out and tv.get("private_dns_mode") == "null", out)
+tv = Tv(private_dns_mode="opportunistic")
+rc, out = tv.run("on", app="yes", grant="no")
+check("with the app but no grant yet: the grant is made first (on request), then the app is used", rc == 0 and tv.events().index("grant") < tv.events().index("app-on")
+      and "WRITE_SECURE_SETTINGS" in (tv.tree / "optimize/run/grants-journal.txt").read_text(), f"{out} {tv.events()}")
+tv = Tv()
+rc, out = tv.run("on", app="yes", grant="no", grant_refused="yes")
+check("a TV that refuses the grant: a !! line, nothing switched", rc == 1 and "!!" in out and "app-on" not in tv.events(), out)
+tv = Tv()
+rc, out = tv.run("on", app="yes", grant="yes", app_result="NO_ROUTE")
+check("the app cannot reach the service: its result is explained in a !! line", rc == 1 and "!! familydns: this TV cannot reach family.adguard-dns.com" in out, out)
+tv = Tv()
+rc, out = tv.run("on", app="yes", grant="yes", app_result="REVERTED")
+check("the app reverted because the internet broke: said in a !! line", rc == 1 and "the internet did not work" in out, out)
+tv = Tv(private_dns_mode="opportunistic")
+tv.run("on", app="yes", grant="yes")
+rc, out = tv.run("off", app="yes", grant="yes", off_result="RESTORE_FAILED")
+check("the app could not put it back: a !! line and a failing exit (reset.sh must stop on this)", rc == 1 and "!! familydns: the home app did not put the old Private DNS back (RESTORE_FAILED)" in out, f"{rc} {out}")
+tv = Tv()
+rc, out = tv.run("on", app="yes", grant="yes", sdk="26")
+check("an old Android is refused before the app is asked", rc == 1 and "older than 9" in out and "app-on" not in tv.events(), out)
+
+# ---- reset.sh stops before it removes anything when the original cannot be put back
+src = (ROOT / "optimize/reset.sh").read_text(encoding="utf-8")
+block = src[src.index("# «حماية العائلة (DNS)»: the Private DNS the TV had comes back"):src.index('echo "3/4 Removing our apps')]
+def reset_block(familydns_exit):
+    t = Path(tempfile.mkdtemp()); (t / "optimize").mkdir()
+    (t / "optimize" / "familydns.sh").write_text(f"#!/usr/bin/env bash\nexit {familydns_exit}\n"); (t / "optimize" / "familydns.sh").chmod(0o755)
+    (t / "optimize" / "run").mkdir(); (t / "optimize/run/grants-journal.txt").write_text("android.permission.WRITE_SECURE_SETTINGS\n")
+    log = t / "log"
+    script = f'tv() {{ echo "$*" >> "{log}"; [ "$1" = "pm list packages sa.urtv.home" ] && echo package:sa.urtv.home; true; }}\ncd "{t}"\n' + block + '\necho CONTINUED >> "' + str(log) + '"\n'
+    r = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    return r.returncode, r.stdout + r.stderr, log.read_text() if log.exists() else ""
+rc, out, log = reset_block(1)
+check("reset: if the Private DNS cannot be put back it stops with a !! line BEFORE the permission is revoked or anything is removed", rc == 1 and "!! familydns" in out and "pm revoke" not in log and "CONTINUED" not in log, f"{rc} {out} {log}")
+rc, out, log = reset_block(0)
+check("reset: when it is back, the permission is revoked and reset goes on", rc == 0 and "pm revoke sa.urtv.home android.permission.WRITE_SECURE_SETTINGS" in log and "CONTINUED" in log, f"{rc} {out} {log}")
 sys.exit(1 if failed else 0)

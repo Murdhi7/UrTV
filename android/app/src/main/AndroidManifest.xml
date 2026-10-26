@@ -19,6 +19,8 @@
 
     <!-- the launcher says what it is playing, for the screen's «يُتلى الآن» card (same signing key) -->
     <uses-permission android:name="sa.urtv.home.READ_NOW_PLAYING" />
+    <!-- opens the launcher's «حماية العائلة» screen (signature permission, same key) -->
+    <uses-permission android:name="sa.urtv.home.FAMILY_DNS" />
 
     <!-- opens the launcher's «ترتيب المفضلة» from settings -->
     <queries>

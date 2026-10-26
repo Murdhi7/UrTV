@@ -73,12 +73,14 @@ if [ -f "$RUNDIR/accessibility-before.txt" ]; then
     } | tv --batch > /dev/null
   fi
 fi
-# «حماية العائلة (DNS)»: the Private DNS the TV had comes back (while the app, which may have set it, is still there), then the
-# permission install.sh granted is taken back
-if [ -f "${URTV_RUN_DIR:-optimize/run}/family-dns-journal.txt" ]; then
-  optimize/familydns.sh off || echo "!! familydns: the TV's Private DNS could not be put back: run optimize/dock.sh familydns off"
+# «حماية العائلة (DNS)»: the Private DNS the TV had comes back (the script's record and the home app's own, which only the app can put
+# back), and only when that is confirmed the permission is taken back and the app removed: without it the original would be lost
+if [ -f "${URTV_RUN_DIR:-optimize/run}/family-dns-journal.txt" ] || tv "pm list packages sa.urtv.home" 2> /dev/null | grep -q sa.urtv.home; then
+  if ! optimize/familydns.sh off; then
+    echo "!! familydns: the TV's Private DNS could not be put back, so nothing more was removed (the original setting is still recorded): run optimize/dock.sh familydns off, then optimize/reset.sh again"
+    exit 1
+  fi
 fi
-tv "am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.FAMILY_DNS --es mode off" > /dev/null 2>&1 || true   # set from the TV's row: the app puts back what it recorded
 if [ -f "${URTV_RUN_DIR:-optimize/run}/grants-journal.txt" ]; then
   while read -r perm; do [[ "$perm" =~ ^android\.permission\.[A-Z_]+$ ]] && tv "pm revoke sa.urtv.home $perm" > /dev/null 2>&1 || true; done < "${URTV_RUN_DIR:-optimize/run}/grants-journal.txt"
 fi

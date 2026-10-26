@@ -6,7 +6,10 @@ import java.util.Map;
 /** For tests/family_dns_test.py: FamilyDns with a fake TV, one answer per line. */
 public class FamilyDnsRun {
     static final class Fake implements FamilyDns.Ports {
-        boolean grant = true, route = true, internet = true, saveOk = true, ignorePuts = false;
+        boolean grant = true, route = true, internet = true, saveOk = true, ignorePuts = false, validated = true;
+        int sdk = 29;
+        long checking;
+        long checkingAtFirstPut = -1;
         final Map<String, String> g = new HashMap<>();
         final java.util.Set<String> unreadable = new java.util.HashSet<>();
         FamilyDns.Record rec;
@@ -14,9 +17,14 @@ public class FamilyDnsRun {
         public boolean canWriteSecure() { return grant; }
         public boolean probe(String h, int p, int t) { return route && h.equals(FamilyDns.HOST) && p == 853; }
         public String getGlobal(String k) { return unreadable.contains(k) ? FamilyDns.UNREADABLE : g.get(k); }
-        public boolean putGlobal(String k, String v) { writes++; if (!ignorePuts) g.put(k, v); return true; }
+        public boolean putGlobal(String k, String v) { writes++; if (checkingAtFirstPut < 0) checkingAtFirstPut = checking; if (!ignorePuts) g.put(k, v); return true; }
         public boolean deleteGlobal(String k) { writes++; g.remove(k); return true; }
-        public boolean internetWorks(int ms) { return internet && ms == 20000; }
+        public int sdkInt() { return sdk; }
+        public boolean privateDnsValidated(String h, int ms) { return validated && h.equals(FamilyDns.HOST) && ms == 12000; }
+        public boolean internetWorks(int ms) { return internet && ms == 8000; }
+        public long checkingSince() { return checking; }
+        public boolean markChecking() { checking = 111; return true; }
+        public void clearChecking() { checking = 0; }
         public FamilyDns.Record loadRecord() { return rec; }
         public boolean saveRecord(FamilyDns.Record r) { if (saveOk) rec = r; return saveOk; }
         public void clearRecord() { rec = null; }
@@ -90,5 +98,37 @@ public class FamilyDnsRun {
         System.out.println(new FamilyDns(f).enable() + " " + f.writes);
         // 12 Arabic copy
         System.out.println(FamilyDns.arabic(FamilyDns.Result.NO_ROUTE) + " | " + FamilyDns.arabic(FamilyDns.Result.REVERTED) + " | " + FamilyDns.arabic(FamilyDns.Result.NEEDS_GRANT));
+    
+        // 13 Private DNS below API 28: UNSUPPORTED, nothing written, never ON
+        f = tv("hostname", FamilyDns.HOST); f.sdk = 27;
+        Fake f27 = tv("opportunistic", null); f27.sdk = 27;
+        System.out.println(new FamilyDns(f27).enable() + " " + f27.writes + " " + (f27.rec == null) + " " + new FamilyDns(f27).supported()
+            + " " + new FamilyDns(f).status() + " " + new FamilyDns(tv(null, null)).supported());
+        // 14 Private DNS never validates (cached DNS would still answer): REVERTED, originals back, flag and record cleared
+        f = tv("opportunistic", "x.example"); f.validated = false;
+        FamilyDns.Result r14 = new FamilyDns(f).enable();
+        System.out.println(r14 + " " + f.state() + " " + (f.rec == null) + " " + f.checking);
+        // 15 the flag is saved before the first write and cleared after ENABLED
+        f = tv("opportunistic", null);
+        FamilyDns.Result r15 = new FamilyDns(f).enable();
+        System.out.println(r15 + " " + f.checkingAtFirstPut + " " + f.checking + " " + (f.rec != null));
+        // 16 recover: a cut-short check (flag set, record, our values on) goes back; no flag = nothing; flag without record = flag cleared
+        f = tv("hostname", FamilyDns.HOST); f.rec = new FamilyDns.Record("opportunistic", null); f.checking = 5;
+        FamilyDns.Result r16 = new FamilyDns(f).recover();
+        Fake nf = tv("hostname", FamilyDns.HOST); nf.rec = new FamilyDns.Record("off", null);
+        FamilyDns.Result r16b = new FamilyDns(nf).recover();
+        Fake of = tv("hostname", "o.example"); of.checking = 5;
+        FamilyDns.Result r16c = new FamilyDns(of).recover();
+        System.out.println(r16 + " " + f.state() + " " + f.g.containsKey("private_dns_specifier") + " " + f.checking + " " + (f.rec == null)
+            + " | " + r16b + " " + nf.writes + " | " + r16c + " " + of.checking + " " + of.writes);
+        // 17 off when the value is no longer ours: nothing written, record dropped
+        f = tv("opportunistic", "x.example");
+        new FamilyDns(f).enable();
+        f.g.put("private_dns_specifier", "mine.example");
+        int w = f.writes;
+        FamilyDns.Result r17 = new FamilyDns(f).disable();
+        System.out.println(r17 + " " + (f.writes - w) + " " + f.state() + " " + (f.rec == null));
+        // 18 Arabic copy for the new results
+        System.out.println(FamilyDns.arabic(FamilyDns.Result.UNSUPPORTED) + " | " + FamilyDns.arabic(FamilyDns.Result.CHANGED_BY_SOMEONE_ELSE));
     }
 }

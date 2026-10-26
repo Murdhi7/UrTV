@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """«حماية العائلة (DNS)» (FamilyDns.java, the launcher): nothing changes without the grant or a route, the originals are recorded first and
 put back exactly (a value that was not set is deleted), a broken internet or a value that is not taken reverts at once, a second "on" keeps
-the first record, an unreadable value is never recorded as "not set". Needs javac.
+the first record, an unreadable value is never recorded as "not set", Private DNS must validate (not cached DNS), a crashed check is recovered, API < 28 is unsupported,
+"off" leaves a value someone else changed. Needs javac.
 Run: python3 tests/family_dns_test.py"""
 import shutil
 import subprocess
@@ -42,8 +43,27 @@ check("status: off, on (by us), unknown when unreadable; on by someone else is l
       out[11] == "off (none) | on (us) | unknown (none) | on (other) | ALREADY_ON_BY_OTHER 0 true", out[11])
 check("a record that cannot be saved: nothing written", out[12] == "NOT_RECORDED 0", out[12])
 check("Arabic copy for the row", out[13] == "ما قدرنا نوصل لخدمة الحماية، ما تغيّر شي | الإنترنت وقف فرجّعنا الإعداد القديم | يحتاج تفعيل من الكمبيوتر", out[13])
+check("API below 28: UNSUPPORTED, nothing written, status never ON, supported=no",
+      out[14] == "UNSUPPORTED 0 true false off (none) true", out[14])
+check("Private DNS never validated (cached DNS): REVERTED, originals back, record and flag cleared", out[15] == "REVERTED opportunistic/x.example true 0", out[15])
+check("the check flag is saved before the first write and cleared after ENABLED", out[16] == "ENABLED 111 0 true", out[16])
+check("recover: flag set -> originals back, flag and record cleared; no flag -> nothing; flag without record -> flag cleared",
+      out[17] == "RESTORED opportunistic/null false 0 true | NOTHING_TO_RESTORE 0 | NOTHING_TO_RESTORE 0 0", out[17])
+check("off after someone else changed the value: CHANGED_BY_SOMEONE_ELSE, no write, record dropped",
+      out[18] == "CHANGED_BY_SOMEONE_ELSE 0 hostname/mine.example true", out[18])
+check("Arabic copy for unsupported and changed-elsewhere",
+      out[19] == "غير مدعومة في هذا التلفزيون (أندرويد قديم) | الإعداد تغيّر من مكان آخر، تركناه كما هو", out[19])
 src = (ROOT / "android/launcher/src/main/java/sa/urtv/home/FamilyDns.java").read_text(encoding="utf-8")
 check("FamilyDns has no Android imports", "import android" not in src)
+import re
+lm = (ROOT / "android/launcher/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
+act = re.search(r"<activity[^>]*FamilyDnsActivity.*?/>", lm, re.S).group(0)
+check("manifest: FamilyDnsActivity needs the signature permission sa.urtv.home.FAMILY_DNS, which is declared and held by the screensaver",
+      'android:permission="sa.urtv.home.FAMILY_DNS"' in act
+      and re.search(r'<permission\s+android:name="sa.urtv.home.FAMILY_DNS"\s+android:protectionLevel="signature"', lm)
+      and '<uses-permission android:name="sa.urtv.home.FAMILY_DNS"' in (ROOT / "android/app/src/main/AndroidManifest.xml").read_text(encoding="utf-8"))
+dr = (ROOT / "android/launcher/src/main/java/sa/urtv/home/DockReceiver.java").read_text(encoding="utf-8")
+check("DockReceiver answers: off at once, on 'started (on)', status ends with supported=", 'disableNow(c).name()' in dr and '"family-dns: started (on)"' in dr and '"; supported="' in dr)
 check("manifest: the permission is declared and DockReceiver takes FAMILY_DNS",
       "android.permission.WRITE_SECURE_SETTINGS" in (ROOT / "android/launcher/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
       and 'sa.urtv.home.FAMILY_DNS' in (ROOT / "android/launcher/src/main/AndroidManifest.xml").read_text(encoding="utf-8"))

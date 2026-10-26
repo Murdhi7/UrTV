@@ -150,6 +150,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        FamilyDnsAndroid.status(this);   // first use in this process: undoes a Family DNS check that a crash cut short
         Digits.init(this);   // the screensaver's «الأرقام» setting, for every number this screen writes
         dockApps = loadDock();
         liveTvPkg = getString(R.string.live_tv_package);
