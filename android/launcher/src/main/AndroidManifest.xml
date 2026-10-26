@@ -106,6 +106,14 @@
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.Material.NoActionBar" />
 
+        <!-- «تحديث تلفزيوني»: the version, the check and the update. Exported only so the screensaver's settings can open it, as with DockActivity. -->
+        <activity
+            android:name=".UpdateActivity"
+            android:exported="true"
+            android:label="تحديث تلفزيوني"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
         <!-- the installer's answer for «تحديث تلفزيونك» (only reached through the app's own PendingIntent) -->
         <receiver
             android:name=".phone.PhoneInstallReceiver"
