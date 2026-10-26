@@ -22,6 +22,11 @@
     <!-- the adhan sets the TV's volume to its own level and puts it back afterwards -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
+    <!-- «تحكم من الجوال»: changes the city and the home cards through the screensaver's provider (signature permission, same key) -->
+    <uses-permission android:name="sa.urtv.screensaver.PHONE_SETTINGS" />
+    <!-- «تحديث تلفزيونك» from the phone: hands the APKs it downloaded to Android's own install screen, where the owner confirms -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- the screensaver (same signing key) asks what is playing, for its «يُتلى الآن» card -->
     <permission
         android:name="sa.urtv.home.READ_NOW_PLAYING"
@@ -91,6 +96,20 @@
             android:label="ترتيب المفضلة"
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.Material.NoActionBar" />
+
+        <!-- «تحكم من الجوال»: the owner's switch and the pairing screen. Nothing listens until «تشغيل» is pressed there. Exported only so the
+             screensaver's settings can open it, as with DockActivity. -->
+        <activity
+            android:name=".PhoneActivity"
+            android:exported="true"
+            android:label="تحكم من الجوال"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
+        <!-- the installer's answer for «تحديث تلفزيونك» (only reached through the app's own PendingIntent) -->
+        <receiver
+            android:name=".phone.PhoneInstallReceiver"
+            android:exported="false" />
 
         <!-- «المهام»: the tasks kept by the screensaver app, with a mic (speech recognizer) -->
         <activity
