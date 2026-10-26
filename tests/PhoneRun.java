@@ -617,11 +617,12 @@ public final class PhoneRun {
             final Env env3 = e;
             e.ctl.setPinGate(new PinStoreGate(store, new PinStoreGate.Clock() { @Override public long now() { return env3.now[0]; } }));
             sess = pair(e);
+            String keep = pair(e);   // a second phone, so the server stays on when the first one's session ends
             int lastStatus = 0;
             for (int i = 0; i < 5; i++) lastStatus = authed(e, "POST", "/api/set", "{\"adhan_on\":true,\"pin\":\"0000\"}", sess).status;
             check("five wrong PINs from a phone end its session", lastStatus == 401, "" + lastStatus);
             check("and they locked the TV's own keypad too (the same store)", store.waitLeft(e.now[0]) > 0, "");
-            String second = pair(e);
+            String second = pair(e);   // a new session of a new phone
             e.actions.calls.clear();
             Reply fresh = authed(e, "POST", "/api/set", "{\"adhan_on\":true,\"pin\":\"4321\"}", second);
             check("a new phone session gets no fresh tries: the right PIN is still refused while the lock lasts", fresh.status == 403 && e.actions.calls.isEmpty(), fresh.body);
