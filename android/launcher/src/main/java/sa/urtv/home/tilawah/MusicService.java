@@ -284,6 +284,10 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
             case ACTION_STOP: stopPlayback(); break;
             default: break;
         }
+        // a command that started nothing (a pause with nothing loaded, a timer of 0, an unknown reciter) must not leave the service
+        // foreground for good; a command that plays (radio, adhan) is left to its own course
+        boolean mayLeaveNothing = !ACTION_PLAY_RADIO.equals(action) && !ACTION_PLAY_ADHAN.equals(action) && !ACTION_STOP.equals(action);
+        if (IdleCommand.leavesNothing(mayLeaveNothing, source == Prefs.SOURCE_NONE, player != null, sleepUntil)) stopPlayback();
         return START_NOT_STICKY;
     }
 

@@ -175,6 +175,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
         IntentFilter tf = new IntentFilter(Intent.ACTION_TIME_TICK);
         tf.addAction(Intent.ACTION_TIME_CHANGED);
         tf.addAction(Intent.ACTION_TIMEZONE_CHANGED);
@@ -205,6 +206,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        resumed = false;   // a slow photo check that answers now must not start the 10-minute rotation again
         handler.removeCallbacks(rotateWallpaper);
         unregisterReceiver(tick);
         if (inputsPopup != null) inputsPopup.dismiss();
@@ -1178,7 +1180,7 @@ public class MainActivity extends Activity {
     private void checkOwnChanged() {
         new Thread(() -> {
             long rev = (Long) ownInfo()[2];
-            if (rev != prefs().getLong("ownRev", 0)) runOnUiThread(() -> { if (!isDestroyed()) nextWallpaper(); });
+            if (rev != prefs().getLong("ownRev", 0)) runOnUiThread(() -> { if (!isDestroyed() && resumed) nextWallpaper(); });
         }).start();
     }
 
@@ -1274,8 +1276,11 @@ public class MainActivity extends Activity {
 
     private boolean firstWallpaper = true;
 
+    private boolean resumed;   // home is in front: only then does the photo rotation run
+
     private void scheduleWallpaper(long delay) {
         handler.removeCallbacks(rotateWallpaper);
+        if (!resumed) return;
         handler.postDelayed(rotateWallpaper, Math.max(1000, delay));
     }
 
