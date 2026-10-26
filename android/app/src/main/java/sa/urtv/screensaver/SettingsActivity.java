@@ -191,6 +191,8 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { prefs.setGreeting(!prefs.greeting()); render(); } });
         row("ترتيب التطبيقات المفضلة", "قائمة ترتّب فيها المفضلة بالأسهم", R.drawable.ic_star,
             new Runnable() { public void run() { openDockSettings(); } });
+        row("تحكم من الجوال", "متوقف حتى تشغّله أنت", R.drawable.ic_settings,
+            new Runnable() { public void run() { openPhoneControl(); } });
 
         if ("shows".equals(prefs.panel()) || prefs.homePanels().contains("shows")) {   // only matter for the shows card
         header("جديد المسلسلات");
@@ -513,6 +515,15 @@ public class SettingsActivity extends Activity {
     private void openDockSettings() {
         try {
             startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.DockActivity"));
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
+    /** «تحكم من الجوال» lives in the launcher (it holds the server and the pairing screen). */
+    private void openPhoneControl() {
+        try {
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.PhoneActivity"));
         } catch (RuntimeException e) {
             toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
         }
