@@ -39,7 +39,6 @@ import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.view.ViewOutlineProvider;
 import android.view.animation.DecelerateInterpolator;
-import android.view.animation.OvershootInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -256,7 +255,7 @@ public class MainActivity extends Activity {
         // Home pressed while already home: jump back to the first dock app.
         if (inputsPopup != null) inputsPopup.dismiss();
         if (!dockCards.isEmpty()) dockCards.get(0).requestFocus();
-        scroll.smoothScrollTo(0, 0);
+        glideTo(0);
     }
 
     @Override
@@ -332,7 +331,7 @@ public class MainActivity extends Activity {
         // optional card under the pills, same size as beside the screensaver's clock
         homeCard = new HomeCard(this, hero, lp(dp(461), dp(250), Gravity.LEFT | Gravity.TOP, dp(48), dp(84), 0, 0), this::homeCardBox, new HomeCard.Live() {
             @Override public void focus(View target, boolean has) {   // «المهام» on the card takes the focus like a pill
-                if (has) { lastFocusedId = target.getId(); scroll.smoothScrollTo(0, 0); fadeGlow(1f); }
+                if (has) { lastFocusedId = target.getId(); glideTo(0); fadeGlow(1f); }
             }
             @Override public void open() {   // OK: the list, with the focus on «🎤 تكلّم» so one more OK starts the voice adding
                 launchGuarded(ParentalPolicy.CARD_TASKS, new Intent(MainActivity.this, TasksActivity.class).putExtra(TasksActivity.EXTRA_MIC, true), "المهام");
@@ -475,7 +474,7 @@ public class MainActivity extends Activity {
         nowCard.setOnClickListener(v -> NowPlaying.toggle(this));   // OK: pause or play
         nowCard.setOnLongClickListener(v -> { launchGuarded(ParentalPolicy.PILL_LISTEN, NowPlaying.player(this), "تلاوة وأذان"); return true; });   // a long OK: the player, behind the same lock as the «تلاوة وأذان» pill
         nowCard.setOnFocusChangeListener((v, has) -> {
-            if (has) { lastFocusedId = v.getId(); scroll.smoothScrollTo(0, 0); fadeGlow(1f); }
+            if (has) { lastFocusedId = v.getId(); glideTo(0); fadeGlow(1f); }
         });
         // taller than a pill by 10 dp, hung 5 dp over the row's top and bottom: the row stays Pill.HEIGHT, so the pills do not move; it
         // reaches from 31 to 75 dp down, clear of the adhan bar (to 26) and the cards (from 84)
@@ -548,7 +547,7 @@ public class MainActivity extends Activity {
         p.setId(View.generateViewId());
         p.setOnFocusChangeListener((v, has) -> {
             if (has) {
-                lastFocusedId = v.getId(); scroll.smoothScrollTo(0, 0); fadeGlow(1f);
+                lastFocusedId = v.getId(); glideTo(0); fadeGlow(1f);
                 View card = homeCard == null ? null : homeCard.live();
                 if (card != null) card.setNextFocusUpId(v.getId());   // up from the «المهام» card goes back to the pill it came from
             }
@@ -748,9 +747,8 @@ public class MainActivity extends Activity {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED))));
         card.setOnFocusChangeListener((v, has) -> {
             float s = has ? (inDock ? 1.12f : 1.1f) : 1f;
-            v.animate().scaleX(s).scaleY(s).translationZ(has ? dp(GlowLook.LIFT_DP) : 0)
-                    .setInterpolator(has ? new OvershootInterpolator(1.8f) : new DecelerateInterpolator())
-                    .setDuration(has ? 320 : 200).start();
+            scaleTo(v, s);   // a spring: a held arrow keeps its speed from card to card
+            v.animate().translationZ(has ? dp(GlowLook.LIFT_DP) : 0).setInterpolator(new DecelerateInterpolator()).setDuration(has ? 320 : 200).start();
             shine.animate().alpha(has ? 1f : 0f).setDuration(160).start();
             label.animate().alpha(has ? 1f : 0f).translationY(has ? dp(4) : 0).setDuration(200).start();
             if (!has) return;
@@ -760,7 +758,7 @@ public class MainActivity extends Activity {
                 title.animate().alpha(1f).setDuration(200).start();
                 animateGlow(app.color);
                 fadeGlow(1f);
-                scroll.smoothScrollTo(0, 0);
+                glideTo(0);
             } else {
                 fadeGlow(0.35f);
                 title.animate().alpha(0f).setDuration(200).start();
@@ -846,6 +844,65 @@ public class MainActivity extends Activity {
         undoChip.setNextFocusRightId(undoChip.getId());
     }
 
+    // ---------------------------------------------------------------- motion
+    // The focused card's size and the page's scroll run on springs (Spring: from talkies and Free My TV, MIT, THIRD_PARTY_NOTICES.md):
+    // a new target keeps the speed it has, so held arrows glide and the rows slide on without a stop at each card. One frame callback
+    // steps them all and stops once they have settled. With the TV's animations off (animator scale 0) everything goes straight there.
+    private final java.util.Map<View, Spring> scaleSprings = new java.util.WeakHashMap<>();
+    private final Spring scrollSpring = new Spring(0.34f, 1f, 0, 0.25f);   // no bounce: a page that overshoots looks wrong
+    private boolean motionPosted, scrollGliding;
+    private long motionNanos;
+
+    /** The size of a card, by its spring (a little bounce, as the focus had). */
+    private void scaleTo(View v, float scale) {
+        if (!motionOn()) { scaleSprings.remove(v); v.setScaleX(scale); v.setScaleY(scale); return; }
+        Spring sp = scaleSprings.get(v);
+        if (sp == null) scaleSprings.put(v, sp = new Spring(0.34f, 0.74f, v.getScaleX()));
+        sp.target = scale;
+        startMotion();
+    }
+
+    /** The page's scroll, by its spring; from where the page is now when nothing was moving it. */
+    private void glideTo(int y) {
+        if (!motionOn()) { scrollSpring.snap(y); scroll.scrollTo(0, y); return; }
+        if (!scrollGliding) scrollSpring.snap(scroll.getScrollY());   // from where the page is (nothing was gliding it)
+        scrollSpring.target = y;
+        scrollGliding = true;
+        startMotion();
+    }
+
+    private boolean motionOn() {
+        return Settings.Global.getFloat(getContentResolver(), Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f;
+    }
+
+    private void startMotion() {
+        if (motionPosted) return;
+        motionPosted = true;
+        motionNanos = 0;
+        android.view.Choreographer.getInstance().postFrameCallback(this::doMotion);
+    }
+
+    /** One frame: every spring a step, applied; posts itself again while any still moves. */
+    private void doMotion(long now) {
+        if (isDestroyed()) { motionPosted = false; return; }
+        float dt = motionNanos == 0 ? 1 / 60f : Math.min(0.05f, (now - motionNanos) / 1e9f);
+        motionNanos = now;
+        boolean moving = scrollSpring.step(dt);
+        if (moving || scrollGliding) scroll.scrollTo(0, Math.round(scrollSpring.value));   // and once more as it settles, on its target
+        scrollGliding = moving;
+        for (java.util.Iterator<java.util.Map.Entry<View, Spring>> it = scaleSprings.entrySet().iterator(); it.hasNext(); ) {
+            java.util.Map.Entry<View, Spring> e = it.next();
+            Spring sp = e.getValue();
+            boolean m = sp.step(dt);
+            e.getKey().setScaleX(sp.value);
+            e.getKey().setScaleY(sp.value);
+            if (m) moving = true;
+            else if (sp.target == 1f) it.remove();   // at rest at its own size: nothing to keep
+        }
+        if (moving) android.view.Choreographer.getInstance().postFrameCallback(this::doMotion);
+        else motionPosted = false;
+    }
+
     private void scrollToRow(View tileBox) {
         View row = (View) tileBox.getParent();
         int y = grid.getTop() + row.getTop();
@@ -856,7 +913,7 @@ public class MainActivity extends Activity {
                 ? hero.getTop() + band.getTop() + dockRow.getTop() - dp(22)
                 : y - (int) (screenH * 0.42f);
         int max = Math.max(0, content.getHeight() - scroll.getHeight());
-        scroll.smoothScrollTo(0, Math.max(0, Math.min(target, max)));
+        glideTo(Math.max(0, Math.min(target, max)));
     }
 
     // ---------------------------------------------------------------- inputs
@@ -994,7 +1051,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < dockCards.size(); i++) if (dockCards.get(i) == f) focus = i;
         }
         edit = new FavEdit(row, MIN_DOCK, Math.max(0, focus));
-        scroll.smoothScrollTo(0, 0);
+        glideTo(0);
         editHint.setVisibility(View.VISIBLE);
         paintEdit();
     }
@@ -1136,11 +1193,13 @@ public class MainActivity extends Activity {
         if (ring != null) ring.setStroke(dp(lifted ? 4 : 2), lifted ? GOLD : 0xE6FFFFFF);
         if (shine != null && lifted) shine.setAlpha(1f);
         if (lifted) {
-            card.animate().scaleX(1.25f).scaleY(1.25f).translationY(-dp(10)).translationZ(dp(GlowLook.LIFT_DP)).setDuration(160).start();
+            scaleTo(card, 1.25f);
+            card.animate().translationY(-dp(10)).translationZ(dp(GlowLook.LIFT_DP)).setDuration(160).start();
         } else {
             boolean has = card.isFocused();
             float s = has ? 1.12f : 1f;
-            card.animate().scaleX(s).scaleY(s).translationY(0).translationZ(has ? dp(GlowLook.LIFT_DP) : 0).setDuration(160).start();
+            scaleTo(card, s);
+            card.animate().translationY(0).translationZ(has ? dp(GlowLook.LIFT_DP) : 0).setDuration(160).start();
             if (shine != null) shine.setAlpha(has ? 1f : 0f);
         }
     }
