@@ -180,9 +180,9 @@ public class MainActivity extends Activity {
         pf.addAction(Intent.ACTION_PACKAGE_CHANGED);
         pf.addDataScheme("package");
         registerReceiver(packages, pf);
-        registerReceiver(dockChanged, new IntentFilter(Dock.CHANGED));
-        registerReceiver(sleepChanged, new IntentFilter(SleepTimer.CHANGED));
-        registerReceiver(nowPlayingChanged, new IntentFilter(NowPlaying.CHANGED));
+        InternalReceivers.register(this, dockChanged, new IntentFilter(Dock.CHANGED));
+        InternalReceivers.register(this, sleepChanged, new IntentFilter(SleepTimer.CHANGED));
+        InternalReceivers.register(this, nowPlayingChanged, new IntentFilter(NowPlaying.CHANGED));
     }
 
     @Override

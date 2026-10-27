@@ -57,6 +57,7 @@ explain() {   # a result name of the app -> a !! line
     ENABLED) ;;
     NO_ROUTE) echo "!! familydns: this TV cannot reach $HOST on port $PORT (DNS over TLS), so nothing was changed. The network may block it" ;;
     REVERTED) echo "!! familydns: the internet did not work through $HOST, so the old Private DNS setting was put back" ;;
+    RESTORE_FAILED) echo "!! familydns: the old Private DNS setting could NOT be put back (the TV refused it). It is recorded and will be tried again at the next start of the home app; run optimize/dock.sh familydns off to try now, and check optimize/dock.sh familydns status" ;;
     NOT_TAKEN) echo "!! familydns: this TV did not take the Private DNS setting, so the old one was put back" ;;
     NEEDS_GRANT) echo "!! familydns: the home app has no permission to change it: run optimize/dock.sh familydns grant" ;;
     UNSUPPORTED) echo "!! familydns: this TV's Android is older than 9, which has no Private DNS; nothing was changed" ;;

@@ -148,11 +148,13 @@ public final class FamilyDns {
         }
         boolean wrote = p.putGlobal(KEY_SPEC, HOST) && p.putGlobal(KEY_MODE, MODE_ON);
         if (!wrote || !MODE_ON.equals(p.getGlobal(KEY_MODE)) || !HOST.equals(p.getGlobal(KEY_SPEC))) {
-            if (restore(rec)) { p.clearRecord(); p.clearChecking(); }
+            if (!restore(rec)) return Result.RESTORE_FAILED;   // the old values are not back: the record and the flag stay (recover() and «off» try again)
+            p.clearRecord(); p.clearChecking();
             return Result.NOT_TAKEN;
         }
         if (!p.privateDnsValidated(HOST, VALIDATE_MS) || !resolverAnswers(p.lookupFreshName(FRESH_MS)) || !p.internetWorks(HTTP_MS)) {
-            if (restore(rec)) { p.clearRecord(); p.clearChecking(); }
+            if (!restore(rec)) return Result.RESTORE_FAILED;   // REVERTED only once the old values were read back
+            p.clearRecord(); p.clearChecking();
             return Result.REVERTED;
         }
         p.clearChecking();

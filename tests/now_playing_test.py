@@ -29,7 +29,7 @@ check("MusicService: announce() is called from updateSession (every change goes 
       re.search(r"private void updateSession\(\) \{\s*announce\(\);", service) is not None
       and re.search(r"sleepUntil = 0;\s*announce\(\);\s*foregroundStarted = false;", service) is not None)
 check("MainActivity: the card listens for that broadcast and re-reads on resume; nothing polls (no postDelayed for it, no new timer)",
-      "registerReceiver(nowPlayingChanged, new IntentFilter(NowPlaying.CHANGED))" in main and "unregisterReceiver(nowPlayingChanged)" in main
+      "InternalReceivers.register(this, nowPlayingChanged, new IntentFilter(NowPlaying.CHANGED))" in main and "unregisterReceiver(nowPlayingChanged)" in main
       and "updateNowPlaying();\n        homeCard.refresh();" in main and "postDelayed" not in card and "Handler" not in card)
 check("MainActivity: the sleep timer's minutes follow the clock's existing minute tick, not a timer of their own",
       "updateNowPlaying();   // the minutes left of its sleep timer" in main)

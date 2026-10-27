@@ -158,7 +158,7 @@ public final class Json {
                 case '\r': b.append("\\r"); break;
                 case '\t': b.append("\\t"); break;
                 default:
-                    if (c < 0x20 || c == '<' || c == '>' || c == '&' || c == ' ' || c == ' ' || c == 0x7f) b.append(String.format("\\u%04x", (int) c));
+                    if (c < 0x20 || c == '<' || c == '>' || c == '&' || c == ' ' || c == ' ' || c == 0x7f) b.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) c));
                     else b.append(c);
             }
         }

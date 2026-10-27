@@ -36,7 +36,7 @@ public final class Sessions {
         byte[] b = new byte[bytes];
         rnd.nextBytes(b);
         StringBuilder h = new StringBuilder();
-        for (byte x : b) h.append(String.format("%02x", x & 0xff));
+        for (byte x : b) h.append(String.format(java.util.Locale.ROOT, "%02x", x & 0xff));
         return h.toString();
     }
 

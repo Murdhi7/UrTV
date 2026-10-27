@@ -32,6 +32,7 @@ python3 tests/settings_audit_test.py
 python3 tests/power_test.py
 python3 tests/familydns_test.py
 python3 tests/family_dns_test.py
+python3 tests/receiver_flags_test.py
 python3 tests/restore_scripts_test.py
 python3 tests/power_fixes_test.py
 python3 tests/settle_test.py
