@@ -18,6 +18,8 @@ final class RemoteKeys {
     // android.view.KeyEvent's values
     private static final int ACTION_DOWN = 0, ACTION_UP = 1;
     private static final int KEYCODE_SETTINGS = 176;
+    /** KEYCODE_NOTIFICATION: the Settings key of the owner's TCL remote reaches the app with this number (UrTVKeys logged it), not 176. */
+    private static final int KEYCODE_NOTIFICATION = 83;
     private static final int KEYCODE_BUTTON_3 = 190;   // the YouTube key of a Google TV remote
     private static final int KEYCODE_BUTTON_4 = 191;   // the Netflix key
     /** Linux KEY_JOURNAL (0x242): the star key of a TCL G08 remote. Android's generic key map has no name for it, so the keycode may be 0. */
@@ -85,7 +87,8 @@ final class RemoteKeys {
         switch (keyCode) {
             case KEYCODE_BUTTON_3: return app(YOUTUBE, installed);
             case KEYCODE_BUTTON_4: return app(NETFLIX, installed);
-            case KEYCODE_SETTINGS: return new Decision(OPEN_SETTINGS, null);
+            case KEYCODE_SETTINGS:
+            case KEYCODE_NOTIFICATION: return new Decision(OPEN_SETTINGS, null);
             default: break;
         }
         if (scanCode == SCAN_STAR) return new Decision(OPEN_INPUTS, null);
