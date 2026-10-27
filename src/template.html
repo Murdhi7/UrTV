@@ -457,6 +457,7 @@
   .pbar[hidden]{display:none}
   .pbar i{display:block;width:0;height:100%;border-radius:inherit;background:var(--gold);transition:width .5s linear}
   .p-prayer .big{justify-content:flex-start}
+  #prayer-name[hidden]{display:none}
   .p-mid{text-align:center}
   .p-mid .big{display:block;text-align:center;line-height:1.06}
   .p-mid .num{font-size:1.3em;line-height:1}
@@ -1115,7 +1116,8 @@ function tickPrayer(){
   const p = riyadhParts();
   const mins = p.h*60 + p.mi + p.s/60;
   const fill = document.getElementById('pbar-fill');
-  const progress = f => { if(CONFIG.prayerBar && fill) fill.style.width = (Math.max(0, Math.min(1, f)) * 100).toFixed(1) + '%'; };
+  if(CONFIG.prayerBar && fill) fill.style.width = (prayerBarFraction(mins) * 100).toFixed(1) + '%';
+  elN.hidden = false;   // the sunrise panel hides the name (its label already says «الشروق»)
 
   // between adhan and iqama: show the iqama countdown
   const cur = PRAYERS.find(x=>{
@@ -1125,7 +1127,6 @@ function tickPrayer(){
   });
   if(cur){
     const left = (cur.h*60 + cur.mi + CONFIG.iqama[cur.key]) - mins;
-    progress((mins - cur.h*60 - cur.mi) / Math.max(1, CONFIG.iqama[cur.key]));
     if(!panel.classList.contains('now')) panel.classList.add('now');
     setText(elL, 'حان الآن');
     setText(elN, prayerName(cur));
@@ -1135,38 +1136,45 @@ function tickPrayer(){
   }
 
   if(panel.classList.contains('now')) panel.classList.remove('now');
-  if(CONFIG.sunrise && sunrisePanel(mins, elL, elN, elT, elC, progress)) return;
+  if(CONFIG.sunrise && sunrisePanel(mins, elL, elN, elT, elC)) return;
   setText(elL, 'الصلاة القادمة');
   let next = PRAYERS.find(x => (x.h*60+x.mi) > mins);
   const leftM = next ? (next.h*60 + next.mi) - mins
                      : (PRAYERS[0].h*60 + PRAYERS[0].mi) + 1440 - mins;
   if(!next) next = PRAYERS[0];
-  const last = PRAYERS.filter(x => x.h*60 + x.mi <= mins).pop(), lastAt = last ? last.h*60 + last.mi : PRAYERS[PRAYERS.length-1].h*60 + PRAYERS[PRAYERS.length-1].mi - 1440;
-  progress((mins - lastAt) / Math.max(1, mins + leftM - lastAt));
   setText(elN, prayerName(next));
   setText(elT, fmtTime(next.h, next.mi));
   setHTML(elC, 'بعد <b>' + untilAdhan(leftM) + '</b>');
 }
 
-// #sunrise=1 (from PR #28): after Fajr's iqama the panel counts to the sunrise («الشروق ٦:٠٥ ص · بعد ٢٣ دقيقة»), and for half an hour
+// #prayerbar=1: how far the time has come from one prayer to the next, as one measure all day (the iqama is inside it, so the bar never
+// jumps back when the iqama ends); with #sunrise=1 the sunrise is one of the points, as the panel counts to it
+function prayerBarFraction(mins){
+  const at = PRAYERS.map(x => x.h*60 + x.mi);
+  if(CONFIG.sunrise && DAY_TIMES && DAY_TIMES.Sunrise){ const [h, m] = String(DAY_TIMES.Sunrise).split(':').map(Number); at.push(h*60 + m); }
+  at.sort((a, b) => a - b);
+  const last = at.filter(t => t <= mins).pop(), next = at.find(t => t > mins);
+  const from = last !== undefined ? last : at[at.length-1] - 1440, to = next !== undefined ? next : at[0] + 1440;
+  return Math.max(0, Math.min(1, (mins - from) / Math.max(1, to - from)));
+}
+
+// #sunrise=1 (from PR #28): after Fajr's iqama the panel counts to the sunrise («الشروق» · «٦:٠٥ ص» · «بعد ٢٣ دقيقة»), and for half an hour
 // after it says how long ago it was; then the Dhuhr countdown as always. The sunrise is not a prayer: the label says «الشروق», not «الصلاة
 // القادمة». True when it painted the panel.
 const SUNRISE_AFTER_MIN = 30;
-function sunrisePanel(mins, elL, elN, elT, elC, progress){
+function sunrisePanel(mins, elL, elN, elT, elC){
   const fajr = PRAYERS.find(x => x.key === 'Fajr');
   if(!DAY_TIMES || !DAY_TIMES.Sunrise || !fajr) return false;
   const [sh, sm] = String(DAY_TIMES.Sunrise).split(':').map(Number), at = sh*60 + sm, from = fajr.h*60 + fajr.mi + (CONFIG.iqama.Fajr || 0);
   if(mins >= from && mins < at){
-    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmtTime(sh, sm));
+    setText(elL, 'الشروق'); elN.hidden = true; setText(elT, fmtTime(sh, sm));   // «الشروق» once: the label, then the time
     setHTML(elC, 'بعد <b>' + untilAdhan(at - mins) + '</b>');
-    progress((mins - from) / Math.max(1, at - from));
     return true;
   }
   const ago = mins - at;
   if(ago >= 0 && ago < SUNRISE_AFTER_MIN){
-    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmtTime(sh, sm));
+    setText(elL, 'الشروق'); elN.hidden = true; setText(elT, fmtTime(sh, sm));
     setHTML(elC, ago < 1 ? 'الآن' : 'قبل <b>' + humanRemaining(Math.max(60, Math.floor(ago) * 60)) + '</b>');
-    progress(ago / SUNRISE_AFTER_MIN);
     return true;
   }
   return false;
@@ -3076,8 +3084,9 @@ async function loadWeather(){
     if(!r.ok) throw 0;
     const j = await r.json();
     WX.at = Date.now(); WX.vis = typeof j.current.visibility === 'number' ? j.current.visibility : null;
-    if(CONFIG.wxMore){ WX.hum = typeof j.current.relative_humidity_2m === 'number' ? j.current.relative_humidity_2m : null;
-                       WX.wind = typeof j.current.wind_speed_10m === 'number' ? j.current.wind_speed_10m : null; }
+    // off, the values are not asked: none kept, so turning it on offline shows nothing old as if it were now
+    WX.hum = CONFIG.wxMore && typeof j.current.relative_humidity_2m === 'number' ? j.current.relative_humidity_2m : null;
+    WX.wind = CONFIG.wxMore && typeof j.current.wind_speed_10m === 'number' ? j.current.wind_speed_10m : null;
     saveWx();
     setText(document.getElementById('wx-temp'), ar(Math.round(j.current.temperature_2m)) + '°');
     const d = document.getElementById('wx-desc');
@@ -3449,13 +3458,16 @@ function boot(){
   if(CONFIG.clockSize === 'small') document.documentElement.style.setProperty('--ckk', LATIN ? '3.26' : '2.62');
   buildMarkets();
   restoreSnap();
+  // #wxmore=1: its line under the city, once (the saved copy of the top left may bring one back: keep that one); off, none at all
+  const wxMoreEl = document.getElementById('wx-more');
+  if(CONFIG.wxMore && !wxMoreEl) document.getElementById('wx-src').insertAdjacentHTML('beforebegin', '<div class="wxmore" id="wx-more" hidden></div>');
+  if(!CONFIG.wxMore && wxMoreEl) wxMoreEl.remove();
   paintMkUp(); wxExpire(); wxSource();
   setTimeout(saveSnap, 15*1000);   // the dream can be killed before pagehide
   setInterval(saveSnap, 60*1000);
   addEventListener('pagehide', saveSnap);
   // the parts of the choices that are off by default are made only when chosen: off, the page is as it was, element for element
   if(CONFIG.prayerBar) document.getElementById('prayer-count').insertAdjacentHTML('afterend', '<div class="pbar" id="pbar"><i id="pbar-fill"></i></div>');
-  if(CONFIG.wxMore) document.getElementById('wx-src').insertAdjacentHTML('beforebegin', '<div class="wxmore" id="wx-more" hidden></div>');
   const wxCity = document.getElementById('wx-city');
   if(wxCity) wxCity.textContent = CONFIG.city;
   const cs = document.getElementById('clock-sub');
