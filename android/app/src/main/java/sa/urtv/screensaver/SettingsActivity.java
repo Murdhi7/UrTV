@@ -42,6 +42,14 @@ public class SettingsActivity extends Activity {
     private LinearLayout list;
     private ScrollView scroll;
     private String pendingFocus;   // the row to focus once the window has the focus back (a dialog was still open when the list was rebuilt)
+    // the first screen is the categories (SettingsHub); a tile opens its rows, Back goes back to that tile
+    private String screen;           // null: the categories; else the category whose rows are shown
+    private String hubAt;            // the category opened last: its tile has the focus on the way back
+    private boolean entering = true; // the screen just changed: the focus goes to its first row (or that tile), not one kept by name
+    private String groupCat, pendingHeader;   // while render runs: the category of the group being built, its header not drawn yet
+    private TextView hint;
+    private LinearLayout side;       // a category's screen: its title and its line on the right, the rows on the left (hidden on the first)
+    private final java.util.Map<String, String> lastRow = new java.util.HashMap<>();   // each category's row last focused, for the way back in
 
     /** Arabic locale for this screen, so every dialog title, list and button is laid out right-to-left. */
     @Override
@@ -77,13 +85,25 @@ public class SettingsActivity extends Activity {
         list.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         list.setPadding(dp(8), dp(40), dp(8), dp(16));
         int width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(144), dp(1100));
-        frame.addView(list, new FrameLayout.LayoutParams(width, -2, Gravity.CENTER_HORIZONTAL));
+        frame.addView(list, new FrameLayout.LayoutParams(-1, -2));
         scroll.addView(frame);
+        LinearLayout panes = new LinearLayout(this);   // right to left: the side (a category's title), then the rows
+        panes.setOrientation(LinearLayout.HORIZONTAL);
+        panes.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        side = new LinearLayout(this);
+        side.setOrientation(LinearLayout.VERTICAL);
+        side.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        side.setPadding(dp(8), dp(48), dp(8), dp(16));
+        LinearLayout.LayoutParams sideLp = new LinearLayout.LayoutParams(0, -1, 0.36f);
+        sideLp.setMarginEnd(dp(36));
+        panes.addView(side, sideLp);
+        panes.addView(scroll, new LinearLayout.LayoutParams(0, -1, 0.64f));
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
-        column.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        TextView hint = new TextView(this);
-        hint.setText("يمين/يسار وأعلى/أسفل بين الصفوف  •  اختيار لفتح الصف  •  رجوع للخروج");
+        LinearLayout.LayoutParams panesLp = new LinearLayout.LayoutParams(width, 0, 1f);
+        panesLp.gravity = Gravity.CENTER_HORIZONTAL;
+        column.addView(panes, panesLp);
+        hint = new TextView(this);
         hint.setTextColor(0xFFC6BBA4);
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         hint.setTypeface(font("Thmanyah-Regular"));
@@ -101,17 +121,44 @@ public class SettingsActivity extends Activity {
         render();
     }
 
+    /** Back on a category's rows goes back to the categories, the focus on its tile; on the categories it leaves. */
+    @Override
+    public void onBackPressed() {
+        if (screen == null) { super.onBackPressed(); return; }
+        View f = focusedRow();
+        if (f != null) lastRow.put(screen, (String) f.getTag());   // the way back in starts there
+        hubAt = screen;
+        open(null);
+    }
+
+    /** Shows the categories (null) or one category's rows, from the top. */
+    private void open(String category) {
+        if (category != null) hubAt = category;
+        screen = category;
+        entering = true;
+        render();
+    }
+
+    private boolean on(String category) { return screen != null && screen.equals(category); }
+
     /**
      * Builds the list again (on every change, and back in front): the focus stays on the row that had it, by its key (FocusKey), and the
-     * list stays where it was scrolled to; only the first build puts it on «معاينة الشاشة».
+     * list stays where it was scrolled to. A screen just opened starts at its top: the first row, or on the categories the tile last
+     * opened (the first one the first time).
      */
     private void render() {
         latinDigits = DigitsText.isLatin(prefs.digits());
         List<View> before = rows();
-        View had = focusedRow();
-        final String want = had == null ? null : (String) had.getTag();
-        final int wasIndex = had == null ? 0 : before.indexOf(had), scrollY = scroll.getScrollY();
+        View had = entering ? null : focusedRow();
+        final String want = entering ? (screen == null ? (hubAt != null ? "hub:" + hubAt : null) : lastRow.get(screen)) : had == null ? null : (String) had.getTag();
+        final int wasIndex = had == null ? 0 : before.indexOf(had), scrollY = entering ? 0 : scroll.getScrollY();
+        entering = false;
+        groupCat = null;
+        pendingHeader = null;
+        hint.setText(screen == null ? "الأسهم بين الأقسام  •  اختيار لفتح القسم  •  رجوع للخروج"
+            : "أعلى/أسفل بين الصفوف  •  اختيار لفتح الصف  •  رجوع للأقسام");
         list.removeAllViews();
+        sidePane();
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
@@ -123,19 +170,20 @@ public class SettingsActivity extends Activity {
         title.setTypeface(font("ThmanyahDisplay-Bold"));
         head.addView(title);
         TextView sub = new TextView(this);
-        sub.setText("إعدادات شاشة التوقف");
+        sub.setText(screen == null ? "الإعدادات" : SettingsHub.name(screen));
         sub.setTextColor(0xFFC6BBA4);
         sub.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
         sub.setTypeface(font("Thmanyah-Regular"));
         LinearLayout.LayoutParams sp0 = new LinearLayout.LayoutParams(-2, -2);
         sp0.setMarginStart(dp(20));
         head.addView(sub, sp0);
-        list.addView(head);
-        if (prefs.cityNoteDue()) line(Location.note(prefs.city()[0]), 0xFFD6AF6B, dp(14));   // still the install's Riyadh: say where to change it
+        if (screen == null) list.addView(head);   // a category's screen has its title on the side instead
+        if (screen == null || on(SettingsHub.PLACE))   // on the categories and on «الموقع والصلاة»
+            if (prefs.cityNoteDue()) line(Location.note(prefs.city()[0]), 0xFFD6AF6B, dp(14));   // still the install's Riyadh: say where to change it
+        if (screen == null) { hub(want, wasIndex); return; }
 
-        View preview = row("معاينة الشاشة", "شاهد الشاشة الآن", R.drawable.ic_play, new Runnable() { public void run() {
+        row("معاينة الشاشة", "شاهد الشاشة الآن", R.drawable.ic_play, new Runnable() { public void run() {
             startActivity(new Intent(SettingsActivity.this, MainActivity.class)); } });
-        if (want == null) preview.requestFocus();   // the first build; afterwards the row that had the focus keeps it (restoreFocus)
 
         // the place, then how its times are worked out, then the minutes of one's own mosque; the line under them says which is which
         header("الموقع");
@@ -147,7 +195,7 @@ public class SettingsActivity extends Activity {
         row("تعديل وقت الصلاة", prefs.prayerAdjOn() ? "يعمل · لكل صلاة دقائقها، من −٢٠ إلى +٢٠ (الشروق لا يتغيّر)" : "متوقف · الأوقات كما تُحسب", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setPrayerAdjOn(!prefs.prayerAdjOn()); render(); } });
         if (prefs.prayerAdjOn()) for (int k = 0; k < PrayerAdj.COUNT; k++) adjRow(k);
-        line(Location.HELP, 0xFFC6BBA4, 0);
+        if (on(SettingsHub.PLACE)) line(Location.HELP, 0xFFC6BBA4, 0);
 
         header("المباريات");
         row("الفرق المتابعة (" + arabicNum(prefs.teams().size()) + "/" + arabicNum(Prefs.MAX_TEAMS) + ")", teamsLabel(),
@@ -212,6 +260,11 @@ public class SettingsActivity extends Activity {
         }
         row("التحية والطقس", prefs.greeting() ? "تعمل" : "متوقفة", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setGreeting(!prefs.greeting()); render(); } });
+        // «المظهر»: OK goes on to the next, داكن → فاتح → تلقائي (the home takes it at its next minute)
+        row("المظهر", Prefs.appearanceLabel(prefs.appearance()), R.drawable.ic_eye,
+            new Runnable() { public void run() {
+                int at = java.util.Arrays.asList(Prefs.APPEARANCES).indexOf(prefs.appearance());
+                prefs.setAppearance(Prefs.APPEARANCES[(at + 1) % Prefs.APPEARANCES.length]); render(); } });
         // the adhan's settings (on or off, the voice, the Fajr voice, short, any key stops it, the volume): the same screen as the player's adhan tab,
         // opened through the home (behind its family lock), so they are reachable with the «تلاوة وأذان» button hidden too
         row("الأذان", "تشغيله وصوته وصوت الفجر والمختصر والإيقاف بأي زر والمستوى", R.drawable.ic_settings,
@@ -221,6 +274,8 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { prefs.setListenPill(!prefs.listenPill()); render(); } });
         row("ترتيب التطبيقات المفضلة", "قائمة ترتّب فيها المفضلة بالأسهم", R.drawable.ic_star,
             new Runnable() { public void run() { openDockSettings(); } });
+        row("صفوف القنوات", "«أكمل المشاهدة» وصفوف التطبيقات تحت المفضلة: أيها يظهر وترتيبها", R.drawable.ic_star,
+            new Runnable() { public void run() { openChannelRows(); } });
         row("أسماء المصادر", "غيّر اسم كل مصدر، مثل PS5", R.drawable.ic_settings,
             new Runnable() { public void run() { openInputNames(); } });
         row("تعديل المفضلة", "تحريك التطبيقات على الشاشة الرئيسية وحذفها", R.drawable.ic_star,
@@ -262,22 +317,155 @@ public class SettingsActivity extends Activity {
         row("التحديث التلقائي للصفحة", prefs.autoUpdate() ? "يعمل · عند بدء الشاشة، كل ٦ ساعات" : "متوقف", R.drawable.ic_sync, new Runnable() { public void run() {
             prefs.setAutoUpdate(!prefs.autoUpdate()); render(); } });
         View last = row("تحديث الشاشة الآن", "ينزّل أحدث نسخة من الشاشة", R.drawable.ic_sync, new Runnable() { public void run() { updateNow(); } });
-        note(last, Updater.versionLines(this));
-        if (want != null) restoreFocus(want, wasIndex, scrollY);
+        if (last.getParent() == list) note(last, Updater.versionLines(this));
+        restoreFocus(want, wasIndex, scrollY);   // a screen just opened: its first row
     }
 
-    /** The rows of the list now (the views row() made: their tag is their FocusKey), in order. */
+    /** The side of a category's screen: its icon, its name, its line, and the way back; nothing on the first screen. */
+    private void sidePane() {
+        side.removeAllViews();
+        side.setVisibility(screen == null ? View.GONE : View.VISIBLE);
+        if (screen == null) return;
+        int at = SettingsHub.index(screen);
+        final ImageView ic = new ImageView(this);
+        final android.graphics.drawable.Drawable d = getDrawable(at >= 0 && at < HUB_ICONS.length ? HUB_ICONS[at] : R.drawable.ic_settings).mutate();
+        d.setTint(0xFFD6AF6B);
+        ic.setImageDrawable(d);
+        side.addView(ic, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        TextView t = new TextView(this);
+        t.setText(conv(SettingsHub.name(screen)));
+        t.setTextColor(0xFFF6EFE0);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 38);
+        t.setTypeface(font("ThmanyahDisplay-Bold"));
+        t.setPadding(0, dp(16), 0, dp(10));
+        side.addView(t);
+        TextView a = new TextView(this);
+        a.setText(conv(SettingsHub.about(screen)));
+        a.setTextColor(0xFFC6BBA4);
+        a.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
+        a.setTypeface(font("Thmanyah-Regular"));
+        a.setLineSpacing(dp(4), 1f);
+        a.setTextDirection(View.TEXT_DIRECTION_RTL);
+        side.addView(a);
+        TextView up = new TextView(this);
+        up.setText("رجوع إلى الأقسام");   // words, not «‹›» (mirrored or not by the renderer)
+        up.setTextColor(0x99C6BBA4);
+        up.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        up.setTypeface(font("Thmanyah-Regular"));
+        up.setPadding(0, dp(22), 0, 0);
+        side.addView(up);
+    }
+
+    private static final int[] HUB_ICONS = {R.drawable.ic_place, R.drawable.ic_settings, R.drawable.ic_screensaver, R.drawable.ic_category,
+        R.drawable.ic_trophy, R.drawable.ic_star, R.drawable.ic_eye, R.drawable.ic_sync};   // in the order of SettingsHub.CATEGORIES
+
+    /** The first screen: the categories, two big tiles to a row from the right, each with what is set in it now. */
+    private void hub(String want, int wasIndex) {
+        final String[][] cats = SettingsHub.CATEGORIES;
+        final List<View> tiles = new ArrayList<>();
+        LinearLayout line = null;
+        for (int i = 0; i < cats.length; i++) {
+            if (i % 2 == 0) {
+                line = new LinearLayout(this);
+                line.setOrientation(LinearLayout.HORIZONTAL);
+                line.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                list.addView(line, new LinearLayout.LayoutParams(-1, -2));
+            }
+            final String cat = cats[i][0];
+            View t = tile(cat, cats[i][1], i < HUB_ICONS.length ? HUB_ICONS[i] : R.drawable.ic_settings, hubSummary(cat));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+            lp.bottomMargin = dp(12);
+            if (i % 2 == 0) lp.setMarginEnd(dp(12));
+            line.addView(t, lp);
+            tiles.add(t);
+        }
+        if (cats.length % 2 == 1) line.addView(new View(this), new LinearLayout.LayoutParams(0, 0, 1f));   // a last tile alone keeps its width
+        for (int i = 0; i < tiles.size(); i++) {   // explicit ways (SettingsHub.next): nothing wraps, and right is right in the RTL rows
+            View t = tiles.get(i);
+            t.setNextFocusUpId(tiles.get(SettingsHub.next(i, tiles.size(), 0)).getId());
+            t.setNextFocusDownId(tiles.get(SettingsHub.next(i, tiles.size(), 1)).getId());
+            t.setNextFocusLeftId(tiles.get(SettingsHub.next(i, tiles.size(), 2)).getId());
+            t.setNextFocusRightId(tiles.get(SettingsHub.next(i, tiles.size(), 3)).getId());
+        }
+        restoreFocus(want, wasIndex, 0);
+    }
+
+    /** What is set now in a category, on one line under its name. */
+    private String hubSummary(String cat) {
+        switch (cat) {
+            case SettingsHub.PLACE: return prefs.city()[0] + " · " + PrayerMethod.label(prefs.prayerMethod(), prefs.cityTz());
+            case SettingsHub.ADHAN: return "صوته ومستواه · التنبيه قبل الأذان " + (prefs.adhanBar() ? "يعمل" : "متوقف");
+            case SettingsHub.SAVER: return (Prefs.idleMs(this) <= 0 ? "يبدأ وقت ما يحدده التلفاز" : "تبدأ بعد " + idleLabel()) + " · " + Prefs.panelLabel(prefs.panel());
+            case SettingsHub.HOME: {
+                List<String> cards = new ArrayList<>();
+                for (String k : prefs.homePanels()) cards.add(Prefs.panelLabel(k, "بدون"));
+                return cards.isEmpty() ? "بدون بطاقات · التحية والطقس" : Prefs.join(cards, "، ");
+            }
+            case SettingsHub.CONTENT: return "الفرق " + arabicNum(prefs.teams().size()) + " · الأسواق " + (prefs.marketsOn() ? arabicNum(prefs.markets().size()) : "مخفية");
+            case SettingsHub.APPS: return "ترتيب المفضلة وتعديلها، وأسماء المصادر";
+            case SettingsHub.FAMILY: return "حماية العائلة: تفعيل أو إيقاف";
+            case SettingsHub.PHONE: return Updater.versionLines(this)[0] + " · تحديث تلفزيوني";
+            default: return "";
+        }
+    }
+
+    /** A category tile: a big icon, the name, the value now; gold when focused, OK opens the category. */
+    private View tile(final String cat, String name, int icon, String summary) {
+        final LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        card.setGravity(Gravity.START);
+        card.setPadding(dp(26), dp(22), dp(26), dp(22));
+        card.setFocusable(true);
+        card.setClickable(true);
+        card.setId(View.generateViewId());
+        card.setBackgroundResource(R.drawable.glass_row);
+        card.setTag("hub:" + cat);
+        final ImageView ic = new ImageView(this);
+        final android.graphics.drawable.Drawable d = getDrawable(icon).mutate();
+        d.setTint(0xFFD6AF6B);
+        ic.setImageDrawable(d);
+        card.addView(ic, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        TextView n = new TextView(this);
+        n.setText(conv(name));
+        n.setTextColor(0xFFF6EFE0);
+        n.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
+        n.setTypeface(font("Thmanyah-Medium"));
+        n.setSingleLine(true);
+        n.setPadding(0, dp(12), 0, dp(2));
+        card.addView(n);
+        TextView v = new TextView(this);
+        v.setText(conv(summary));
+        v.setTextColor(0xFFC6BBA4);
+        v.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        v.setTypeface(font("Thmanyah-Regular"));
+        v.setSingleLine(true);
+        v.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        v.setTextDirection(View.TEXT_DIRECTION_RTL);
+        card.addView(v);
+        card.setOnClickListener(x -> open(cat));
+        return card;
+    }
+
+    /** The rows of the list now (the views row() made: their tag is their FocusKey; the categories' tiles, two to a line), in order. */
     private List<View> rows() {
         List<View> out = new ArrayList<>();
-        for (int i = 0; i < list.getChildCount(); i++) if (list.getChildAt(i).getTag() instanceof String) out.add(list.getChildAt(i));
+        for (int i = 0; i < list.getChildCount(); i++) {
+            View c = list.getChildAt(i);
+            if (c.getTag() instanceof String) out.add(c);
+            else if (c instanceof LinearLayout && c.getTag() == null)
+                for (int j = 0; j < ((LinearLayout) c).getChildCount(); j++)
+                    if (((LinearLayout) c).getChildAt(j).getTag() instanceof String) out.add(((LinearLayout) c).getChildAt(j));
+        }
         return out;
     }
 
-    /** The row that has the focus in this window (a dialog over it leaves it there), or null. */
+    /** The row (or tile) that has the focus in this window (a dialog over it leaves it there), or null. */
     private View focusedRow() {
-        View v = getCurrentFocus();
-        while (v != null && v.getParent() != list) v = v.getParent() instanceof View ? (View) v.getParent() : null;
-        return v != null && v.getTag() instanceof String ? v : null;
+        List<View> all = rows();
+        for (View v = getCurrentFocus(); v != null; v = v.getParent() instanceof View ? (View) v.getParent() : null)
+            if (all.contains(v)) return v;
+        return null;
     }
 
     /** After a rebuild: back to where the list was, then the focus on the same row (FocusKey.pick), once the layout has run. */
@@ -287,7 +475,7 @@ public class SettingsActivity extends Activity {
             List<View> now = rows();
             List<String> keys = new ArrayList<>();
             for (View r : now) keys.add((String) r.getTag());
-            int at = FocusKey.pick(keys, want, wasIndex);
+            int at = want == null ? (now.isEmpty() ? -1 : 0) : FocusKey.pick(keys, want, wasIndex);   // nothing kept: the first
             if (at < 0) return;
             scroll.scrollTo(0, scrollY);
             now.get(at).requestFocus();
@@ -610,6 +798,15 @@ public class SettingsActivity extends Activity {
             startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.DockActivity"));
         } catch (RuntimeException e) {
             toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
+    /** «صفوف القنوات» lives in the launcher (it reads the TV's lists and shows the rows). */
+    private void openChannelRows() {
+        try {
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.ChannelsActivity"));
+        } catch (RuntimeException e) {   // not installed, or an older launcher without the screen
+            toast("حدّث الواجهة الرئيسية «تلفزيونك» أو ثبّتها أولاً");
         }
     }
 
@@ -1225,7 +1422,13 @@ public class SettingsActivity extends Activity {
         }
     }
 
+    /** A group's header: drawn only on its own category's screen (SettingsHub.HEADERS), just above the first of its rows shown there. */
     private void header(String text) {
+        groupCat = SettingsHub.ofHeader(text);
+        pendingHeader = on(groupCat) ? text : null;
+    }
+
+    private void drawHeader(String text) {
         TextView t = new TextView(this);
         t.setText(conv(text));
         t.setTextColor(0xFFD6AF6B);
@@ -1302,6 +1505,7 @@ public class SettingsActivity extends Activity {
         card.setClickable(true);
         card.setBackgroundResource(R.drawable.glass_row);   // glass; the gold-tinted one while it has the focus
         card.setTag(FocusKey.key(label));   // which row it is when the list is built again (render keeps the focus on it)
+        final String cat = SettingsHub.of(FocusKey.key(label), groupCat);   // made on every screen, added only on its own
 
         final android.widget.ImageView ic = new android.widget.ImageView(this);
         final android.graphics.drawable.Drawable d = getDrawable(icon).mutate();
@@ -1345,6 +1549,8 @@ public class SettingsActivity extends Activity {
         });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.bottomMargin = dp(9);
+        if (!on(cat)) return card;
+        if (pendingHeader != null && cat.equals(groupCat)) { drawHeader(pendingHeader); pendingHeader = null; }
         list.addView(card, lp);
         return card;
     }
