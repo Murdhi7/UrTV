@@ -215,6 +215,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        remoteKeys.reset();   // a shortcut key opened an app: its release went there, not here
         resumed = false;   // a slow photo check that answers now must not start the 10-minute rotation again
         PinPrompt.dismiss(this);
         handler.removeCallbacks(rotateWallpaper);
@@ -1562,6 +1563,8 @@ public class MainActivity extends Activity {
         // while the adhan plays: OK on its bar stops it, and with «إيقاف الأذان بأي زر» any key does; that press is consumed whole
         if (adhanTakes(e)) return true;
         // the remote's shortcut keys (YouTube, Netflix, Settings, the star): with the stock launcher off nothing else answers them
+        if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0)
+            android.util.Log.d("UrTVKeys", "key=" + e.getKeyCode() + " scan=" + e.getScanCode());   // for the TV test: does the shortcut key reach the home screen at all? (codes only)
         RemoteKeys.Decision key = remoteKeys.decide(e.getKeyCode(), e.getScanCode(), e.getAction(), e.getRepeatCount(),
                 RemoteKeys.opensApp(e.getKeyCode()) ? remoteInstalled() : Collections.<String>emptySet());
         if (key.kind != RemoteKeys.PASS) {

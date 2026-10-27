@@ -100,10 +100,13 @@ only with a report that names it.
 Honest notes:
 - We do **not** register a receiver for the global-button action: the system sends it as an explicit broadcast to the component named
   in the framework's `global_keys` list, so a third-party receiver for the action is never called.
-- Unverified, our belief: the focused window gets the key first, and the global handler fires only for keys the window leaves
-  unhandled. If so, handling the key while our home is in front consumes it; **inside other apps nothing of ours sees it**, so a
-  shortcut key pressed inside YouTube or Settings does what that app does with it. Only the accessibility key filter (the separate
-  branch `work/khalid-settingskey`) could see keys in other apps; this change does not depend on it and leaves it as it is.
+- Unverified, and possibly against us: AOSP's `PhoneWindowManager.interceptKeyBeforeDispatching` calls `GlobalKeyManager.handleGlobalKey`
+  **before** the key is dispatched, and consumes the keys listed in `global_keys` even when the receiver it names is disabled. So on a TV that
+  lists these keys in `global_keys` the key is probably taken **before our home sees it**, and the handling in our home does nothing there.
+  The code stays (it costs nothing and acts only on these keys); **verify on the TV** whether the key reaches `dispatchKeyEvent` at all:
+  `adb logcat -s UrTVKeys` prints `key=<keycode> scan=<scancode>` for every first press that reaches our home. Inside other apps nothing
+  of ours sees these keys either way; only the accessibility key filter (the separate branch `work/khalid-settingskey`) could see keys in
+  other apps (it sees them before the window manager does); this change does not depend on it and leaves it as it is.
 - Nothing here is checked on a real TV yet: each row needs one press on each of the six models.
 
 ## D-pad direction on the home screen and its rows

@@ -56,8 +56,12 @@ final class RemoteKeys {
 
     Decision decide(int keyCode, int scanCode, int action, int repeat, Set<String> installed) {
         if (holding && keyCode == heldCode && scanCode == heldScan) {
-            if (action == ACTION_UP) holding = false;
-            return EAT_IT;
+            // the release can go to the window that was opened and never reach us: a new press (DOWN, first) is always a new press
+            if (action == ACTION_DOWN && repeat == 0) holding = false;
+            else {
+                if (action == ACTION_UP) holding = false;
+                return EAT_IT;
+            }
         }
         if (action != ACTION_DOWN || repeat > 0) return PASS_IT;
         Decision d = map(keyCode, scanCode, installed);
@@ -68,6 +72,9 @@ final class RemoteKeys {
         }
         return d;
     }
+
+    /** The home screen went to the background: whatever key was held is forgotten (its release will not come here). */
+    void reset() { holding = false; }
 
     /** Whether this key can open an app, so the caller looks up what is installed only for it, not for every key of the remote. */
     static boolean opensApp(int keyCode) {
