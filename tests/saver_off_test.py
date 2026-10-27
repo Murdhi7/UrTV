@@ -6,6 +6,7 @@ heavy.py is called with tables like the ones measure.sh writes. saver.sh runs wi
 optimize/tv.py that logs the commands it gets (one per line, batches too) and answers like a TV.
 """
 import importlib.util, os, subprocess, sys, tempfile
+from pathlib import Path
 
 here = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("heavy", os.path.join(here, "..", "optimize", "heavy.py"))
@@ -143,4 +144,15 @@ for comp, en, want in [(OURS, "1", "ours"), ("a.b/.C", "1", "a.b/.C"), ("null", 
     rc, out, sent = run("show", comp=comp, enabled=en)
     first = out.strip().splitlines()[-1] if out.strip() else ""
     check(f"show: {comp} enabled={en} says «{want}» last", first.startswith("screensaver now: ") and want in first, out)
+
+# «الصلاة القادمة» is the home screen's only: `card nextprayer` is refused before the TV is asked anything, and points to home-card
+open(log, "w").close()
+r = subprocess.run(["bash", saver, "card", "nextprayer"], capture_output=True, text=True, env={**os.environ, "PY": fake, "SENT": log})
+sent = open(log, encoding="utf-8").read().splitlines()
+check("card nextprayer: refused with a !! line pointing to home-card, nothing sent", r.returncode != 0 and "!!" in r.stdout
+      and "optimize/saver.sh home-card nextprayer" in r.stdout and not sent, r.stdout + r.stderr + str(sent))
+src = lambda n: (Path(here).parent / "android/app/src/main/java/sa/urtv/screensaver" / n).read_text(encoding="utf-8")
+check("the app refuses a screensaver nextprayer too, hides it from that picker, and reads a saved one as the verse",
+      "Prefs.homeOnly(panel)) return \"error: \"" in src("SaverReceiver.java") and "if (home || !Prefs.homeOnly(p[0]))" in src("SettingsActivity.java")
+      and "return homeOnly(v) ? \"verse\" : v;" in src("Prefs.java"))
 sys.exit(1 if failed else 0)

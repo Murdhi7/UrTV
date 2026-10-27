@@ -12,6 +12,8 @@ import android.content.Intent;
  *   VOICE --ei voice 1..21 (a recording of ours, not a Fajr one) or 0 (the person's own, when there is one): the other prayers' muezzin
  *   FAJR_VOICE --ei voice 1..21 or 0: «مؤذن الفجر», the one for Fajr (the four Fajr recordings and the normal ones)
  *   ADHAN_SHORT --ez on true|false: «أذان مختصر»
+ *   ADHAN_STOPKEY --ez on true|false: «إيقاف الأذان بأي زر»
+ *   STOP_ADHAN: stop the adhan that is playing (nothing else)
  */
 public class MusicReceiver extends BroadcastReceiver {
 
@@ -29,7 +31,7 @@ public class MusicReceiver extends BroadcastReceiver {
             case "sa.urtv.home.ADHAN": {
                 int voice = intent.getIntExtra(MusicService.EXTRA_VOICE, prefs.playVoiceFor(context, intent.getBooleanExtra("fajr", false)));
                 if (voice == Prefs.OWN && !OwnAdhan.exists(context)) return;   // nothing of theirs to play
-                MusicService.adhan(context, voice, null, 0);
+                MusicService.adhan(context, voice, null, 0, intent.getBooleanExtra("fajr", false) ? PrayerTimes.FAJR : -1);
                 return;
             }
             case "sa.urtv.home.ADHAN_RESCHEDULE":   // optimize/saver.sh prayeradj: the alarm for the minutes as they are now
@@ -38,51 +40,28 @@ public class MusicReceiver extends BroadcastReceiver {
                 return;
             case "sa.urtv.home.ADHAN_ON":
             case "sa.urtv.home.ADHAN_OFF":
-                prefs.setAdhanOn("sa.urtv.home.ADHAN_ON".equals(action));
-                AdhanScheduler.schedule(context);
+                AdhanSettings.on(context, prefs, "sa.urtv.home.ADHAN_ON".equals(action));
                 return;
-            case "sa.urtv.home.ADHAN_VOLUME": {   // optimize/music.sh adhan volume 60
-                int percent = intent.getIntExtra("percent", -1);
-                if (percent < 10 || percent > 100) return;
-                prefs.setAdhanVolume(percent);
+            case "sa.urtv.home.ADHAN_VOLUME":   // optimize/music.sh adhan volume 60
+                AdhanSettings.volume(prefs, intent.getIntExtra("percent", -1));
                 return;
-            }
             case "sa.urtv.home.VOICE": {
-                int voice = intent.getIntExtra(MusicService.EXTRA_VOICE, prefs.voice());
-                if (voice == Prefs.OWN) {
-                    if (!OwnAdhan.exists(context)) { setResultData("error: no recording of your own yet (optimize/music.sh adhan add FILE)"); return; }
-                    prefs.setOwnChosen(true);
-                } else if (voice < 1 || voice > Adhan.VOICES) {
-                    setResultData("error: the voice is 1-" + Adhan.VOICES + " or 0 for your own recording");
-                    return;
-                } else if (AdhanVoices.isFajr(voice)) {
-                    setResultData("error: voice " + voice + " is a Fajr recording; it is for Fajr only (optimize/music.sh adhan fajr-voice " + voice + ")");
-                    return;
-                } else {
-                    prefs.setVoice(voice);
-                    prefs.setOwnChosen(false);
-                }
-                setResultData("saved\n" + ownListing(context, prefs));
+                String error = AdhanSettings.voice(context, prefs, intent.getIntExtra(MusicService.EXTRA_VOICE, prefs.voice()));
+                setResultData(error != null ? error : "saved\n" + ownListing(context, prefs));
                 return;
             }
             case "sa.urtv.home.FAJR_VOICE": {
-                int voice = intent.getIntExtra(MusicService.EXTRA_VOICE, prefs.fajrVoice());
-                if (voice == Prefs.OWN) {
-                    if (!OwnAdhan.exists(context)) { setResultData("error: no recording of your own yet (optimize/music.sh adhan add FILE)"); return; }
-                    prefs.setFajrOwn(true);
-                } else if (voice < 1 || voice > Adhan.VOICES) {
-                    setResultData("error: the voice is 1-" + Adhan.VOICES + " or 0 for your own recording");
-                    return;
-                } else {
-                    prefs.setFajrVoice(voice);
-                    Adhan.prefetchChosen(context);
-                }
-                setResultData("saved\n" + ownListing(context, prefs));
+                String error = AdhanSettings.fajrVoice(context, prefs, intent.getIntExtra(MusicService.EXTRA_VOICE, prefs.fajrVoice()));
+                setResultData(error != null ? error : "saved\n" + ownListing(context, prefs));
                 return;
             }
             case "sa.urtv.home.ADHAN_SHORT":   // optimize/music.sh adhan short on|off
                 prefs.setAdhanShort(intent.getBooleanExtra("on", false));
                 setResultData("saved\nshort=" + (prefs.adhanShort() ? "on" : "off"));
+                return;
+            case "sa.urtv.home.ADHAN_STOPKEY":   // optimize/music.sh adhan stopkey on|off
+                prefs.setAdhanStopKey(intent.getBooleanExtra("on", false));
+                setResultData("saved\nstopkey=" + (prefs.adhanStopKey() ? "on" : "off"));
                 return;
             case "sa.urtv.home.ADHAN_OWN":
                 setResultData(own(context, prefs, intent));
@@ -210,6 +189,8 @@ public class MusicReceiver extends BroadcastReceiver {
                 + "|voice=" + (prefs.playVoice(context) == Prefs.OWN ? "own" : String.valueOf(prefs.voice()))
                 + "|fajr_voice=" + (prefs.playFajrVoice(context) == Prefs.OWN ? "own" : String.valueOf(prefs.fajrVoice()))
                 + "|adhan_short=" + (prefs.adhanShort() ? "on" : "off")
+                + "|adhan_stopkey=" + (prefs.adhanStopKey() ? "on" : "off")
+                + "|adhan_live=" + (MusicService.adhanLive() ? 1 : 0)
                 + "|adhan_volume=" + prefs.adhanVolume()
                 + "|adhan_exact=" + (AdhanScheduler.exactAllowed(context) ? 1 : 0)
                 + "|own_bytes=" + (OwnAdhan.exists(context) ? OwnAdhan.bytes(context) : 0)

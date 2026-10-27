@@ -89,11 +89,26 @@ public final class PrayerMathRun {
         }
         check("Saudi golden: the file was read", golden == 12, String.valueOf(golden));
 
+        // the other countries' cities (tests/prayer_gold_countries.tsv): times from an independent solar calculation (NOAA/Meeus series, not this
+        // code's formula) with each country's published parameters; the method comes from the zone as the TV would pick it. One minute of slack.
+        int countries = 0;
+        for (String line : Files.readAllLines(Paths.get(args[1]), StandardCharsets.UTF_8)) {
+            if (line.isEmpty() || line.startsWith("#")) continue;
+            String[] f = line.split("\t");
+            String[] ymd = f[1].split("-");
+            long[] g = PrayerMath.compute(Integer.parseInt(ymd[0]), Integer.parseInt(ymd[1]), Integer.parseInt(ymd[2]),
+                    Double.parseDouble(f[2]), Double.parseDouble(f[3]), f[4], false, PrayerMath.methodFor(f[4], null));
+            countries++;
+            check("reference " + f[0] + " " + f[1] + " (" + f[4] + "): every time within a minute of the independent calculation", within(row(g, f[4]), f[5], 1), row(g, f[4]) + " vs " + f[5]);
+        }
+        check("reference: the file was read", countries >= 1, String.valueOf(countries));
+
         // which method a place gets: its country's by the zone, the Ja'fari when asked, Umm al-Qura for anything else
-        check("methods: Riyadh 4, Kuwait 9, Qatar 10, Dubai 16, Bahrain and Muscat 8, Cairo and an unknown zone 4",
+        check("methods: Riyadh 4, Kuwait 9, Qatar 10, Dubai 16, Bahrain and Muscat 8, Cairo 5, an unknown zone 4",
                 PrayerMath.methodFor("Asia/Riyadh", null) == 4 && PrayerMath.methodFor("Asia/Kuwait", null) == 9 && PrayerMath.methodFor("Asia/Qatar", null) == 10
                 && PrayerMath.methodFor("Asia/Dubai", null) == 16 && PrayerMath.methodFor("Asia/Bahrain", null) == 8 && PrayerMath.methodFor("Asia/Muscat", "auto") == 8
-                && PrayerMath.methodFor("Africa/Cairo", null) == 4 && PrayerMath.methodFor("Nowhere/Land", null) == 4 && PrayerMath.methodFor(null, null) == 4, "");
+                && PrayerMath.methodFor("Africa/Cairo", null) == 5 && PrayerMath.methodFor("Asia/Amman", null) == 23 && PrayerMath.methodFor("Africa/Tunis", null) == 18 && PrayerMath.methodFor("Africa/Algiers", null) == 19 && PrayerMath.methodFor("Africa/Casablanca", null) == 21 && PrayerMath.methodFor("Asia/Damascus", null) == 5 && PrayerMath.methodFor("Asia/Beirut", null) == 5
+                && PrayerMath.methodFor("Asia/Gaza", null) == 5 && PrayerMath.methodFor("Asia/Hebron", null) == 5 && PrayerMath.methodFor("Nowhere/Land", null) == 4 && PrayerMath.methodFor(null, null) == 4, "");
         check("methods: pm=jafari is the Ja'fari everywhere, 0", PrayerMath.methodFor("Asia/Riyadh", "jafari") == 0 && PrayerMath.methodFor("Asia/Kuwait", "jafari") == 0, "");
         check("methods: the Ramadan half hour of Isha is Umm al-Qura's alone",
                 PrayerMath.ishaDelayMillis(true, 4) == 120 * 60_000L && PrayerMath.ishaDelayMillis(true, 10) == 90 * 60_000L && PrayerMath.ishaDelayMillis(true, 8) == 90 * 60_000L, "");

@@ -85,7 +85,7 @@ final class Prefs {
     // markets at the top left (sent to the page as #markets=, up to MAX_MARKETS, in this order of choice; tasi,spx,btc is what it always showed)
     static final String[][] MARKETS = {
         {"tasi", "تاسي"}, {"aramco", "أرامكو"}, {"spx", "S&P 500"}, {"btc", "بيتكوين"},
-        {"gold", "الذهب (الجرام بالريال)"}, {"silver", "الفضة (الجرام بالريال)"}, {"xrp", "ريبل"},
+        {"gold", "الذهب (الجرام بالريال)"}, {"silver", "الفضة (الجرام بالريال)"}, {"oil", "نفط برنت (للبرميل)"}, {"xrp", "ريبل"},
     };
     static final int MAX_MARKETS = 4;
     static final String DEFAULT_MARKETS = "tasi,spx,btc";
@@ -113,6 +113,9 @@ final class Prefs {
 
     private final SharedPreferences sp;
     private final Context ctx;
+
+    /** sent (to this app only) when a SET from ADB or the launcher saved something: a screensaver that is already showing starts over with it */
+    static final String CHANGED = "sa.urtv.screensaver.SETTINGS_CHANGED";
 
     Prefs(Context c) { ctx = c; sp = c.getSharedPreferences("settings", Context.MODE_PRIVATE); }
 
@@ -191,15 +194,21 @@ final class Prefs {
 
     // The card beside the clock: value sent to the page (#panel=), Arabic label
     static final String[][] PANELS = {
-        {"shows", "جديد المسلسلات"}, {"prayers", "مواقيت الصلاة اليوم"}, {"forecast", "طقس الأيام القادمة"}, {"hourly", "طقس الساعات القادمة"}, {"prayerrow", "الصلوات في صف"},
+        {"shows", "جديد المسلسلات"}, {"prayers", "مواقيت الصلاة اليوم"}, {"forecast", "طقس الأيام القادمة"}, {"hourly", "طقس الساعات القادمة"}, {"prayerrow", "الصلوات في صف"}, {"nextprayer", "الصلاة القادمة"},
         {"matches", "مباريات فرقك القادمة"}, {"verse", "آية أو حديث اليوم"}, {"wisdom", "حكمة اليوم"},
         {"adhkar", "أذكار الصباح والمساء"}, {"stocks", "الأسهم"}, {"tasks", "المهام"}, {"year", "السنة"},
         {"smart", "البطاقة الذكية"}, {"today", "يومك"},
         {"none", "لا شيء"},
     };
 
-    /** Older builds had an on/off switch for the card; off becomes "none", otherwise the verse card. */
-    String panel() { return sp.getString("panel", sp.getBoolean("showWeek", true) ? "verse" : "none"); }
+    /** Cards for the home screen only: on the screensaver the always-on panel at the bottom right already says the same. */
+    static boolean homeOnly(String v) { return "nextprayer".equals(v); }
+
+    /** Older builds had an on/off switch for the card; off becomes "none", otherwise the verse card. A home-only card is the verse there. */
+    String panel() {
+        String v = sp.getString("panel", sp.getBoolean("showWeek", true) ? "verse" : "none");
+        return homeOnly(v) ? "verse" : v;
+    }
     void setPanel(String v) { sp.edit().putString("panel", v).apply(); }
 
     // One plain line about each card, in the words of docs/FEATURES.md (tests/check.py compares them): the pickers show it under the name
@@ -209,6 +218,7 @@ final class Prefs {
         {"forecast", "خمسة أيام"},
         {"hourly", "الست ساعات الجاية بالساعة والأيقونة والحرارة، وقمر بعد الغروب"},
         {"prayerrow", "الخمس صلوات في صف واحد، والجاية مضيئة"},
+        {"nextprayer", "سطر واحد: الصلاة الجاية ووقتها وكم باقي لها"},
         {"matches", "مباريات الأسبوع ونتائج آخر يوم لفرقك، وكل مباراة بسطر واحد"},
         {"verse", "آية يوم، وحديث صحيح من الكتب الستة اليوم اللي بعده، ومعه مصدره"},
         {"wisdom", "مثل أو قول عربي معروف مع مصدره"},
@@ -255,6 +265,14 @@ final class Prefs {
 
     String minRating() { return sp.getString("minRating", "7"); }
     void setMinRating(String v) { sp.edit().putString("minRating", v).apply(); }
+
+    /** «فرق التاريخ الهجري» (default 0): the Hijri day moved by -2..+2 days, for moon-sighting countries (HijriOffset); sent to the page only when not 0 */
+    int hijriOffset() { return HijriOffset.decode(sp.getInt("hijriOffset", 0)); }
+    void setHijriOffset(int v) { sp.edit().putInt("hijriOffset", HijriOffset.decode(v)).apply(); }
+
+    /** «ساعة ٢٤» (default off: the 12-hour clock as always); sent to the page as #clock=24, and only while on. */
+    boolean clock24() { return sp.getBoolean("clock24", false); }
+    void setClock24(boolean v) { sp.edit().putBoolean("clock24", v).apply(); }
 
     String digits() { return sp.getString("digits", "hindi"); }
     void setDigits(String v) { sp.edit().putString("digits", v).apply(); }
@@ -342,6 +360,20 @@ final class Prefs {
     boolean adhanBar() { return sp.getBoolean("adhanBar", true); }
     void setAdhanBar(boolean v) { sp.edit().putBoolean("adhanBar", v).apply(); }
 
+    /** From PR #28, each off by default and sent to the page only when on: the sunrise after Fajr in the bottom-right panel (#sunrise=1),
+     *  the bar of the time between two prayers under it (#prayerbar=1), and the humidity and wind at the top left (#wxmore=1). */
+    boolean sunrise() { return sp.getBoolean("sunrise", false); }
+    void setSunrise(boolean v) { sp.edit().putBoolean("sunrise", v).apply(); }
+    boolean prayerBar() { return sp.getBoolean("prayerBar", false); }
+    void setPrayerBar(boolean v) { sp.edit().putBoolean("prayerBar", v).apply(); }
+    boolean wxMore() { return sp.getBoolean("wxMore", false); }
+    void setWxMore(boolean v) { sp.edit().putBoolean("wxMore", v).apply(); }
+
+    /** The Gregorian month's names: "default" («أكتوبر») or "levant" («تشرين الأول»), on the screensaver and the home screen; #months=levant. */
+    String months() { return "levant".equals(sp.getString("months", "default")) ? "levant" : "default"; }
+    void setMonths(String v) { sp.edit().putString("months", "levant".equals(v) ? "levant" : "default").apply(); }
+    static String monthsLabel(String v) { return "levant".equals(v) ? "كانون الثاني، شباط، آذار…" : "يناير، فبراير، مارس…"; }
+
     /** The slim year strip under the clock, on the screensaver only (default off); sent to the page as #yearstrip=. */
     boolean yearStrip() { return sp.getBoolean("yearStrip", false); }
     void setYearStrip(boolean v) { sp.edit().putBoolean("yearStrip", v).apply(); }
@@ -359,6 +391,24 @@ final class Prefs {
 
     /** The page reads its settings from the fragment; a ?query fails on file:// in WebView. */
     String dashboardUrl(Context c) { return pageBase(c) + "#" + fragment(); }
+
+    /** Was a city ever set, from the settings or the computer? Until then it is the install's Riyadh (Location.note). */
+    boolean cityChosen() { return sp.contains("cityName"); }
+
+    /** The first-run note is due now (Location.noteDue): the settings' top row and the screensaver's start ask the same. */
+    boolean cityNoteDue() { return Location.noteDue(FreshInstall.is(ctx), cityChosen(), sp.getInt("cityNoteShown", 0)); }
+
+    /**
+     * The screensaver's page, with #citynote=1 while the note is due. start: a real start of the screensaver (ScreenDream attached),
+     * the only thing that counts toward its three; the settings' preview shows it without counting. Not in fragment(): the launcher's
+     * cards never show it.
+     */
+    String screenUrl(Context c, boolean start) {
+        String url = dashboardUrl(c);
+        if (!cityNoteDue()) return url;
+        if (start) sp.edit().putInt("cityNoteShown", sp.getInt("cityNoteShown", 0) + 1).apply();
+        return url + "&citynote=1";
+    }
 
     /**
      * The page for a preview in the settings: the card alone (#widget=1) with the current settings, but this card in this style.
@@ -402,11 +452,15 @@ final class Prefs {
             + "&minrating=" + minRating()
             + "&photos=" + photoMinutes()
             + "&digits=" + digits()
+            + ClockSetting.fragment(clock24())
             + "&cardstyle=" + cardStyle()
             + "&adhanbar=" + (adhanBar() ? "1" : "0")
             + "&yearstrip=" + (yearStrip() ? "1" : "0")
+            + (sunrise() ? "&sunrise=1" : "") + (prayerBar() ? "&prayerbar=1" : "") + (wxMore() ? "&wxmore=1" : "")
+            + ("levant".equals(months()) ? "&months=levant" : "")
             + PrayerAdj.fragment(prayerAdjOn(), prayerAdj())
             + PrayerMethod.fragment(prayerMethod())
+            + HijriOffset.fragment(hijriOffset())
             + "&national=" + national()
             + "&markets=" + join(markets(), ",")
             + "&mkstyle=" + mkStyle()

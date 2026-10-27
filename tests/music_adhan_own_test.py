@@ -166,6 +166,17 @@ for bad in ("yes", "", "on off"):
     rc, out, sent, ff = run("adhan", "short", bad) if bad else run("adhan", "short")
     check(f"short {bad!r}: refused, nothing sent", rc != 0 and not sent, (out, sent))
 
+STOPKEY = "am broadcast -n sa.urtv.home/.tilawah.MusicReceiver -a sa.urtv.home.ADHAN_STOPKEY "
+rc, out, sent, ff = run("adhan", "stopkey", "on")
+check("stopkey on", rc == 0 and sent == [STOPKEY + "--ez on true"] and "Any key" in out, (out, sent))
+rc, out, sent, ff = run("adhan", "stopkey", "off")
+check("stopkey off", rc == 0 and sent == [STOPKEY + "--ez on false"], (out, sent))
+for bad in ("yes", "", "on off"):
+    rc, out, sent, ff = run("adhan", "stopkey", bad) if bad else run("adhan", "stopkey")
+    check(f"stopkey {bad!r}: refused, nothing sent", rc != 0 and not sent, (out, sent))
+rc, out, sent, ff = run("adhan", "stop")
+check("adhan stop sends STOP_ADHAN only", rc == 0 and sent == ["am broadcast -n sa.urtv.home/.tilawah.MusicReceiver -a sa.urtv.home.STOP_ADHAN"], (out, sent))
+
 rc, out, sent, ff = run("adhan", "own-clear")
 check("own-clear", rc == 0 and sent == [OWN + "--es op clear"] and "removed" in out, (out, sent))
 rc, out, sent, ff = run("adhan", "own-clear", "x")

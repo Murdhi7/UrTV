@@ -53,7 +53,7 @@ final class PrayerTimes {
         local.setTimeInMillis(when.getTimeInMillis());
         long day0 = PrayerMath.midnight(local.get(Calendar.YEAR), local.get(Calendar.MONTH) + 1,
                 local.get(Calendar.DAY_OF_MONTH), place.tz);
-        return of(local, place, hijriMonth(day0) == 9);
+        return of(local, place, hijriMonth(day0, place.tz) == 9);
     }
 
     private static PrayerTimes of(Calendar local, Place place, boolean ramadan) {
@@ -150,14 +150,9 @@ final class PrayerTimes {
         return Ui.arabic(n) + (n >= 3 && n <= 10 ? " دقائق" : " دقيقة");
     }
 
-    /** ٠٥:١٢ → "٥:١٢ ص", ١٨:٤٠ → "٦:٤٠ م" */
-    static String clock12(String hhmm) {
-        int colon = hhmm.indexOf(':');
-        int h = Integer.parseInt(hhmm.substring(0, colon));
-        String m = hhmm.substring(colon + 1);
-        String suffix = h < 12 ? "ص" : "م";
-        int h12 = h % 12 == 0 ? 12 : h % 12;
-        return Ui.digits(h12 + ":" + m) + " " + suffix;
+    /** "05:12" → "٥:١٢ ص", "18:40" → "٦:٤٠ م"; with the screensaver's «ساعة ٢٤» on: "٠٥:١٢", "١٨:٤٠" (ClockText) */
+    static String clockText(String hhmm) {
+        return sa.urtv.home.ClockText.time(hhmm, sa.urtv.home.Digits.clock24(), sa.urtv.home.Digits.latin());
     }
 
     // ---------------------------------------------------------------- Aladhan
@@ -260,11 +255,11 @@ final class PrayerTimes {
 
     // ---------------------------------------------------------------- the Islamic month
 
-    /** 9 in Ramadan, from the Umm al-Qura calendar the whole project uses. */
-    private static int hijriMonth(long millis) {
+    /** 9 in Ramadan, from the Umm al-Qura calendar the whole project uses, never shifted by «فرق التاريخ الهجري»: prayer times do not follow it. */
+    private static int hijriMonth(long millis, String tz) {
         try {
             android.icu.util.Calendar cal = android.icu.util.Calendar.getInstance(
-                    new android.icu.util.ULocale("en-u-ca-islamic-umalqura"));
+                    android.icu.util.TimeZone.getTimeZone(tz), new android.icu.util.ULocale("en-u-ca-islamic-umalqura"));   // the city's day, not the device's
             cal.setTimeInMillis(millis);
             return cal.get(android.icu.util.Calendar.MONTH) + 1;
         } catch (Throwable t) {

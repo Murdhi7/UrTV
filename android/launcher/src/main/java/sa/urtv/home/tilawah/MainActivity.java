@@ -30,7 +30,7 @@ public class MainActivity extends Activity {
     private static final int TAB_RECITERS = 0, TAB_STATIONS = 1, TAB_ADHAN = 2;
 
     private static final int KIND_RESUME = 0, KIND_RECITER = 1, KIND_STATION = 2,
-            KIND_PRAYER = 3, KIND_ADHAN_TOGGLE = 4, KIND_VOICE = 5, KIND_VOLUME = 6, KIND_EXACT = 7, KIND_FAJR_VOICE = 8, KIND_SHORT = 9;
+            KIND_PRAYER = 3, KIND_ADHAN_TOGGLE = 4, KIND_VOICE = 5, KIND_VOLUME = 6, KIND_EXACT = 7, KIND_FAJR_VOICE = 8, KIND_SHORT = 9, KIND_STOPKEY = 10;
 
     private Catalog cat;
     private Prefs prefs;
@@ -102,6 +102,10 @@ public class MainActivity extends Activity {
                 startActivity(new Intent(this, AdhanActivity.class).putExtra(AdhanActivity.EXTRA_FAJR, true));
             } else if (row.kind == KIND_SHORT) {
                 prefs.setAdhanShort(!prefs.adhanShort());
+                adapter.rebuild();
+                focusList(list.getSelectedItemPosition());
+            } else if (row.kind == KIND_STOPKEY) {
+                prefs.setAdhanStopKey(!prefs.adhanStopKey());
                 adapter.rebuild();
                 focusList(list.getSelectedItemPosition());
             } else if (row.kind == KIND_EXACT) {
@@ -354,7 +358,7 @@ public class MainActivity extends Activity {
                 PrayerTimes.Next next = PrayerTimes.next(MainActivity.this);
                 for (int prayer : PrayerTimes.PRAYERS) {
                     boolean isNext = next != null && next.index == prayer;
-                    String detail = PrayerTimes.clock12(times.clock[prayer]);
+                    String detail = PrayerTimes.clockText(times.clock[prayer]);
                     if (isNext) detail += "  •  " + PrayerTimes.remaining(next.at - System.currentTimeMillis());
                     rows.add(new Row(false, KIND_PRAYER, PrayerTimes.NAMES[prayer], detail, prayer, isNext));
                 }
@@ -370,6 +374,8 @@ public class MainActivity extends Activity {
                 rows.add(new Row(false, KIND_FAJR_VOICE, getString(R.string.adhan_fajr_voice), Adhan.label(prefs.playFajrVoice(MainActivity.this)), -1));
                 rows.add(new Row(false, KIND_SHORT, getString(R.string.adhan_short),
                         getString(prefs.adhanShort() ? R.string.adhan_short_on : R.string.adhan_short_off), -1));
+                rows.add(new Row(false, KIND_STOPKEY, getString(R.string.adhan_stopkey),
+                        getString(prefs.adhanStopKey() ? R.string.adhan_stopkey_on : R.string.adhan_stopkey_off), -1));
                 rows.add(new Row(false, KIND_VOLUME, getString(R.string.adhan_volume),
                         volumeText(prefs.adhanVolume()), -1));
             }

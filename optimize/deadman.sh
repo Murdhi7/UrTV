@@ -6,14 +6,17 @@
 # The nonce belongs to one switch: the marker of an older run cannot disarm this one. While it waits it writes its pid
 # (home_pid.<nonce>) and the time every 10 s (home_hb.<nonce>), so install.sh can tell it is alive before it switches.
 # A restart of the TV kills it (stock Android cannot keep it): install.sh's journal (optimize/run/home-switch.json) covers that.
-# Usage (on the TV): nohup sh /data/local/tmp/deadman.sh <stock home component> [seconds] [nonce] &
+# Usage (on the TV): sh /data/local/tmp/deadman.sh <stock home component> <seconds> <nonce> &
+# (On some TVs, e.g. a TCL on Android 14, a job started over ADB ends when the ADB session closes: install.sh then says so.)
 # (HOME_DIR and the PATH are only changed by tests/install_retry_test.py)
 
 STOCK="${1:-com.google.android.apps.tv.launcherx/com.google.android.apps.tv.launcherx.home.HomeActivity}"
 LIMIT="${2:-180}"
 NONCE="${3:-}"
 DIR="${HOME_DIR:-/data/local/tmp}"
-if [ -n "$NONCE" ]; then OK="$DIR/home_ok.$NONCE"; else OK="$DIR/home_ok"; fi   # no nonce: the old marker, for an old install.sh
+# A nonce is required: an old marker without one (home_ok) must never be able to disarm a switch. install.sh always passes one.
+[ -n "$NONCE" ] || { echo "deadman.sh needs a nonce (third argument)" >&2; exit 2; }
+OK="$DIR/home_ok.$NONCE"
 PIDF="$DIR/home_pid.$NONCE"; HB="$DIR/home_hb.$NONCE"
 echo $$ > "$PIDF"
 trap 'rm -f "$PIDF" "$HB"' EXIT

@@ -105,5 +105,12 @@ public final class PlayerLogicRun {
         check("fault sentences say what failed, for a surah and for a station",
                 PlayerFault.message(false, 1, -1004).contains("تحميل السورة") && PlayerFault.message(true, 1, -1004).contains("البث")
                 && PlayerFault.message(false, 1, -1007).contains("السورة") && PlayerFault.message(true, 1, 0).contains("البث"));
+
+        // ---- a held seek key: one seek per 250 ms, a fresh press always
+        SeekPace sp = new SeekPace();
+        int seeks = 0;
+        for (int k = 0; k < 20; k++) if (sp.due(k, 1_000 + k * 50L)) seeks++;   // held for a second, a repeat every 50 ms
+        check("seek: a held key seeks once per 250 ms, not on every repeat", seeks == 4);
+        check("seek: a fresh press right after always seeks", sp.due(0, 1_960) && sp.due(0, 1_970));
     }
 }

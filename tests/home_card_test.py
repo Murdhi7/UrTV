@@ -33,11 +33,19 @@ CASES = [
     ("city=Riyadh", "none", "city=Riyadh", "tasks", "off"),                                                           # «بدون»: no card, so nothing live
 ]
 
+# HomeCard.pause()/refresh() call pauseTimers()/resumeTimers(), which are process-wide: safe only while this card is the launcher's only WebView
+launcher = list((ROOT / "android/launcher/src/main/java").rglob("*.java"))
+makers = [p.name for p in launcher if "new WebView(" in p.read_text(encoding="utf-8")]
+timers = [p.name for p in launcher if "pauseTimers" in p.read_text(encoding="utf-8").replace("pauseTimers()/resumeTimers()", "")]
+card_ok = makers == ["HomeCard.java"] and timers == ["HomeCard.java"]
+print(("PASS " if card_ok else "FAIL ") + "the launcher has exactly one WebView (HomeCard), the only place that calls the process-wide pauseTimers()/resumeTimers()"
+      + ("" if card_ok else f"  -> WebViews: {makers}, pauseTimers in: {timers}; revisit HomeCard.pause()/refresh() before adding another"))
+
 javac, java = shutil.which("javac"), shutil.which("java")
 if not (javac and java):
     print("SKIP HomeCardChoice.java: no javac here (CI's Build APKs compiles it)")
-    sys.exit(0)
-failed = 0
+    sys.exit(0 if card_ok else 1)
+failed = 0 if card_ok else 1
 with tempfile.TemporaryDirectory() as tmp:
     r = subprocess.run([javac, "-encoding", "UTF-8", "-d", tmp, str(SRC), str(ROOT / "tests/HomeCardChoiceRun.java")], capture_output=True, text=True)
     ok = r.returncode == 0

@@ -68,10 +68,11 @@ Those defaults, unless I change them:
 - if I pick the episodes card: all genres and languages.
 
 My city is checked later against `android/app/src/main/java/sa/urtv/screensaver/Cities.java`: Saudi Arabia and the main
-cities of Bahrain, Kuwait, Qatar, the UAE and Oman are in it, each with its country's time zone and its prayer
-calculation, so a Gulf city by name (`city الدوحة`) just works. If it isn't there, step 4 sets it with its coordinates
-and time zone (`city <name> <lat> <lon> <zone>`) without asking me again; the zone of a place in the Gulf picks that
-country's calculation (`Asia/Kuwait`, `Asia/Qatar`, `Asia/Dubai`, `Asia/Bahrain`, `Asia/Muscat`). If I ask for the Shia
+cities of Bahrain, Kuwait, Qatar, the UAE, Oman, Egypt, Jordan, Syria, Lebanon, Palestine, Morocco, Algeria and Tunisia are
+in it, each with its country's time zone and its prayer calculation, so a city by name (`city الدوحة`, `city القاهرة`) just works. If it isn't there, step 4 sets it with its coordinates
+and time zone (`city <name> <lat> <lon> <zone>`) without asking me again; the zone of a place in those countries picks
+that country's calculation (`Asia/Kuwait`, `Asia/Qatar`, `Asia/Dubai`, `Asia/Bahrain`, `Asia/Muscat`, `Africa/Cairo`, `Asia/Amman`,
+`Asia/Damascus`, `Asia/Beirut`, `Asia/Hebron` or `Asia/Gaza`, `Africa/Casablanca`, `Africa/Algiers`, `Africa/Tunis`), so give the right one. If I ask for the Shia
 Ja'fari times: `optimize/saver.sh prayermethod jafari`.
 
 ## 0. Can you reach my TV? (check this first, 1 minute)
@@ -220,6 +221,8 @@ Lines starting with `!!` are the scripts telling you to stop and act. These are 
 | `--probe` silent for 5 minutes and the TV shows no «Allow USB debugging?» | the first connection to a TCL sometimes just hangs | stop it and run the same command again: the second time it connects at once |
 | `--probe` times out and the TV shows no «Allow USB debugging?» after a new clone of the repo | the ADB key the TV trusted stayed in the older folder's `optimize/adbkey`; a new clone makes a new key and the TV never saw it | the key now lives outside any clone, in `~/.urtv` (Windows: `%USERPROFILE%\.urtv`), and `tv.py` moves an older `optimize/adbkey` there by itself. If the older folder is not the one you are in, copy its `optimize/adbkey/adbkey` and `adbkey.pub` into `~/.urtv`, then the same command. Never print or paste that path: it holds my user name. The saved TV (`tv-id.json`) is there too |
 | `reset.sh`: `mv: cannot move 'optimize/run' … Permission denied` (Windows) | something holds a file open inside `optimize/run` (a log you write there, an editor, an image viewer) | close it, never write your own logs into `optimize/run`; the same command again (the apps are already removed, it carries on) |
+| `!! The import failed (…). The TV was put back as it was` (`saver.sh import --yes`) | the TV refused one of the values, or did not show it when read back; everything was put back | nothing changed: read the reason in the line, fix the file (or update the apps: `optimize/install.sh`), then the same command |
+| `!! The import failed (…) and the TV could NOT be put back completely` | the TV refused the put-back too (it went off, or its apps are older) | `optimize/saver.sh import optimize/run/settings-before-import.json --yes` (the path is in the line), and if that fails too, `optimize/saver.sh show` and set the rest with the commands in `docs/SETTINGS.md` |
 | `!! This terminal cannot reach the home network` | your commands run in a cloud, sandbox or virtual machine | stop, tell me (step 0) |
 | the TV forgot its Wi-Fi after the first restart (two TCL sets did) | some firmware drops its saved network on a restart | **before the first restart** (step 3 starts with one) ask me to have the Wi-Fi password at hand. If the TV comes back with no network: tell me to open Settings → Network & Internet, pick the network and type the password, and say «تم»; then `optimize/find-tv.sh` (the address may change) and the same command. Never touch the Wi-Fi settings yourself |
 | a «choose a home app» list, or a «who is watching» profile picker, shows on the TV during the home switch (a Sony with two profiles, a Nokia) | the TV asks which home to use, or which profile to open | look at the screen (`optimize/shot.sh home`) and ask me to press OK on «تلفزيونك» then «دائماً» (Always) in the list; on a profile picker my usual profile, then Home. Then the same command if it stopped |
@@ -253,7 +256,7 @@ Lines starting with `!!` are the scripts telling you to stop and act. These are 
 | `Done, with problems:` and `optimize/run.sh` exits 1 | every step ran, but `report.md` has `!!` lines (printed under it) | read them, fix what each says (this table), then `optimize/run.sh` again: only the report step is redone |
 | `ADB dropped during the switch; the TV is back, trying the switch again` | Wi-Fi ADB dropped while the home was being switched; the script waited for the TV (up to 10 minutes) and is doing the switch a second time, the safety switch armed again | nothing, wait; only if it ends in `!!` follow that line |
 | `!! The safety switch put the stock home back` | ADB was slower than the 5-minute switch | nothing is broken: the same command again |
-| `!! The safety switch did not start on the TV (no heartbeat)` | before it changes anything, `install.sh launcher` checks that the safety switch it started on the TV is alive (its process answers and its heartbeat file is under 25 s old). It was not, so the home was NOT switched and nothing was changed | the same command again; if it repeats, restart the TV (`optimize/venv/bin/python -I optimize/tv.py --reboot`), check it is on Wi-Fi, and try once more. Do not start `deadman.sh` or switch the home by hand |
+| `This TV ends background jobs when the ADB session closes, so there is no safety switch on the TV itself…` (install.sh, during the home switch) | seen on a TCL with Android 14: a job started over ADB (nohup or setsid) is ended the moment the ADB session closes, so the 5-minute safety switch cannot stay alive on the TV. `install.sh` checks for its heartbeat, says this in a plain line (not a `!!`) and goes on: the switch is checked and undone from this computer at once if Home does not open ours, and the journal (`optimize/run/home-switch.json`, which records `safety_switch: unavailable`) restores the stock home on the next run if this computer stopped in the middle | nothing to do; the report says «Home switch: no safety switch on the TV itself». Keep the computer and the TV on until `Launcher is home`. If the run is cut off, run `optimize/install.sh launcher` or `optimize/restore-home.sh` again. Do not start `deadman.sh` yourself. When Home is already ours, `install.sh` prints «Home is already the new launcher: nothing to switch» and starts no safety switch at all |
 | `An earlier home switch was cut off (the TV or this computer restarted)… putting the home back from optimize/run/home-switch.json` | `install.sh` and `run.sh` write a journal of the switch (`optimize/run/home-switch.json`: the stock home, the setup wizard and who held Home before) and read it first on the next run. A restart kills the safety switch on the TV, so with the journal still «switching», Home not ours and no marker on the TV, they put the stock home back from it. Ours being home, or the switch having confirmed itself, is left alone | nothing: wait, the switch is done again if it is a step of this run. If it then says `!! Could not restore the home from the journal`: the TV did not answer; when it is on and on Wi-Fi run `optimize/restore-home.sh` |
 | «استرجاع الشاشة الرئيسية» (the person wants the stock home back, or Home is wrong after a switch) | the home app has no button for it (with no home there is nothing to press): it is a command and it needs ADB | `optimize/restore-home.sh`: puts the stock home, the setup wizard and the previous HOME holder back from the journal (and the stock home's helpers); with no journal it does what `optimize/restore.sh` does. The TV must be on and on Wi-Fi. It only ever turns the wizard on, never off |
 | `!! window_animation_scale: this TV did not take the value (asked for 0.5, it says …)` (or `transition_animation_scale`, `animator_duration_scale`, `cached_apps_freezer`, `max_cached_processes`, and the Play Store's `standby_bucket`, `appop_RUN_IN_BACKGROUND`, `appop_RUN_ANY_IN_BACKGROUND`) | `optimize/tweaks.sh` reads every setting back after setting it; this firmware keeps its own value | nothing is broken and the setup goes on; mention it in the report. Do not set it again by hand. `optimize/tweaks.sh status` shows what each setting was (`optimize/run/tweaks-journal.txt`) and is now; `optimize/tweaks.sh restore` puts back exactly the recorded values (a value that was not set is deleted) |
@@ -374,7 +377,7 @@ itself) and tell me. Some TCL firmware keeps its own home: then `SKIP_LAUNCHER=1
 Every setting, and what to say when I ask for something else: `docs/SETTINGS.md`.
 
 ```
-optimize/saver.sh cities                          # find my city (Saudi Arabia and the Gulf), then: optimize/saver.sh city <name>   (not listed: city <name> <lat> <lon> <time zone, e.g. Asia/Riyadh or Asia/Kuwait; a place that is not in the list is refused without it>)
+optimize/saver.sh cities                          # find my city (Saudi Arabia, the Gulf, Egypt, the Levant, North Africa), then: optimize/saver.sh city <name>, even for Riyadh (until a city is set the screensaver shows a «change your city» note)   (not listed: city <name> <lat> <lon> <time zone, e.g. Asia/Riyadh, Asia/Kuwait or Africa/Cairo; a place that is not in the list is refused without it>)
 optimize/saver.sh prayermethod jafari             # only if I asked for the Shia Ja'fari times (auto = my country's own, the default)
 optimize/saver.sh find-team <club as I wrote it>  # Arabic is fine (الهلال): one call per club, Saudi clubs first;
                                                   # then: optimize/saver.sh teams <id:Name> <id:Name> ...  (my order); «لا شي»: optimize/saver.sh teams none
@@ -393,6 +396,9 @@ optimize/saver.sh national <auto or off>          # ONLY if I asked to turn off 
 optimize/saver.sh prayeradj <fajr +2 maghrib -1 …, then on>   # ONLY if I said my mosque's adhan is minutes early or late (default off: leave it); off goes back to the calculated times
 optimize/music.sh adhan fajr-voice <1-21>          # ONLY if I asked for another muezzin at Fajr (default 10, «فجر الحرم المكي»: leave it); adhan voice <n> is for the other four prayers (never 10, 13, 17, 20)
 optimize/music.sh adhan short <on or off>        # ONLY if I asked for a short adhan, stopping after its first minute (default off: leave it)
+optimize/music.sh adhan stopkey off              # ONLY if I asked that a key does NOT stop the adhan (default on: any key stops it; leave it)
+optimize/saver.sh hijrioffset <-2 to 2>          # ONLY if I said the Hijri date is a day or two off mine (moon sighting: Egypt, Jordan, the Levant, Morocco) «التاريخ الهجري يتأخر/يتقدم يوم» (default 0: leave it; do not guess it from my country)
+optimize/saver.sh clock24 <on or off>             # ONLY if I asked for a 24-hour clock (19:30 instead of 7:30 م; default off: leave it)
 optimize/saver.sh digits <hindi or latin>        # ONLY if I asked for 123 instead of ١٢٣ (default hindi: leave it)
 optimize/saver.sh markets <up to 4 of tasi, aramco, spx, btc, gold, silver, xrp, comma-separated>   # ONLY if I asked for other markets at the top left (default tasi,spx,btc: leave it)
 optimize/saver.sh markets off                    # ONLY if I asked to hide the markets line at the top and keep just the weather (`markets on` brings it back)
@@ -495,6 +501,12 @@ If I say no or don't answer, say nothing more about it. If I say yes:
   Never keep, copy or upload my photos anywhere else, and never put them in this folder.
 - Tell me I can change it any time: `optimize/photos.sh del N`, `clear` (the TV goes back to our photos only), `mode mix|only`,
   or in the screensaver app's settings, row «صوري» (mode, remove all). Adding photos is only through you.
+
+### Offer: a second TV (only if I say I have another one)
+
+If I mention another TV that already has تلفزيونك, offer once, in one line: «تبغى أنقل إعداداتك من التلفزيون الثاني؟»
+If yes: `optimize/saver.sh export > settings.json` on the one that has them, then on this one `optimize/saver.sh import settings.json`
+(a preview), show me the list, and only after I agree `--yes` (`docs/SETTINGS.md`, row «نقل الإعدادات»). Never my photos, tasks or own adhan.
 
 ## 8. Ask me to share how it went (the very last thing)
 

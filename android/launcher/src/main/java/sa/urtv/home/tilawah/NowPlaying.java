@@ -50,6 +50,18 @@ public final class NowPlaying {
                 NowPlayingText.who(radio, reciterName));
     }
 
+    /** an adhan for a prayer is playing (not a preview, not a surah): the home's bar says so and how to stop it */
+    public static boolean adhanLive() { return MusicService.adhanLive(); }
+
+    /** PrayerTimes' number of the prayer that adhan is for, -1 when none is named */
+    public static int adhanPrayer() { return MusicService.adhanPrayer(); }
+
+    /** «إيقاف الأذان بأي زر» */
+    public static boolean adhanStopKey(Context c) { return new Prefs(c).adhanStopKey(); }
+
+    /** Ends the adhan that is playing, and only that adhan: the next prayer's alarm is untouched. */
+    public static void stopAdhan(Context c) { MusicService.stopAdhan(c); }
+
     public static void toggle(Context c) { MusicService.toggle(c); }
 
     public static void next(Context c) { MusicService.nextAction(c); }

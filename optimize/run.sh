@@ -127,6 +127,7 @@ report() {
   done
   echo
   optimize/tweaks.sh status 2> /dev/null || true   # «- tweak …: was …, now …» (the measurements above show whether it helped)
+  [ "$(jget safety_switch)" != unavailable ] || echo "Home switch: no safety switch on the TV itself (this TV ends background jobs with the ADB session); it was checked and can be undone from this computer and the journal"
   echo "Home: $(tv "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN" | tail -1)"
   optimize/autostart.sh check 2> /dev/null || true   # TCL: «Auto-start (TCL): …» or a !! line
   [ ! -f "$RUN/home-skipped.txt" ] || cat "$RUN/home-skipped.txt"   # a TV that won't let its home be switched (Nokia Streaming Box 8000)

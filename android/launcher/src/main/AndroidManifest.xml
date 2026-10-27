@@ -25,6 +25,10 @@
     <!-- «حماية العائلة (DNS)»: Private DNS (Settings.Global). Granted only over ADB by `optimize/dock.sh familydns grant`;
          without it the feature says so and does nothing. -->
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+    <!-- «تحكم من الجوال»: changes the city and the home cards through the screensaver's provider (signature permission, same key) -->
+    <uses-permission android:name="sa.urtv.screensaver.PHONE_SETTINGS" />
+    <!-- «تحديث تلفزيونك» from the phone: hands the APKs it downloaded to Android's own install screen, where the owner confirms -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- the screensaver (same signing key) asks what is playing, for its «يُتلى الآن» card -->
     <permission
@@ -34,6 +38,11 @@
     <!-- opens «حماية العائلة»: the screensaver app (same signing key) holds it, so nothing else can start that screen -->
     <permission
         android:name="sa.urtv.home.FAMILY_DNS"
+        android:protectionLevel="signature" />
+
+    <!-- «تحديث تلفزيوني»: only our two apps (same signing key) may open the update screen -->
+    <permission
+        android:name="sa.urtv.home.OPEN_UPDATE"
         android:protectionLevel="signature" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -110,6 +119,38 @@
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.Material.NoActionBar" />
 
+        <!-- «تحكم من الجوال»: the owner's switch and the pairing screen. Nothing listens until «تشغيل» is pressed there. Exported only so the
+             screensaver's settings can open it, as with DockActivity. -->
+        <activity
+            android:name=".PhoneActivity"
+            android:exported="true"
+            android:label="تحكم من الجوال"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
+        <!-- «تحديث تلفزيوني»: the version, the check and the update. Exported only so the screensaver's settings can open it, behind a signature
+             permission (same key): no other app can. -->
+        <activity
+            android:name=".UpdateActivity"
+            android:exported="true"
+            android:permission="sa.urtv.home.OPEN_UPDATE"
+            android:label="تحديث تلفزيوني"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
+        <!-- the installer's answer for «تحديث تلفزيونك» (only reached through the app's own PendingIntent) -->
+        <receiver
+            android:name=".phone.PhoneInstallReceiver"
+            android:exported="false" />
+
+        <!-- «الرقابة الأبوية»: the PIN, the locks and kids mode; it asks for the PIN itself once one is set -->
+        <activity
+            android:name=".ParentalActivity"
+            android:exported="true"
+            android:label="الرقابة الأبوية"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
         <!-- «المهام»: the tasks kept by the screensaver app, with a mic (speech recognizer) -->
         <activity
             android:name=".TasksActivity"
@@ -132,6 +173,12 @@
                 <action android:name="sa.urtv.home.HIDE" />
                 <action android:name="sa.urtv.home.SHOW" />
                 <action android:name="sa.urtv.home.FAMILY_DNS" />
+                <action android:name="sa.urtv.home.PIN_SET" />
+                <action android:name="sa.urtv.home.PIN_LOCK" />
+                <action android:name="sa.urtv.home.PIN_UNLOCK" />
+                <action android:name="sa.urtv.home.PIN_STATUS" />
+                <action android:name="sa.urtv.home.PIN_OFF" />
+                <action android:name="sa.urtv.home.PIN_RESET" />
             </intent-filter>
         </receiver>
 
@@ -212,6 +259,8 @@
                 <action android:name="sa.urtv.home.VOICE" />
                 <action android:name="sa.urtv.home.FAJR_VOICE" />
                 <action android:name="sa.urtv.home.ADHAN_SHORT" />
+                <action android:name="sa.urtv.home.ADHAN_STOPKEY" />
+                <action android:name="sa.urtv.home.STOP_ADHAN" />
                 <action android:name="sa.urtv.home.ADHAN_OWN" />
             </intent-filter>
         </receiver>

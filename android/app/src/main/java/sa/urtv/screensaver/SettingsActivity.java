@@ -40,6 +40,8 @@ import java.util.List;
 public class SettingsActivity extends Activity {
     private Prefs prefs;
     private LinearLayout list;
+    private ScrollView scroll;
+    private String pendingFocus;   // the row to focus once the window has the focus back (a dialog was still open when the list was rebuilt)
 
     /** Arabic locale for this screen, so every dialog title, list and button is laid out right-to-left. */
     @Override
@@ -67,7 +69,7 @@ public class SettingsActivity extends Activity {
             bg.setAlpha(0.42f);
             root.addView(bg, new FrameLayout.LayoutParams(-1, -1));
         }
-        ScrollView scroll = new ScrollView(this);
+        scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
         FrameLayout frame = new FrameLayout(this);
         list = new LinearLayout(this);
@@ -99,8 +101,16 @@ public class SettingsActivity extends Activity {
         render();
     }
 
+    /**
+     * Builds the list again (on every change, and back in front): the focus stays on the row that had it, by its key (FocusKey), and the
+     * list stays where it was scrolled to; only the first build puts it on «معاينة الشاشة».
+     */
     private void render() {
         latinDigits = DigitsText.isLatin(prefs.digits());
+        List<View> before = rows();
+        View had = focusedRow();
+        final String want = had == null ? null : (String) had.getTag();
+        final int wasIndex = had == null ? 0 : before.indexOf(had), scrollY = scroll.getScrollY();
         list.removeAllViews();
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
@@ -121,15 +131,23 @@ public class SettingsActivity extends Activity {
         sp0.setMarginStart(dp(20));
         head.addView(sub, sp0);
         list.addView(head);
+        if (prefs.cityNoteDue()) line(Location.note(prefs.city()[0]), 0xFFD6AF6B, dp(14));   // still the install's Riyadh: say where to change it
 
-        row("معاينة الشاشة", "شاهد الشاشة الآن", R.drawable.ic_play, new Runnable() { public void run() {
-            startActivity(new Intent(SettingsActivity.this, MainActivity.class)); } }).requestFocus();
+        View preview = row("معاينة الشاشة", "شاهد الشاشة الآن", R.drawable.ic_play, new Runnable() { public void run() {
+            startActivity(new Intent(SettingsActivity.this, MainActivity.class)); } });
+        if (want == null) preview.requestFocus();   // the first build; afterwards the row that had the focus keeps it (restoreFocus)
 
+        // the place, then how its times are worked out, then the minutes of one's own mosque; the line under them says which is which
         header("الموقع");
+        row("الدولة", Location.countryLabel(prefs.cityTz()), R.drawable.ic_place, new Runnable() { public void run() { pickCountry(); } });
         row("المدينة", prefs.city()[0], R.drawable.ic_place, new Runnable() { public void run() { pickCity(); } });
 
         row("طريقة الحساب", PrayerMethod.label(prefs.prayerMethod(), prefs.cityTz()), R.drawable.ic_place,
             new Runnable() { public void run() { pickPrayerMethod(); } });
+        row("تعديل وقت الصلاة", prefs.prayerAdjOn() ? "يعمل · لكل صلاة دقائقها، من −٢٠ إلى +٢٠ (الشروق لا يتغيّر)" : "متوقف · الأوقات كما تُحسب", R.drawable.ic_eye,
+            new Runnable() { public void run() { prefs.setPrayerAdjOn(!prefs.prayerAdjOn()); render(); } });
+        if (prefs.prayerAdjOn()) for (int k = 0; k < PrayerAdj.COUNT; k++) adjRow(k);
+        line(Location.HELP, 0xFFC6BBA4, 0);
 
         header("المباريات");
         row("الفرق المتابعة (" + arabicNum(prefs.teams().size()) + "/" + arabicNum(Prefs.MAX_TEAMS) + ")", teamsLabel(),
@@ -148,9 +166,15 @@ public class SettingsActivity extends Activity {
         noConv = false;
         row("تنبيه قبل الأذان", prefs.adhanBar() ? "يعمل · شريط في أعلى الشاشة آخر ١٠ دقائق، ثم حتى الإقامة" : "متوقف", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setAdhanBar(!prefs.adhanBar()); render(); } });
-        row("تعديل وقت الصلاة", prefs.prayerAdjOn() ? "يعمل · لكل صلاة دقائقها، من −٢٠ إلى +٢٠ (الشروق لا يتغيّر)" : "متوقف · الأوقات كما تُحسب", R.drawable.ic_eye,
-            new Runnable() { public void run() { prefs.setPrayerAdjOn(!prefs.prayerAdjOn()); render(); } });
-        if (prefs.prayerAdjOn()) for (int k = 0; k < PrayerAdj.COUNT; k++) adjRow(k);
+        // from PR #28 and the requests: each off until chosen, OK flips it
+        row("الشروق بعد الفجر", prefs.sunrise() ? "يعمل · بعد إقامة الفجر: كم باقي على الشروق، ثم نصف ساعة بعده" : "متوقف", R.drawable.ic_eye,
+            new Runnable() { public void run() { prefs.setSunrise(!prefs.sunrise()); render(); } });
+        row("شريط الوقت بين الصلاتين", prefs.prayerBar() ? "يعمل · خط رفيع تحت الصلاة القادمة يمتلئ حتى وقتها" : "متوقف", R.drawable.ic_eye,
+            new Runnable() { public void run() { prefs.setPrayerBar(!prefs.prayerBar()); render(); } });
+        row("الرطوبة والرياح", prefs.wxMore() ? "يعمل · تحت المدينة أعلى اليسار" : "متوقف", R.drawable.ic_eye,
+            new Runnable() { public void run() { prefs.setWxMore(!prefs.wxMore()); render(); } });
+        row("أسماء الأشهر الميلادية", Prefs.monthsLabel(prefs.months()), R.drawable.ic_language,
+            new Runnable() { public void run() { prefs.setMonths("levant".equals(prefs.months()) ? "default" : "levant"); render(); } });
         row("شريط السنة تحت الساعة", prefs.yearStrip() ? "يعمل · نقاط السنة تحت الساعة، واليوم يلمع" : "متوقف", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setYearStrip(!prefs.yearStrip()); render(); } });
         row("المناسبات الوطنية", Prefs.nationalLabel(prefs.national()), R.drawable.ic_eye,
@@ -187,6 +211,10 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { prefs.setGreeting(!prefs.greeting()); render(); } });
         row("ترتيب التطبيقات المفضلة", "قائمة ترتّب فيها المفضلة بالأسهم", R.drawable.ic_star,
             new Runnable() { public void run() { openDockSettings(); } });
+        row("تحديث تلفزيوني", "يعرض الإصدار ويتحقق من التحديث", R.drawable.ic_sync,
+            new Runnable() { public void run() { openUpdate(); } });
+        row("تحكم من الجوال", "متوقف حتى تشغّله أنت", R.drawable.ic_settings,
+            new Runnable() { public void run() { openPhoneControl(); } });
 
         row("حماية العائلة", "تفعيل أو إيقاف، ويرجع الإعداد القديم تلقائياً", R.drawable.ic_eye,
             new Runnable() { public void run() { openFamilyDns(); } });
@@ -221,40 +249,95 @@ public class SettingsActivity extends Activity {
             prefs.setAutoUpdate(!prefs.autoUpdate()); render(); } });
         View last = row("تحديث الشاشة الآن", "ينزّل أحدث نسخة من الشاشة", R.drawable.ic_sync, new Runnable() { public void run() { updateNow(); } });
         note(last, Updater.versionLines(this));
+        if (want != null) restoreFocus(want, wasIndex, scrollY);
+    }
+
+    /** The rows of the list now (the views row() made: their tag is their FocusKey), in order. */
+    private List<View> rows() {
+        List<View> out = new ArrayList<>();
+        for (int i = 0; i < list.getChildCount(); i++) if (list.getChildAt(i).getTag() instanceof String) out.add(list.getChildAt(i));
+        return out;
+    }
+
+    /** The row that has the focus in this window (a dialog over it leaves it there), or null. */
+    private View focusedRow() {
+        View v = getCurrentFocus();
+        while (v != null && v.getParent() != list) v = v.getParent() instanceof View ? (View) v.getParent() : null;
+        return v != null && v.getTag() instanceof String ? v : null;
+    }
+
+    /** After a rebuild: back to where the list was, then the focus on the same row (FocusKey.pick), once the layout has run. */
+    private void restoreFocus(final String want, final int wasIndex, final int scrollY) {
+        pendingFocus = want;
+        scroll.post(() -> {
+            List<View> now = rows();
+            List<String> keys = new ArrayList<>();
+            for (View r : now) keys.add((String) r.getTag());
+            int at = FocusKey.pick(keys, want, wasIndex);
+            if (at < 0) return;
+            scroll.scrollTo(0, scrollY);
+            now.get(at).requestFocus();
+            if (hasWindowFocus()) pendingFocus = null;   // done; with a dialog still open, again when the window has the focus back
+        });
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean has) {
+        super.onWindowFocusChanged(has);
+        if (!has || pendingFocus == null) return;
+        final String want = pendingFocus;
+        pendingFocus = null;
+        for (View r : rows()) if (want.equals(r.getTag())) { r.requestFocus(); break; }
     }
 
     // ---------- pickers ----------
 
-    private void pickCity() {
-        final Cities.Region[] regions = Cities.REGIONS;
-        String[] labels = new String[regions.length + 1];
-        labels[0] = "بحث عن مدينة أو قرية…";
-        for (int i = 0; i < regions.length; i++) labels[i + 1] = regions[i].name + "  (" + regions[i].cities.length + ")";
-        new Dlg(this).setTitle("المنطقة")
-            .setItems(labels, (d, i) -> { if (i == 0) searchCity(); else pickCityIn(regions[i - 1]); })
+    /** «الدولة»: a filter, not a setting of its own; it opens the city list of that country (its regions, or its cities) and its search. */
+    private void pickCountry() {
+        String[] labels = new String[Location.COUNTRIES.length];
+        for (int i = 0; i < labels.length; i++) labels[i] = Location.COUNTRIES[i][1];
+        new Dlg(this).setTitle("الدولة")
+            .setSingleChoiceItems(labels, Location.countryOf(prefs.cityTz()), (d, i) -> { d.dismiss(); pickCity(i); })
             .show();
     }
 
-    private void pickCityIn(final Cities.Region r) {
+    private void pickCity() { pickCity(-1); }
+
+    /** country: an index of Location.COUNTRIES, or -1 for every region of the list and a search of all the searchable countries */
+    private void pickCity(final int country) {
+        final Cities.Region[] regions = country < 0 ? Cities.REGIONS : Location.regions(country);
+        if (country > 0 && regions.length == 1) { pickCityIn(regions[0], country); return; }   // any other country is one region: its cities
+        String[] labels = new String[regions.length + 1];
+        labels[0] = "بحث عن مدينة أو قرية…";
+        for (int i = 0; i < regions.length; i++) labels[i + 1] = regions[i].name + "  (" + regions[i].cities.length + ")";
+        new Dlg(this).setTitle(country < 0 ? "المنطقة" : Location.COUNTRIES[country][1])
+            .setItems(labels, (d, i) -> { if (i == 0) searchCity(country); else pickCityIn(regions[i - 1], country); })
+            .show();
+    }
+
+    private void pickCityIn(final Cities.Region r, final int country) {
         String[] names = new String[r.cities.length];
         int sel = -1;
         for (int i = 0; i < names.length; i++) {
             names[i] = r.cities[i][0];
             if (names[i].equals(prefs.city()[0])) sel = i;
         }
-        new Dlg(this).setTitle(r.name)
+        AlertDialog.Builder b = new Dlg(this).setTitle(r.name)
             .setSingleChoiceItems(names, sel, (d, i) -> {
                 prefs.setCity(r.cities[i][0], r.cities[i][1], r.cities[i][2]);   // the zone follows from the list (Prefs.cityTz)
                 d.dismiss();
                 render();
-            }).show();
+            });
+        if (country > 0 && Location.searchable(country)) b.setNeutralButton("بحث", (d, w) -> searchCity(country));   // a place not in the list, in that country (not Palestine: PrayerMethod)
+        b.show();
     }
 
-    // any place in Saudi Arabia or the other Gulf states, from Open-Meteo's GeoNames search (it takes one country at a time, so the
-    // hundred best matches of the world are asked for and the Gulf ones kept)
-    private void searchCity() {
+    // any place in Saudi Arabia, the other Gulf states, Egypt, the Levant and North Africa (PrayerMethod.SEARCH_COUNTRIES), or in the one
+    // country picked, from Open-Meteo's GeoNames search (it takes one country at a time, so without a country the hundred best matches of
+    // the world are asked for and those countries' kept)
+    private void searchCity(final int country) {
         ask("اسم المدينة أو القرية", q -> fetch("https://geocoding-api.open-meteo.com/v1/search?count=100&language=ar&name="
-            + Uri.encode(q), json -> {
+            + Uri.encode(q) + (country < 0 ? "" : "&countryCode=" + Location.COUNTRIES[country][0]), json -> {
                 JSONArray all = new JSONObject(json).optJSONArray("results"), a = new JSONArray();
                 for (int k = 0; all != null && k < all.length() && a.length() < 20; k++)
                     if (PrayerMethod.searchable(all.getJSONObject(k).optString("country_code"))) a.put(all.getJSONObject(k));
@@ -268,8 +351,8 @@ public class SettingsActivity extends Activity {
                     lons[i] = String.valueOf(c.optDouble("longitude"));
                     zones[i] = c.optString("timezone", "");   // the place's own; empty: the TV's (Prefs.cityTz)
                     String region = c.optString("admin1", "");
-                    String country = c.optString("country", "");   // several countries now: the row says which
-                    rows[i] = names[i] + (region.isEmpty() ? "" : "  ·  " + region) + (country.isEmpty() ? "" : "  ·  " + country);
+                    String land = c.optString("country", "");   // several countries now: the row says which
+                    rows[i] = names[i] + (region.isEmpty() ? "" : "  ·  " + region) + (land.isEmpty() ? "" : "  ·  " + land);
                 }
                 new Dlg(this).setTitle("اختر المكان")
                     .setItems(rows, (d, i) -> { prefs.setCity(names[i], lats[i], lons[i], zones[i]); render(); }).show();
@@ -516,6 +599,24 @@ public class SettingsActivity extends Activity {
         }
     }
 
+    /** «تحديث تلفزيوني» lives in the launcher (it is the app that gets replaced last). */
+    private void openUpdate() {
+        try {
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.UpdateActivity"));
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
+    /** «تحكم من الجوال» lives in the launcher (it holds the server and the pairing screen). */
+    private void openPhoneControl() {
+        try {
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.PhoneActivity"));
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
     private static final String[] HOME_CARD_NAMES = {"البطاقة الأولى", "البطاقة الثانية", "البطاقة الثالثة"};
 
     /** The card beside the screensaver's clock (place -1), or place 0 to 2 of the cards on the launcher's home screen. */
@@ -523,14 +624,17 @@ public class SettingsActivity extends Activity {
         final boolean home = place >= 0;
         String current = home ? prefs.homePanelAt(place) : prefs.panel();
         // the home places can also be left empty; «لا شيء» is that choice there, so it is «بدون» in the list
-        String[] labels = new String[Prefs.PANELS.length];
+        // a home-only card («الصلاة القادمة») is not offered beside the screensaver's clock: its panel there says the same
+        List<String[]> rows = new ArrayList<>();
+        for (String[] p : Prefs.PANELS) if (home || !Prefs.homeOnly(p[0])) rows.add(p);
+        String[] labels = new String[rows.size()];
         int sel = 0;
         for (int i = 0; i < labels.length; i++) {
-            labels[i] = home && "none".equals(Prefs.PANELS[i][0]) ? "بدون" : Prefs.PANELS[i][1];
-            if (Prefs.PANELS[i][0].equals(current)) sel = i;
+            labels[i] = home && "none".equals(rows.get(i)[0]) ? "بدون" : rows.get(i)[1];
+            if (rows.get(i)[0].equals(current)) sel = i;
         }
         String[] values = new String[labels.length], about = new String[labels.length];
-        for (int i = 0; i < labels.length; i++) { values[i] = Prefs.PANELS[i][0]; about[i] = Prefs.about(Prefs.PANEL_ABOUT, values[i]); }
+        for (int i = 0; i < labels.length; i++) { values[i] = rows.get(i)[0]; about[i] = Prefs.about(Prefs.PANEL_ABOUT, values[i]); }
         pickWithPreview(home ? HOME_CARD_NAMES[place] : "بجانب الساعة", values, labels, about, sel,
             v -> prefs.previewUrl(this, v, prefs.cardStyle()),
             v -> { if (home) prefs.setHomePanelAt(place, v); else prefs.setPanel(v); });
@@ -1068,6 +1172,19 @@ public class SettingsActivity extends Activity {
         list.addView(t);
     }
 
+    /** One plain line in the list, in no button (nothing to focus): the first-run note at the top, the help under «الموقع». */
+    private void line(String text, int color, int bottom) {
+        TextView t = new TextView(this);
+        t.setText(conv(text));
+        t.setTextColor(color);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        t.setTypeface(font("Thmanyah-Regular"));
+        t.setGravity(Gravity.START);
+        t.setTextDirection(View.TEXT_DIRECTION_RTL);
+        t.setPadding(dp(10), dp(8), dp(10), bottom);
+        list.addView(t);
+    }
+
     /** Plain lines at the end, in no button: nothing to focus, so the last row scrolls them into view. */
     private void note(View last, String... lines) {
         TextView t = new TextView(this);
@@ -1121,6 +1238,7 @@ public class SettingsActivity extends Activity {
         card.setFocusable(true);
         card.setClickable(true);
         card.setBackgroundResource(R.drawable.glass_row);   // glass; the gold-tinted one while it has the focus
+        card.setTag(FocusKey.key(label));   // which row it is when the list is built again (render keeps the focus on it)
 
         final android.widget.ImageView ic = new android.widget.ImageView(this);
         final android.graphics.drawable.Drawable d = getDrawable(icon).mutate();

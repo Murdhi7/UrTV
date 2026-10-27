@@ -43,5 +43,8 @@ final class ConfigSnapshot {
     /** {city, zone id}; null when the screensaver gave nothing: the TV's own zone then */
     String[] cityZone() { return fragment == null ? null : ClockZone.parse(fragment); }
 
+    /** «&clock=24» is in the fragment only while the setting is on; an older screensaver says nothing: the 12-hour clock */
+    boolean clock24() { return fragment != null && (fragment.contains("&clock=24") || fragment.startsWith("clock=24")); }
+
     boolean latin() { return fragment != null && (fragment.contains("&digits=latin") || fragment.startsWith("digits=latin")); }
 }

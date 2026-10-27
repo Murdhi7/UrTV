@@ -21,6 +21,7 @@ case "$1" in
     in=$(cat)
     case "$in" in
       *nohup*) log arm; rm -f "$T/home_ok"
+        case "$in" in *"rm -f /data/local/tmp/home_ok /data/local/tmp/home_ok."*"command -v setsid"*"setsid sh /data/local/tmp/deadman.sh"*"< /dev/null"*"else nohup sh"*"< /dev/null"*) log armline-ok ;; esac
         echo "$in" | sed -n 's/.*deadman.sh [^ ]* [0-9]* \([^ ]*\) .*/\1/p' > "$T/nonce"
         case "$in" in *"touch /data/local/tmp/home_ok."*) log supersede ;; esac ;;
       *"am force-stop com.android.tv.settings"*)
@@ -144,6 +145,7 @@ def run(name, fail_switches, first_drop, down_polls=0, verify="", verifier=None,
     jf = tree / "optimize" / "run" / "home-switch.json"
     if jf.exists():
         log.append("rhb-" + [l for l in jf.read_text().splitlines() if '"role_holder_before"' in l][0].split('"')[3])
+        log.append("safety-" + ([l for l in jf.read_text().splitlines() if '"safety_switch"' in l] or ['"x": "none"'])[0].split('"')[3])
         log.append("journal-" + [l for l in jf.read_text().splitlines() if '"state"' in l][0].split('"')[3])
     if (t / "verifier").exists():
         log.append("final-" + (t / "verifier").read_text().strip())
@@ -235,10 +237,13 @@ cases += [
      run("w", 0, ""),
      lambda c, o, l: c == 0 and l.count("hb-check") == 1 and l.index("hb-check") < l.index("switch") and l.count("disarm") == 1
      and "disarm-wrong" not in l and l[-1] == "journal-done" and "supersede" not in l),
-    ("the safety switch is dead (no heartbeat): the home is NOT switched, nothing changed, the journal says aborted",
+    ("the safety switch cannot stay alive on the TV (no heartbeat, as on a TCL Android 14): a plain line, no !!, the switch goes on and is confirmed, the journal says so",
      run("x", 0, "", watchdog="dead"),
-     lambda c, o, l: c == 1 and l.count("hb-check") == 5 and "switch" not in l and "restore-stock" not in l and "disarm" not in l
-     and "NOT switched" in o and l[-1] == "journal-aborted"),
+     lambda c, o, l: c == 0 and l.count("hb-check") == 5 and "no safety switch on the TV itself" in o and "!!" not in o and "switch" in l
+     and "disarm" in l and "Launcher is home" in o and l[-1] == "journal-done" and "safety-unavailable" in l),
+    ("a TV where the safety switch does stay alive: the journal says armed", run("xa", 0, ""), lambda c, o, l: c == 0 and "safety-armed" in l),
+    ("setsid first (with nohup as the fallback), both with stdin closed, and the stale plain home_ok is removed when arming",
+     run("xb", 0, ""), lambda c, o, l: c == 0 and "armline-ok" in l),
     ("a restart mid-switch (journal «switching», Home not ours, no marker): the stock home is put back from the journal first, then the switch goes on",
      run("y", 0, "", seed=("switching", "other.launcher"), seed_home="stock"),
      lambda c, o, l: c == 0 and "earlier home switch was cut off" in o and l.index("restore-stock") < l.index("arm") and "holder-other" in l
@@ -256,8 +261,17 @@ cases += [
      run("ab", 0, "", seed=("done", ""), seed_home="stock"),
      lambda c, o, l: c == 0 and "cut off" not in o and "restore-stock" not in l),
     ("the second switch keeps who held Home before the first one (ours is not the «before»)",
-     run("ac", 0, "", seed=("done", "other.launcher"), seed_home="ours", role="sa.urtv.home", script="install.sh", args=("launcher",)),
-     lambda c, o, l: c == 0 and "rhb-other.launcher" in l),
+     run("ac", 0, "", seed=("done", "other.launcher"), seed_home="stock", role="sa.urtv.home", script="install.sh", args=("launcher",)),
+     lambda c, o, l: c == 0 and "rhb-other.launcher" in l and "arm" in l),
+    ("Home is already ours and nothing was cut off: no switch, no safety switch, no heartbeat check, and it says so",
+     run("ag", 0, "", seed_home="ours"),
+     lambda c, o, l: c == 0 and "nothing to switch" in o and "arm" not in l and "hb-check" not in l and "switch" not in l and "disarm" not in l and "Launcher is home" in o),
+    ("Home is ours and the journal says done: the same, and the journal is left as it was",
+     run("ah", 0, "", seed=("done", "other.launcher"), seed_home="ours"),
+     lambda c, o, l: c == 0 and "nothing to switch" in o and "arm" not in l and l[-1] == "journal-done"),
+    ("Home is ours but a switch was cut off (journal «switching»): it is not skipped, the switch is made and confirmed",
+     run("ai", 0, "", seed=("switching", ""), seed_home="ours"),
+     lambda c, o, l: c == 0 and "nothing to switch" not in o and "arm" in l and "disarm" in l and l[-1] == "journal-done"),
     ("restore-home.sh: from the journal, the role goes back to who held it, the helpers come back, the journal says restored, ADB is said",
      run("ad", 0, "", seed=("done", "other.launcher"), seed_home="ours", script="restore-home.sh", args=()),
      lambda c, o, l: c == 0 and "holder-other" in l and "helpers" in l and l[-1] == "journal-restored" and "needs ADB" in o.replace("this needs ADB", "needs ADB")),

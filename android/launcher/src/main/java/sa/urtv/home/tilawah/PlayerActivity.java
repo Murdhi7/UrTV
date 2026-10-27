@@ -26,6 +26,7 @@ public class PlayerActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Catalog cat;
     private TextView kind, title, artist, live, pos, dur, sleepInfo, hint;
+    private final SeekPace seekPace = new SeekPace();   // a held left/right: one seek per 250 ms
     private View progressBlock, prev, next;
     private ProgressBar progress;
     private ImageView play;
@@ -157,12 +158,12 @@ public class PlayerActivity extends Activity {
             case KeyEvent.KEYCODE_DPAD_RIGHT:
             case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
                 if (adhanPlaying()) return true;
-                MusicService.seekBy(this, 10_000);
+                if (seekPace.due(event.getRepeatCount(), event.getEventTime())) MusicService.seekBy(this, 10_000);
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
             case KeyEvent.KEYCODE_MEDIA_REWIND:
                 if (adhanPlaying()) return true;
-                MusicService.seekBy(this, -10_000);
+                if (seekPace.due(event.getRepeatCount(), event.getEventTime())) MusicService.seekBy(this, -10_000);
                 return true;
             case KeyEvent.KEYCODE_MEDIA_NEXT:
                 if (adhanPlaying()) return true;

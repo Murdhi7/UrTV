@@ -262,6 +262,24 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
   # (this operation exists from Android 12, SDK 31; older Android prints «Unknown operation string» and needs nothing)
   sdk=$("$PY" -I optimize/tv.py "getprop ro.build.version.sdk" 2> /dev/null | tr -dc '0-9' || true)
   if [ "${sdk:-0}" -ge 31 ]; then "$PY" -I optimize/tv.py "appops set sa.urtv.home SCHEDULE_EXACT_ALARM allow" || true; fi
+  # «تحديث تلفزيوني» (the TV's own update) hands the new apps to Android's install screen, which needs «install unknown apps» for the home app:
+  # given ahead of time so the owner isn't sent to a settings screen first. The mode it had is kept, once (a second run must not take our own
+  # «allow» for the original), and optimize/reset.sh puts back exactly that. It is given only over Android's default: an explicit choice stays. If the TV doesn't answer, nothing is changed: the TV's update
+  # screen asks for the permission itself when it is needed.
+  appop_file="${URTV_RUN_DIR:-optimize/run}/install-appop.txt"   # APPOP-BEGIN
+  if [ ! -s "$appop_file" ]; then
+    appop_now=$("$PY" -I optimize/tv.py "appops get sa.urtv.home REQUEST_INSTALL_PACKAGES" 2>/dev/null | tr -d '\r' || true)
+    appop_mode=$(sed -nE 's/^REQUEST_INSTALL_PACKAGES: *(allow|ignore|deny|default|foreground).*/\1/p' <<< "$appop_now" | head -n 1)
+    if [ -z "$appop_mode" ] && grep -q "No operations" <<< "$appop_now"; then appop_mode=default; fi   # never set: Android's own default
+    if [ -n "$appop_mode" ]; then
+      mkdir -p "$(dirname "$appop_file")"
+      printf '%s\n' "$appop_mode" > "$appop_file"
+    fi
+  fi
+  # only Android's own default is replaced: an «ignore», «deny» or «foreground» the owner (or the firmware) chose stays as it is
+  if [ -s "$appop_file" ] && [ "$(tr -d '\r\n ' < "$appop_file")" = default ]; then
+    "$PY" -I optimize/tv.py "appops set sa.urtv.home REQUEST_INSTALL_PACKAGES allow" || true
+  fi   # APPOP-END
 
   # The setup wizard (setupwraith) is turned off only when it really answers Home. Disabling it can delete the Wi-Fi network
   # that was saved during the first-run wizard (CleanYourTV's README, github.com/Gathin23/cleanyourtv, MIT: a network saved
@@ -340,9 +358,9 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
       "$PY" -I optimize/tv.py --push-b64 optimize/deadman.sh /data/local/tmp/deadman.sh || return 1
       printf '%s\n' \
         "${old_nonce:+touch /data/local/tmp/home_ok.$old_nonce}" \
-        "rm -f /data/local/tmp/home_ok.$NONCE" \
+        "rm -f /data/local/tmp/home_ok /data/local/tmp/home_ok.$NONCE" \
         "for f in /data/local/tmp/home_ok.* /data/local/tmp/home_pid.* /data/local/tmp/home_hb.*; do case \$f in *.$NONCE|*.${old_nonce:-none}|*'*') ;; *) rm -f \$f ;; esac; done" \
-        "nohup sh /data/local/tmp/deadman.sh $STOCK 300 $NONCE > /dev/null 2>&1 &" \
+        "if command -v setsid > /dev/null 2>&1; then setsid sh /data/local/tmp/deadman.sh $STOCK 300 $NONCE < /dev/null > /dev/null 2>&1 & else nohup sh /data/local/tmp/deadman.sh $STOCK 300 $NONCE < /dev/null > /dev/null 2>&1 & fi" \
         | grep . | "$PY" -I optimize/tv.py --batch || return 1
       # alive = its pid answers and its heartbeat is under 25 s old (it writes one every 10 s)
       alive=no
@@ -351,11 +369,16 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
         res=$("$PY" -I optimize/tv.py "p=\$(cat /data/local/tmp/home_pid.$NONCE 2> /dev/null); h=\$(cat /data/local/tmp/home_hb.$NONCE 2> /dev/null); if [ -n \"\$p\" ] && kill -0 \$p 2> /dev/null && [ -n \"\$h\" ] && [ \$((\$(date +%s) - h)) -le 25 ]; then echo WATCHDOG_ALIVE; else echo WATCHDOG_DEAD; fi") || return 1
         if grep -q WATCHDOG_ALIVE <<< "$res"; then alive=yes; break; fi
       done
-      if [ "$alive" != yes ]; then
-        jstate aborted
-        return 5   # nothing was switched: without a safety switch on the TV the home is not touched
+      if [ "$alive" = yes ]; then
+        echo "Safety switch armed and running: the stock home comes back by itself in 5 minutes unless the new home works."
+      else
+        # Seen on a TCL with Android 14: a background job started over ADB ends the moment the ADB session closes (setsid and nohup
+        # did not help), so there is no safety switch on the TV itself. The switch is still checked and undone from this computer
+        # (below), and the journal restores it on the next run if this computer stops in the middle. Not an error: it is the
+        # protection every earlier install had.
+        jsafety unavailable
+        echo "This TV ends background jobs when the ADB session closes, so there is no safety switch on the TV itself. The switch is checked and undone from this computer, and the journal restores it on the next run."
       fi
-      echo "Safety switch armed and running: the stock home comes back by itself in 5 minutes unless the new home works."
 
       # 3. Switch: the HOME role (Android 10+; the classic set-home-activity for older sets and as a backup), then
       #    the setup app off, then the stock home (this order avoided the black screen).
@@ -435,7 +458,14 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
   }
 
 
-  rc=0; if [ "$stock_unreadable" = yes ]; then rc=8; elif [ -z "$STOCK" ]; then rc=7; else switch_home || rc=$?; fi
+  # Home is already ours and no switch was cut off: there is nothing to switch and nothing to protect (no safety switch, no journal)
+  already=no
+  res=$("$PY" -I optimize/tv.py "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN" 2> /dev/null) || res=""
+  if grep -q sa.urtv.home <<< "$res" && [ "$(jget state)" != switching ]; then
+    already=yes
+    echo "Home is already the new launcher: nothing to switch, so no safety switch is started."
+  fi
+  rc=0; if [ "$already" = yes ]; then :; elif [ "$stock_unreadable" = yes ]; then rc=8; elif [ -z "$STOCK" ]; then rc=7; else switch_home || rc=$?; fi
   if [ "$rc" = 1 ]; then   # ADB dropped: wait for the TV, see what Home is now, and go on or start the switch again
     back=no; last_hint=""
     for n in $(seq 60); do   # every 10 s, 10 minutes; the same address and port as before (tv.py keeps the remembered one)
@@ -483,9 +513,6 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
        echo "   The role and the home activity were asked twice. Run the same command once more (a TV sometimes takes it at the second run); if the same line comes again, this TV keeps its own home: continue with SKIP_LAUNCHER=1 optimize/run.sh (UrTV works as an app and the screensaver)."
        echo "   Some TCL firmware pins Home to the stock launcher; on those sets keep the stock home."
        echo "   If the line above said the setup wizard owns the Wi-Fi, keep the stock home too: never turn the wizard off by hand."
-       exit 1 ;;
-    5) echo "!! The safety switch did not start on the TV (no heartbeat), so the home was NOT switched and nothing was changed."
-       echo "   Run the same command again; if it repeats, restart the TV, check it is on Wi-Fi, and try once more."
        exit 1 ;;
     *) echo "!! The safety switch put the stock home back (ADB was too slow). Nothing is broken: run the same command again."
        exit 1 ;;

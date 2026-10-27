@@ -2,7 +2,7 @@ package sa.urtv.home;
 
 /**
  * The words of the slim bar before the adhan: «أذان المغرب بعد ٨ دقائق» in the last 10 minutes before each prayer, and from the
- * adhan until the iqama «إقامة المغرب بعد ١٢ دقيقة» (a Friday's Dhuhr is «أذان الجمعة»). The page does the same on the screensaver (adhanBarText in template.html). No
+ * adhan until the iqama «إقامة المغرب بعد ١٢ دقيقة» (a Friday's Dhuhr is «أذان الجمعة»). While the adhan plays, playing() says what is on and how to stop it. The page does the same on the screensaver (adhanBarText in template.html). No
  * Android in here, so tests/adhan_bar_test.py runs it on tests/adhan_bar_cases.tsv.
  */
 final class AdhanBarText {
@@ -31,6 +31,18 @@ final class AdhanBarText {
             if (now >= adhan[i] && toIqama > 0) return "إقامة " + name + " بعد " + minutes((int) Math.ceil(toIqama), latin);
         }
         return null;
+    }
+
+    /** the hint on the bar while the adhan plays: any key stops it (the default), or only OK on the bar when «إيقاف الأذان بأي زر» is off */
+    static final String STOP_OK = "اختيار: إيقاف الأذان", STOP_ANY = "أي زر يوقف الأذان";
+
+    /**
+     * The bar while the adhan is playing: «أذان المغرب  ·  اختيار: إيقاف الأذان». `prayer` is PrayerTimes' number (FAJR 0, DHUHR 2, ASR 3,
+     * MAGHRIB 4, ISHA 5), anything else (the adhan played from the computer) is just «الأذان».
+     */
+    static String playing(int prayer, boolean friday, boolean stopAny) {
+        String name = prayer == 0 ? "الفجر" : prayer == 2 ? (friday ? "الجمعة" : "الظهر") : prayer == 3 ? "العصر" : prayer == 4 ? "المغرب" : prayer == 5 ? "العشاء" : null;
+        return (name == null ? "الأذان" : "أذان " + name) + "  ·  " + (stopAny ? STOP_ANY : STOP_OK);
     }
 
     /** «١ دقيقة», «دقيقتين», «٨ دقائق», «١٢ دقيقة»: as the page says them. */

@@ -36,6 +36,8 @@ public class DockActivity extends Activity {
     private TextView count;
     private final List<View> cards = new ArrayList<>(), removes = new ArrayList<>();
     private int moving = -1;
+    private View screen;
+    private boolean verified;
     private int swallowUp = -1;   // the OK that drops an app must not also click it
 
     @Override
@@ -64,8 +66,39 @@ public class DockActivity extends Activity {
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         col.addView(list, new LinearLayout.LayoutParams(-1, -2));
+        scroll.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // the D-pad ids of these rows are left-to-right: pinned, so a TV set to Arabic does not mirror the rows under them
         setContentView(scroll);
+        screen = scroll;
         render(0);
+    }
+
+    /** «قفل الإعدادات»: with it on, this screen opens only after the PIN, whoever opens it (the tiles' menu has asked already). */
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (verified) return;
+        String[] targets = ParentalPolicy.targets(ParentalPolicy.ARRANGE_SCREEN, null);
+        if (!Parental.needsPin(this, targets)) {
+            verified = true;
+            return;
+        }
+        screen.setVisibility(View.INVISIBLE);
+        Parental.guard(this, Parental.adhanFirst(this), "ترتيب المفضلة", targets, () -> {
+            verified = true;
+            screen.setVisibility(View.VISIBLE);
+        }, () -> finish());
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        PinPrompt.dismiss(this);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        verified = false;
     }
 
     // ---------------------------------------------------------------- list

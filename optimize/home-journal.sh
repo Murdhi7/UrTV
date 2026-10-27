@@ -7,12 +7,17 @@ jfile() { echo "${URTV_RUN_DIR:-optimize/run}/home-switch.json"; }
 jget() { [ -f "$(jfile)" ] || return 0; sed -n "s/^  \"$1\": \"\(.*\)\",*\$/\1/p" "$(jfile)" | head -1; }
 jwrite() {   # nonce state stock role_holder_before wizard_before stock_before
   local f; f=$(jfile); mkdir -p "$(dirname "$f")"
-  printf '{\n  "nonce": "%s",\n  "state": "%s",\n  "stock": "%s",\n  "role_holder_before": "%s",\n  "wizard_before": "%s",\n  "stock_before": "%s",\n  "written": "%s"\n}\n' \
+  printf '{\n  "nonce": "%s",\n  "state": "%s",\n  "stock": "%s",\n  "role_holder_before": "%s",\n  "wizard_before": "%s",\n  "stock_before": "%s",\n  "safety_switch": "armed",\n  "written": "%s"\n}\n' \
     "$1" "$2" "$3" "$4" "$5" "$6" "$(date '+%Y-%m-%d %H:%M:%S')" > "$f.tmp" && mv "$f.tmp" "$f"
 }
 jstate() {   # new state, if there is a journal
   local f; f=$(jfile); [ -f "$f" ] || return 0
   sed "s/^  \"state\": \".*\",/  \"state\": \"$1\",/" "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+}
+
+jsafety() {   # armed | unavailable: whether a safety switch could be kept running on the TV (some TVs end background jobs with the ADB session)
+  local f; f=$(jfile); [ -f "$f" ] || return 0
+  sed "s/^  \"safety_switch\": \".*\",/  \"safety_switch\": \"$1\",/" "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 }
 
 # Put the home back as the journal says. $1 full: also the stock home's helpers (restore-home.sh); anything else: only what

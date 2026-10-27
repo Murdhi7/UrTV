@@ -13,11 +13,15 @@
 #   optimize/saver.sh teams 136013:Al-Hilal 150643:Al-Zulfi    followed teams in order (up to 20; more are left out and listed);
 #                                                  `teams none` (or `teams ""`) follows no team: the defaults (الهلال، المنتخب السعودي) go
 #   optimize/saver.sh card prayers                 beside the clock: shows prayers forecast hourly prayerrow matches verse wisdom adhkar stocks tasks year smart today none
-#   optimize/saver.sh home-card verse,hourly,year  on the home screen (launcher): up to 3 cards, same choices, in this order
+#   optimize/saver.sh home-card verse,hourly,year  on the home screen (launcher): up to 3 cards, same choices and nextprayer (home only), in this order
 #                                                  (one value works too; none = off). Two sit side by side, a third under them
 #   optimize/saver.sh greeting off                 home screen: the greeting (by prayer time) and the weather line under it: on (default) or off
 #   optimize/saver.sh adhanbar off                 the slim bar before the adhan (last 10 minutes, then until the iqama) on the screensaver and the home screen: on (default) or off
 #   optimize/saver.sh yearstrip on                 the slim year strip under the screensaver's clock (365 dots in 7 rows, today lit, no words): on or off (default)
+#   optimize/saver.sh sunrise on                   the prayer panel counts to the sunrise after Fajr's iqama, and tells it for 30 minutes: on or off (default)
+#   optimize/saver.sh prayerbar on                 a thin bar under the prayer panel, how far it is from the last prayer to the next: on or off (default)
+#   optimize/saver.sh wxmore on                    the humidity and the wind under the city at the top left: on or off (default)
+#   optimize/saver.sh months levant                the Gregorian month's names on both screens: default (يناير…) or levant (كانون الثاني…)
 #   optimize/saver.sh genres Drama,Comedy          episodes card: Drama Comedy Action Crime Thriller Mystery
 #                                                  Science-Fiction Fantasy Adventure Romance Family History Horror
 #                                                  Anime Documentary Sports  ("" = all)
@@ -30,7 +34,10 @@
 #   optimize/saver.sh cardstyle glass1             look of the card beside the clock: current dark1 glass1 dark3 glass3
 #   optimize/saver.sh national off                 the quiet green look on National Day (21-25 Sep) and Founding Day (20-24 Feb): auto (default) or off
 #   optimize/saver.sh digits latin                 numbers: hindi = ١٢٣ (default), latin = 123
-#   optimize/saver.sh markets tasi,gold,btc        top left, up to 4 in order: tasi aramco spx btc gold silver xrp (default tasi,spx,btc)
+#   optimize/saver.sh hijrioffset -1               the Hijri date moved by whole days, -2..2 (default 0 = Umm al-Qura as it is): where the month
+#                                                  starts by moon sighting (Egypt, Jordan, the Levant, Morocco); the page and the home screen both follow
+#   optimize/saver.sh clock24 on                   every time of day as 24-hour (١٩:٣٠) instead of 12-hour (٧:٣٠ م): on | off (default off)
+#   optimize/saver.sh markets tasi,gold,btc        top left, up to 4 in order: tasi aramco spx btc gold silver oil xrp (default tasi,spx,btc)
 #   optimize/saver.sh markets off                  hide the markets line at the top (only the weather stays; the list is kept and nothing is fetched for it); `markets on` brings it back
 #   optimize/saver.sh clocksize medium             the screensaver's clock: large (default) medium small
 #   optimize/saver.sh mkstyle prices               markets: arrows (▲▼ only, default) or prices (price and day's change)
@@ -46,6 +53,11 @@
 #   optimize/saver.sh prayermethod jafari|auto     «طريقة الحساب»: auto (the default) = the city's country's own, jafari = Shia Ithna-Ashari (Leva, Qum)
 #   optimize/saver.sh prayeradj on|off             «تعديل وقت الصلاة» (off by default): each prayer moved by its own whole minutes, -20..20
 #   optimize/saver.sh prayeradj fajr +2 maghrib -1   the minutes of fajr dhuhr asr maghrib isha (the others stay); sunrise is never moved
+#   optimize/saver.sh export > settings.json       the settings to move to a second TV (city, prayer method, cards, markets, teams, adhan…;
+#                                                  never tasks, photos, the person's own adhan, Wi-Fi or keys): one JSON file, {"schema":1,…}
+#   optimize/saver.sh import settings.json         what it would change on this TV (old → new), nothing is sent; add --yes to apply it: all or
+#                                                  nothing, and the settings from before are saved in optimize/run/settings-before-import.json
+#                                                  (`import optimize/run/settings-before-import.json --yes` undoes it)
 #   optimize/saver.sh update                       download the latest screen now
 # Only ADB can change these (sa.urtv.screensaver/.SaverReceiver needs the shell's DUMP).
 set -euo pipefail
@@ -140,11 +152,16 @@ case "${1:-}" in
       set -- "${@:1:20}"
     fi
     set1 teams "$(IFS=,; echo "$*")" ;;
-  card)     set1 panel "${2:?usage: optimize/saver.sh card prayers}" ;;
+  card)     [ "${2:-}" = nextprayer ] && { echo "!! nextprayer is a home-screen card only (the screensaver's bottom-right panel already shows the next prayer): optimize/saver.sh home-card nextprayer"; exit 1; }
+            set1 panel "${2:?usage: optimize/saver.sh card prayers}" ;;
   home-card)set1 home_panel "${2?usage: optimize/saver.sh home-card verse,hourly,year | none}" ;;
   greeting) set1 greeting "${2:?usage: optimize/saver.sh greeting on|off}" ;;
   adhanbar) set1 adhanbar "${2:?usage: optimize/saver.sh adhanbar on|off}" ;;
   yearstrip)set1 yearstrip "${2:?usage: optimize/saver.sh yearstrip on|off}" ;;
+  sunrise)  set1 sunrise "${2:?usage: optimize/saver.sh sunrise on|off}" ;;
+  prayerbar)set1 prayerbar "${2:?usage: optimize/saver.sh prayerbar on|off}" ;;
+  wxmore)   set1 wxmore "${2:?usage: optimize/saver.sh wxmore on|off}" ;;
+  months)   set1 months "${2:?usage: optimize/saver.sh months default|levant}" ;;
   genres)   set1 genres "${2-}" ;;
   # no value at all is a question, not a change: it used to clear them (`""` still means none)
   leagues)  [ $# -ge 2 ] || { echo "usage: optimize/saver.sh leagues 'دوري روشن السعودي' ('' = none; optimize/saver.sh show lists the ones set)"; exit 1; }
@@ -175,6 +192,11 @@ case "${1:-}" in
     send SET "$extra" ;;
   national) set1 national "${2:?usage: optimize/saver.sh national auto|off}" ;;
   digits)   set1 digits "${2:?usage: optimize/saver.sh digits latin}" ;;
+  hijrioffset)
+    [[ "${2:-}" =~ ^[+-]?[0-2]$ ]] || { echo "usage: optimize/saver.sh hijrioffset -2|-1|0|+1|+2   (days; 0 = Umm al-Qura as it is)"; exit 1; }
+    v=$(quote "$2") || exit 1
+    send SET "--es hijrioffset $v" ;;   # the offset moves what is shown, never a prayer time: no adhan alarm to set again
+  clock24)  case "${2:-}" in on|off) set1 clock24 "$2" ;; *) echo "usage: optimize/saver.sh clock24 on|off"; exit 1 ;; esac ;;
   idle)
     # the app may change the TV's timer only if the owner allowed it; the shell always may
     v=$(quote "${2:?usage: optimize/saver.sh idle 10}") || exit 1
@@ -231,6 +253,7 @@ case "${1:-}" in
     # the home app's adhan alarm was set for the old minutes: set it again now (no launcher, no harm)
     [ "$rc" != 0 ] || "$PY" -I optimize/tv.py "am broadcast -n sa.urtv.home/.tilawah.MusicReceiver -a sa.urtv.home.ADHAN_RESCHEDULE" > /dev/null 2>&1 || true
     exit "$rc" ;;
+  export|import) SAVER_CALLER_DIR="${OLDPWD:-}" "$PY" -I optimize/settings_move.py "$@" ;;   # the logic is in Python: validated before anything is sent
   find-team) shift; "$PY" -I optimize/find-team.py "$@" ;;   # Arabic or English name
   *) sed -n '2,/^# Only ADB/p' "$0"; exit 1 ;;
 esac

@@ -61,7 +61,7 @@ final class Greeting {
         boolean sameCity = s.lat.equals(sp.getString("lat", "")) && s.lon.equals(sp.getString("lon", ""));
         if (sameCity && sp.contains("code") && System.currentTimeMillis() - at < STALE_MS && d != null) {
             String line = GreetingText.weather(sp.getInt("code", -1), GreetingText.seenDust(sp.getFloat("dust", 0), sp.getFloat("vis", -1)), s.city, sp.getFloat("temp", 0), s.latin)
-                    + "\n" + GreetingText.sun(d.sunLabel, d.sunClock, s.latin);
+                    + "\n" + GreetingText.sun(d.sunLabel, d.sunClock, s.latin, s.clock24);
             weather.setText(line);
             weather.setVisibility(android.view.View.VISIBLE);
         } else {
@@ -146,7 +146,7 @@ final class Greeting {
     private static final class Config {
         boolean on = true;   // an older screensaver does not say: on, the default
         String city = "الرياض", lat = "24.6877", lon = "46.7219", tz = "Asia/Riyadh";
-        boolean latin;
+        boolean latin, clock24;
 
         static Config of(ConfigSnapshot snap) {
             Config s = new Config();
@@ -164,6 +164,7 @@ final class Greeting {
                         case "lon": if (value.matches("-?\\d+(\\.\\d+)?")) s.lon = value; break;
                         case "tz": if (!value.trim().isEmpty()) s.tz = value.trim(); break;
                         case "digits": s.latin = "latin".equals(value.toLowerCase(Locale.ROOT)); break;
+                        case "clock": s.clock24 = ClockText.isOn(value); break;
                         default: break;
                     }
                 }

@@ -134,7 +134,7 @@ Everything is scriptable over ADB, made for slow Wi-Fi (retries, resumable uploa
 | `docs/FEATURES.md` | كل ميزة بالعربي: وش تسوي، ووين تغيّرها، ووش يكتب الوكيل |
 | `AGENTS.md` | for AI agents, read first: where to start and the rules agents broke in reports |
 | `docs/SETTINGS.md` | every setting and feature with its command, for agents: use these, never build your own |
-| `optimize/saver.sh` | screensaver settings: `show`, `cities`, `city`, `find-team`, `teams`, `leagues`, `card`, `home-card`, `greeting`, `events`, `genres`, `langs`, `minrating`, `photos`, `idle`, `digits`, `national`, `cardstyle`, `markets` (`off`/`on`), `clocksize`, `mkstyle`, `stocks`, `slot`, `countdown`, `tasks`, `update` |
+| `optimize/saver.sh` | screensaver settings: `show`, `cities`, `city`, `find-team`, `teams`, `leagues`, `card`, `home-card`, `greeting`, `events`, `genres`, `langs`, `minrating`, `photos`, `idle`, `digits`, `hijrioffset`, `clock24`, `national`, `cardstyle`, `markets` (`off`/`on`), `clocksize`, `mkstyle`, `stocks`, `slot`, `countdown`, `tasks`, `export` / `import` (move the settings to a second TV, `import` previews until `--yes`), `update` |
 | `optimize/photos.sh` | the owner's own photos, 1 to 10: `add FILE...`, `list`, `del N`, `clear`, `mode mix\|only`, `show` |
 | `optimize/dock.sh` | favourites row: `show`, `apps`, `set`, `reset`; `hidden`, `hide PKG`, `show PKG` for apps left off the home screen |
 | `optimize/music.sh` | «تلاوة وأذان» over ADB: `status`, `reciters`, `stations`, `surah`, `radio`, `pause`, `resume`, `seek`, `sleep`, `adhan` (`now`, `on`/`off`, `voice N`) |

@@ -36,11 +36,32 @@ check("MainActivity: the sleep timer's minutes follow the clock's existing minut
 check("NowPlaying: shown only for a surah or a station, never for the adhan or nothing",
       "source != Prefs.SOURCE_SURAH && !radio) return new State(false" in now)
 check("MainActivity: OK pauses or plays, a long OK opens the player",
-      "nowCard.setOnClickListener(v -> NowPlaying.toggle(this))" in main and "nowCard.setOnLongClickListener(v -> { startActivity(NowPlaying.player(this)); return true; })" in main)
+      "nowCard.setOnClickListener(v -> NowPlaying.toggle(this))" in main
+      and ("nowCard.setOnLongClickListener(v -> { startActivity(NowPlaying.player(this)); return true; })" in main
+           or "nowCard.setOnLongClickListener(v -> { launchGuarded(ParentalPolicy.PILL_LISTEN, NowPlaying.player(this)" in main))   # the second once the family lock is in
 check("MainActivity: ◀ is the previous surah and ▶ the next while the card has the focus, for a surah only (a station: ◀ goes on to the pills)",
       "NowPlaying.prev(this); else NowPlaying.next(this)" in main and "if (s.show && !s.radio) {" in main and "KEYCODE_DPAD_LEFT) NowPlaying.prev" in main)
-check("MainActivity: it is the first child of the pills row, a pill's height, hidden until something plays: the pills do not move",
-      'right.addView(nowCard, 0, llp(-2, dp(Pill.HEIGHT), dp(10), 0, 0, 0))' in main and "nowCard.setVisibility(View.GONE);" in main)
+check("MainActivity: it is the first child of the pills row, hung evenly over its top and bottom so the row stays a pill's height,"
+      " hidden until something plays: the pills do not move",
+      "int hang = dp((NowCard.HEIGHT - Pill.HEIGHT) / 2f);" in main and "right.addView(nowCard, 0, llp(-2, dp(NowCard.HEIGHT), dp(10), -hang, 0, -hang))" in main
+      and "nowCard.setVisibility(View.GONE);" in main)
+import re
+num = lambda pat, src: float(re.search(pat, src).group(1))
+H, P = num(r"static final int HEIGHT = (\d+), LINE_MAX", card), num(r"static final int HEIGHT = (\d+);", (HOME / "Pill.java").read_text(encoding="utf-8"))
+LINE_MAX, HINT_MAX = num(r"LINE_MAX = (\d+),", card), num(r"HINT_MAX = (\d+);", card)
+TSP, SSP = num(r"TITLE_SP = ([\d.]+)", card), num(r"SUB_SP = ([\d.]+);", card)
+NAME_SP = num(r"name\.setTextSize\(TypedValue\.COMPLEX_UNIT_SP, ([\d.]+)\)", (HOME / "Pill.java").read_text(encoding="utf-8"))
+# Thmanyah lines are 1.25 em tall with the font padding off; the two lines and the 2 dp between them fit inside the card
+check(f"NowCard: two lines, the first at a pill's name size ({NAME_SP:g} sp), the second smaller ({SSP:g} sp), inside {H:g} dp; the card hangs over the row evenly",
+      TSP == NAME_SP and SSP < TSP and 1.25 * (TSP + SSP) + 2 <= H - 6 and (H - P) % 2 == 0 and H > P, f"{TSP} {SSP} {H} {P}")
+# the longest real texts, measured in Thmanyah (HarfBuzz; tests can't shape here): «سورة الشعراء» 73 dp, the longest station 169, the longest
+# reciter with a timer 184, the focus hint 262 (all at the sizes above): a line holds them, and the card is no wider than before at its widest
+pad = sum(num(p, card) for p in (r"setPadding\(Math\.round\((\d+) \* d\), 0,", r"setPadding\(Math\.round\(\d+ \* d\), 0, Math\.round\((\d+) \* d\)",
+                                  r"new LayoutParams\(Math\.round\((\d+) \* d\)", r"wp\.setMargins\(0, 0, Math\.round\((\d+) \* d\)"))
+check(f"NowCard: a line ({LINE_MAX:g} dp) holds the longest real station (169) and reciter with a timer (184), the card ({LINE_MAX + pad:g} dp) no wider than"
+      " the old one at its widest real text (252); the focused hint (262) fits its own width; longer names end in «…»",
+      184 <= LINE_MAX and LINE_MAX + pad <= 252 and 262 <= HINT_MAX and "t.setEllipsize(TextUtils.TruncateAt.END)" in card and "t.setSingleLine(true)" in card
+      and "sub.setMaxWidth(Math.round((focused ? HINT_MAX : LINE_MAX)" in card, f"{LINE_MAX} {pad}")
 check("MainActivity: it goes with the playback, and the focus goes back to the first pill if it had it",
       "nowCard.hasFocus() && !pills.isEmpty()) pills.get(0).requestFocus()" in main)
 check("MainActivity: it takes the focus like a pill (D-pad order: ▶ from the first pill reaches it; down goes to the cards or the dock)",
@@ -58,8 +79,8 @@ check("screen card: the provider needs a signature permission only the screensav
       'android:name="sa.urtv.home.READ_NOW_PLAYING"' in manifest_h and 'android:protectionLevel="signature"' in manifest_h
       and 'android:authorities="sa.urtv.home.nowplaying"' in manifest_h and 'android:readPermission="sa.urtv.home.READ_NOW_PLAYING"' in manifest_h
       and 'uses-permission android:name="sa.urtv.home.READ_NOW_PLAYING"' in manifest_s)
-check("screen card: the page gets one call, window.UrtvNative.nowPlaying(), on the screen only (not on the settings' previews); errors give an empty answer",
-      '@JavascriptInterface' in bridge and bridge.count("@JavascriptInterface") == 1 and "catch (Exception ignored)" in bridge
+check("screen card: the page gets two read-only calls, window.UrtvNative.nowPlaying() and adhan() (the adhan bar), on the screen only (not on the settings' previews); errors give an empty answer",
+      '@JavascriptInterface' in bridge and bridge.count("@JavascriptInterface") == 2 and "public String adhan()" in bridge and "catch (Exception ignored)" in bridge
       and 'if (screen) w.addJavascriptInterface(new NowPlayingBridge(c), "UrtvNative")' in screenview)
 check("screen card: the page asks once at the start and then once a minute, no faster",
       "nowPlayingTick();\n  setInterval(nowPlayingTick, 60*1000);" in (ROOT / "src/template.html").read_text(encoding="utf-8"))

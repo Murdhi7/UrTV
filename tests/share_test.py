@@ -165,8 +165,8 @@ share.own_names = lambda: {"exampleuser"}
 # the allowlist: a line the script does not build is dropped, only the notes and the owner's words are free text
 allow = share.restrict("\n".join(["UrTV problem report, 2026-01-01, UrTV abc", "", "TV: Test TV", "password is 1234",
                                    "(my wifi password is hunter2)", "? the code is 4321", "(not measured)",
-                                   "Checks:", "- ok: x", "Notes from the agent:", "anything the agent says", "From the owner:", "كلامي"]))
-allowed = "password" not in allow and "hunter2" not in allow and "4321" not in allow and "(not measured)" in allow and "anything the agent says" in allow and "كلامي" in allow and "- ok: x" in allow
+                                   "Checks:", "- ok: x", "Home switch: no safety switch on the TV itself (this TV ends background jobs with the ADB session)", "Notes from the agent:", "anything the agent says", "From the owner:", "كلامي"]))
+allowed = "password" not in allow and "hunter2" not in allow and "4321" not in allow and "(not measured)" in allow and "Home switch: no safety switch" in allow and "anything the agent says" in allow and "كلامي" in allow and "- ok: x" in allow
 # --send applies it too: a hand-edited file cannot add a field
 share.RUN = Path(tempfile.mkdtemp()); share.OUT = share.RUN / "share.md"
 share.OUT.write_text("UrTV problem report, 2026-01-01, UrTV abc\n\nTV: Test TV\nWi-Fi password hunter2\n", encoding="utf-8")

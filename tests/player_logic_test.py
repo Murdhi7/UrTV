@@ -55,12 +55,17 @@ check("the sleep timer's rows draw the focus (a selector with the gold frame for
 # counters
 check("rebuffers, errors and the last error are counted", "rebuffers++;" in service and "errors++;" in service and "lastError =" in service)
 check("the status line carries them", all(k in text("MusicReceiver.java") for k in ("|rebuffers=", "|errors=", "|last_error=", "|last_error_at=", "|rebuffer_ms=")))
+player = text("PlayerActivity.java")
+check("a held left/right seeks through SeekPace (one seek per 250 ms), both ways",
+      player.count("if (seekPace.due(event.getRepeatCount(), event.getEventTime())) MusicService.seekBy(this, ") == 2)
+strings = (ROOT / "android/launcher/src/main/res/values/strings.xml").read_text(encoding="utf-8")
+check("the Player's hint says what left/right do there, in the card's words («يمين/يسار: ١٠ ثوانٍ»)", "يمين/يسار: ١٠ ثوانٍ" in strings)
 
 if not shutil.which("javac"):
     print("SKIP player logic: no javac here")
     sys.exit(1 if failed else 0)
 with tempfile.TemporaryDirectory() as tmp:
-    subprocess.run(["javac", "-encoding", "UTF-8", "-d", tmp] + [str(T / n) for n in ("PlayIntent.java", "AdhanVoices.java", "AdhanVolume.java", "PlayerFault.java")]
+    subprocess.run(["javac", "-encoding", "UTF-8", "-d", tmp] + [str(T / n) for n in ("PlayIntent.java", "AdhanVoices.java", "AdhanVolume.java", "PlayerFault.java", "SeekPace.java")]
                    + [str(ROOT / "tests/PlayerLogicRun.java")], check=True, capture_output=True)
     out = subprocess.run(["java", "-Dfile.encoding=UTF-8", "-cp", tmp, "sa.urtv.home.tilawah.PlayerLogicRun"], check=True, capture_output=True).stdout.decode("utf-8")
 rows = [l.split("\t") for l in out.split("\n") if l]

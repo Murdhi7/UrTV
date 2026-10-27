@@ -74,13 +74,9 @@ final class GreetingText {
         return place + "، " + digits(Math.round(temp) + "°", latin);
     }
 
-    /** «الغروب ٥:٥٧ م» from "17:57". */
-    static String sun(String label, String hhmm, boolean latin) {
-        int colon = hhmm.indexOf(':');
-        int h = Integer.parseInt(hhmm.substring(0, colon));
-        String m = hhmm.substring(colon + 1, colon + 3);
-        int h12 = h % 12 == 0 ? 12 : h % 12;
-        return label + " " + digits(h12 + ":" + m, latin) + " " + (h < 12 ? "ص" : "م");
+    /** «الغروب ٥:٥٧ م» from "17:57" (on a 24-hour clock «الغروب ١٧:٥٧»). */
+    static String sun(String label, String hhmm, boolean latin, boolean clock24) {
+        return label + " " + ClockText.time(hhmm, clock24, latin);
     }
 
     /** Arabic-Indic digits (as the page's #digits=hindi), or the Latin ones left alone. */

@@ -22,6 +22,9 @@ public final class ClockZoneRun {
             } else if (f[0].equals("parse")) {
                 String[] p = ClockZone.parse(f[1]);
                 out.append(p[0]).append('|').append(p[1]);
+            } else if (f[0].equals("line")) {   // city, tz, pm, differs (1/0) -> the line, or "-" when hidden
+                String cal = ClockZone.calendar(f[2], f[3]);
+                out.append(ClockZone.showLine(f[4].equals("1"), cal) ? ClockZone.label(f[1], cal) : "-");
             } else {
                 out.append(ClockZone.label(f[1]));
             }

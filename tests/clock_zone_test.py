@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory() as tmp:
 got = out.decode("utf-8").split("\n")
 failed = 0
 for c, g in zip(cases, got):
-    n = {"at": 4, "parse": 2, "label": 2}[c[0]]   # the kind and its inputs; then what is expected, then a note
+    n = {"at": 4, "parse": 2, "label": 2, "line": 5}[c[0]]   # the kind and its inputs; then what is expected, then a note
     want, note = c[n], c[n + 1]
     ok = g == want
     print(("PASS " if ok else "FAIL ") + f"clock zone {c[0]}: {note}" + ("" if ok else f"  -> {g!r}, wanted {want!r}"))

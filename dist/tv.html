@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- the build: UTC time (YYYYMMDDHHMMSS) of the newest commit of the page's sources, put in by src/build.py. The app loads the page with the newer stamp (its own
      copy or a downloaded one), never by file time, and does not keep a download whose stamp is older than its own (Updater, PageStamp). -->
-<meta name="urtv-build" content="20261026115422">
+<meta name="urtv-build" content="20261027052908">
 <title>شاشة تلفزيونك</title>
 <style>
   @font-face{font-family:'Thmanyah';font-weight:300;font-style:normal;font-display:block;src:url("https://raw.githubusercontent.com/tshi-dev/UrTV/master/assets/fonts/Thmanyah-Light.woff2") format("woff2")}
@@ -191,6 +191,12 @@
   .week li.lv .lvt .tm{gap:.35em}
   .week li.lv .lvt .tm .cr{width:1.35em;height:1.35em;margin:0}
   .week li.lv .sc{color:var(--gold-hi);font-size:1.25em;font-weight:700;font-variant-numeric:tabular-nums;padding:0 .1em}
+  /* «الصلاة القادمة»: the name lit, its time, and the time left (as large and as bright as the time: the most useful part); the line
+     may wrap between them, never inside one */
+  .week li.np{display:flex;flex-wrap:wrap;align-items:baseline;gap:.15em .5em;white-space:normal;border-bottom:none;padding:1.2vh 0 .6vh}
+  .week li.np > *{flex:0 0 auto;max-width:none;overflow:visible;text-overflow:clip;padding:0;margin:0;white-space:nowrap}
+  .week li.np b{font-weight:500;color:var(--gold-hi)}
+  .week li.np .t{font-variant-numeric:tabular-nums}
   /* «يومك»: a small name, then the thing itself (it may wrap, never «…»), then when */
   .week li.td{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.1em .8em;align-items:baseline;white-space:normal}
   .week li.td > span{max-width:none;overflow:visible;text-overflow:clip;padding:0;margin:0}   /* not the list rows' first-name rule */
@@ -393,6 +399,9 @@
     margin-top:1.4vh;display:flex;align-items:center;gap:.7em;
     font-size:clamp(12px,1.02vw,20px);font-weight:300;letter-spacing:.3em;color:#D8CDB6;
   }
+  /* the first starts while no city was ever set (#citynote=1): one quiet line under the city, gone after ten minutes */
+  .citynote{margin-top:1vh;font-size:clamp(14px,1.1vw,21px);font-weight:400;color:#D8CDB6}
+  .citynote[hidden]{display:none}
   .subline .dot{width:5px;height:5px;border-radius:50%;background:var(--gold);opacity:.9}
 
   .bottom{
@@ -420,6 +429,10 @@
   .panel .sub.when{margin-top:.3vh;font-size:.86em;color:#A79C85}
 
   .p-prayer{text-align:right}
+  /* #prayerbar=1: from the last prayer to the next (or to the iqama, or the sunrise), filling from the right as the text reads */
+  .pbar{height:3px;margin-top:.9vh;overflow:hidden;border-radius:99px;background:rgba(var(--gold-rgb),.18);direction:rtl}
+  .pbar[hidden]{display:none}
+  .pbar i{display:block;width:0;height:100%;border-radius:inherit;background:var(--gold);transition:width .5s linear}
   .p-prayer .big{justify-content:flex-start}
   .p-mid{text-align:center}
   .p-mid .big{display:block;text-align:center;line-height:1.06}
@@ -464,6 +477,8 @@
     font-variant-numeric:tabular-nums}
   .wxdust{color:#E8B86A;font-size:.82em}   /* the dust, beside the condition and not instead of it */
   .wxdust:not(:empty)::before{content:'·';margin-inline-end:.5em;color:rgba(214,175,107,.7)}
+  .wxmore{margin-top:.3vh;font-size:clamp(11px,.92vw,18px);font-weight:300;color:var(--dim);white-space:nowrap}
+  .wxmore[hidden]{display:none}
   .wxsrc{margin-top:.3vh;font-size:clamp(10px,.86vw,17px);font-weight:300;color:var(--dim);opacity:.8;white-space:nowrap}
   .wxsrc:empty{display:none}
   .wxsub{margin-top:.55vh;font-size:clamp(12px,1.06vw,21px);font-weight:300;color:var(--dim);white-space:nowrap}
@@ -551,6 +566,7 @@
         <span class="ampm" id="ck-ap">—</span><span class="d" id="ck-h">--</span><span class="sep">:</span><span class="d" id="ck-m">--</span>
       </div>
       <div class="subline"><span class="dot"></span><span id="clock-sub">بتوقيت الرياض</span></div>
+      <div class="citynote" id="citynote" hidden></div>
       <div class="ystrip" id="ystrip" hidden></div>
     </div>
 
@@ -606,7 +622,7 @@ const _num = (k, d) => { const v = parseFloat(_Q.get(k)); return isNaN(v) ? d : 
 // the city's time zone, #tz=: the clock, prayers, matches and dates all go by it; one this browser does not know is Riyadh
 const _tzOk = z => { try{ new Intl.DateTimeFormat('en',{timeZone:z}); return true; }catch(e){ return false; } };
 // the cards a slot can show (Prefs.PANELS in the app is the same list); «none» is the absence of one
-const CARD_KINDS = ['shows','prayers','forecast','hourly','prayerrow','matches','verse','wisdom','adhkar','stocks','tasks','year','smart','today'];
+const CARD_KINDS = ['shows','prayers','forecast','hourly','prayerrow','nextprayer','matches','verse','wisdom','adhkar','stocks','tasks','year','smart','today'];
 const CONFIG = {
   city: _Q.get('city') || 'الرياض',
   latitude: _num('lat', 24.7136),
@@ -624,7 +640,8 @@ const CONFIG = {
   events: _list('events').filter(k => ['f1','ufc','boxing'].includes(k)),
   eventWindowDays: 14,
   // the card beside the clock: one of CARD_KINDS or none (#week=0 from older builds = none)
-  panel: (p => CARD_KINDS.includes(p) || p === 'none' ? p : 'verse')
+  // nextprayer is the launcher's only (the screensaver's bottom-right panel says the same): on the screensaver it is the verse
+  panel: (p => (CARD_KINDS.includes(p) && !(p === 'nextprayer' && _Q.get('widget') !== '1')) || p === 'none' ? p : 'verse')
          (_Q.get('panel') || (_Q.get('week') === '0' ? 'none' : 'verse')),
   // #tasks=: the open tasks, one per line (the app drops done ones), at most 12 of 60 characters
   tasks: (_Q.get('tasks') || '').split('\n').map(x=>x.trim().slice(0, 60)).filter(Boolean).slice(0, 12),
@@ -654,14 +671,16 @@ const CONFIG = {
   ownMode: _Q.get('ownmode') === 'only' ? 'only' : 'mix',
   // digits everywhere: #digits=hindi (١٢٣, the default) or latin (123); anything else = hindi
   digits: _Q.get('digits') === 'latin' ? 'latin' : 'hindi',
+  // «ساعة ٢٤»: #clock=24 shows every time of day as 24-hour (١٩:٣٠); anything else, or nothing, is the 12-hour clock (٧:٣٠ م)
+  clock24: _Q.get('clock') === '24',
   // the look of the card beside the clock: #cardstyle=current|dark1|glass1|dark3|glass3 (anything else = current)
   // the size of the clock: #clocksize=large|medium|small (anything else = large)
   clockSize: (v => ['medium','small'].includes(v) ? v : 'large')(_Q.get('clocksize')),
   cardStyle: (v => ['dark1','glass1','dark3','glass3'].includes(v) ? v : 'current')(_Q.get('cardstyle')),
-  // the markets at the top left: #markets=tasi,spx,btc (up to 4 of tasi aramco spx btc gold silver xrp; anything else = the default)
+  // the markets at the top left: #markets=tasi,spx,btc (up to 4 of tasi aramco spx btc gold silver oil xrp; anything else = the default)
   // and #mkstyle=arrows (a ▲/▼ only, the default) or prices (the price and the day's change)
   markets: (l => l.length ? l : ['tasi','spx','btc'])(
-    _list('markets').filter((k, i, a) => ['tasi','aramco','spx','btc','gold','silver','xrp'].includes(k) && a.indexOf(k) === i).slice(0, 4)),
+    _list('markets').filter((k, i, a) => ['tasi','aramco','spx','btc','gold','silver','oil','xrp'].includes(k) && a.indexOf(k) === i).slice(0, 4)),
   mkStyle: _Q.get('mkstyle') === 'prices' ? 'prices' : 'arrows',
   // #mkbar=off hides the markets line at the top (the weather stays); the list above is kept and no request is made for it
   mkBar: _Q.get('mkbar') !== 'off',
@@ -676,17 +695,30 @@ const CONFIG = {
   cdName: (_Q.get('cdname') || '').trim().slice(0, 40),
   // «التفسير الميسر» under the verse of the day: #tafsir=1 (anything else = off)
   tafsir: _Q.get('tafsir') === '1',
+  // from PR #28, each off unless asked for: #sunrise=1 the panel at the bottom right counts to the sunrise after Fajr's iqama and tells
+  // it for half an hour after; #prayerbar=1 a thin bar under it, how far the time has come from the last prayer to the next; #wxmore=1
+  // the humidity and the wind under the city at the top left (asked in the same weather request)
+  sunrise: _Q.get('sunrise') === '1',
+  prayerBar: _Q.get('prayerbar') === '1',
+  wxMore: _Q.get('wxmore') === '1',
+  // the Gregorian month's name: #months=levant «تشرين الأول» (the Levant's, as many people read them), anything else «أكتوبر» as always
+  months: _Q.get('months') === 'levant' ? 'levant' : 'default',
   // the slim bar before the adhan: #adhanbar=0 turns it off (anything else = on)
   adhanBar: _Q.get('adhanbar') !== '0',
   // «تعديل وقت الصلاة»: #adj=0,2,0,0,-1 = minutes added to الفجر الظهر العصر المغرب العشاء (each -20..20, whole minutes; anything that is not five
   // such numbers = none). The sunrise is not a prayer and is never moved. The screensaver sends it only while the setting is on.
   prayerAdj: (a => a.length === 5 && a.every(x => /^-?\d{1,2}$/.test(x.trim())) ? a.map(x => Math.max(-20, Math.min(20, parseInt(x, 10)))) : [0,0,0,0,0])(
     (_Q.get('adj') || '').split(',')),
+  // «فرق التاريخ الهجري»: #hijri=-2..2 moves every Hijri date by that many days, for places that start the month by moon sighting
+  // (Egypt, Jordan, the Levant, Morocco). The screensaver sends it only when it is not 0; anything else here = 0 = Umm al-Qura as it is.
+  hijri: (v => /^-?[0-2]$/.test(v) ? +v || 0 : 0)(_Q.get('hijri') || ''),
   // the slim year strip under the clock: #yearstrip=1 turns it on (anything else = off); the screensaver only, never the widget
   yearStrip: _Q.get('yearstrip') === '1',
   // #live=1 (the launcher): the «المهام» card is a button there (OK opens the list with the mic ready), so it carries a mic mark and
   // a ring while it has the focus. Only on the launcher's page; the screensaver never has it.
   live: _Q.get('live') === '1',
+  // #citynote=1: the screensaver's first starts while the city is still the install's Riyadh (Prefs.screenUrl); never the widget
+  cityNote: _Q.get('citynote') === '1' && _Q.get('widget') !== '1',
   // #widget=1: only the cards, on a transparent page (the launcher's home screen shows them)
   widget: _Q.get('widget') === '1',
 };
@@ -695,19 +727,23 @@ const CONFIG = {
 // the prayer calculation (Aladhan's id): #pm=jafari everywhere, else the country's by the zone, else Umm al-Qura 4; PrayerMath.methodFor
 // (launcher) and PrayerMethod (app) say the same, tests/prayer_method_test.py compares them
 CONFIG.prayerMethod = _Q.get('pm') === 'jafari' ? 0
-  : ({'Asia/Kuwait':9, 'Asia/Qatar':10, 'Asia/Dubai':16, 'Asia/Bahrain':8, 'Asia/Muscat':8})[CONFIG.timezone] || 4;
+  : ({'Asia/Kuwait':9, 'Asia/Qatar':10, 'Asia/Dubai':16, 'Asia/Bahrain':8, 'Asia/Muscat':8, 'Africa/Cairo':5, 'Asia/Amman':23, 'Asia/Damascus':5, 'Asia/Beirut':5, 'Asia/Gaza':5, 'Asia/Hebron':5, 'Asia/Jerusalem':5, 'Africa/Casablanca':21, 'Africa/El_Aaiun':21, 'Africa/Algiers':19, 'Africa/Tunis':18})[CONFIG.timezone] || 4;
+// the calculation's name under the clock when it is not Umm al-Qura: «بتوقيت المنامة · حساب الخليج» (ClockZone.calendar in the launcher
+// says the same on the home screen); Umm al-Qura says nothing, «بتوقيت الرياض» as it always was
+const CAL_LABEL = {0:'الحساب الجعفري', 8:'حساب الخليج', 9:'حساب الكويت', 10:'حساب قطر', 16:'حساب الإمارات', 5:'حساب الهيئة المصرية', 23:'حساب الأردن', 21:'حساب المغرب', 19:'حساب الجزائر', 18:'حساب تونس'};
+const clockSubText = () => 'بتوقيت ' + CONFIG.city + (CAL_LABEL[CONFIG.prayerMethod] ? ' · ' + CAL_LABEL[CONFIG.prayerMethod] : '');
 CONFIG.cards = (CONFIG.widget && _Q.has('home_panel') ? _list('home_panel') : [CONFIG.panel])
   .filter((k, i, a) => CARD_KINDS.includes(k) && a.indexOf(k) === i).slice(0, 3);
 CONFIG.panel = CONFIG.cards[0] || 'none';   // the first one, for what only needs to know "the card"
 // does a card on this page need that kind's data? The smart card reads what the matches, the adhkar, the prayers and the hours load;
 // «يومك» what the prayers, the matches and the tasks do
-const USES_OF = {smart:['matches','adhkar','prayers','prayerrow','hourly'], today:['prayers','matches','tasks']};
+const USES_OF = {smart:['matches','adhkar','prayers','prayerrow','hourly'], today:['prayers','matches','tasks'], nextprayer:['prayers']};
 const USES = k => CONFIG.cards.some(c => c === k || (USES_OF[c] || []).includes(k));
 
 // The panels' snapshot is keyed by the link without the settings that only change how things look (the card's style and place, the clock's
 // size, the strips, the photo timing): changing one of those offline must not lose the games already on screen. What changes the words or
 // the markup inside the saved panels (the teams, leagues, digits, slot, markets, their style and switch…) stays in the key.
-const SNAP_LOOK = ['cardstyle', 'panel', 'week', 'clocksize', 'adhanbar', 'yearstrip', 'national', 'photos', 'adj', 'own', 'ownmode', 'gap'];
+const SNAP_LOOK = ['citynote', 'cardstyle', 'panel', 'week', 'clocksize', 'adhanbar', 'yearstrip', 'national', 'photos', 'adj', 'own', 'ownmode', 'gap'];
 function snapLink(){
   return location.hash.replace(/^#/, '').split('&').filter(kv => kv && !SNAP_LOOK.includes(kv.split('=')[0])).join('&');
 }
@@ -740,7 +776,13 @@ const FMT_ALL = new Intl.DateTimeFormat('en-GB',{
 });
 const FMT_HM = new Intl.DateTimeFormat('en-GB',{timeZone:CONFIG.timezone,hour:'2-digit',minute:'2-digit',hour12:false});   // the city's clock
 const FMT_DATE = new Intl.DateTimeFormat('en-CA',{timeZone:CONFIG.timezone});   // YYYY-MM-DD in the city
-const FMT_DAY_MONTH = new Intl.DateTimeFormat(GREG,{timeZone:CONFIG.timezone,weekday:'long',day:'numeric',month:'long'});   // «السبت ٢٤ أكتوبر»
+// #months=levant: every Gregorian month the page writes in the Levant's names (MonthNames.java on the home screen says the same)
+const LEVANT_MONTHS = {'يناير':'كانون الثاني', 'فبراير':'شباط', 'مارس':'آذار', 'أبريل':'نيسان', 'مايو':'أيار', 'يونيو':'حزيران',
+  'يوليو':'تموز', 'أغسطس':'آب', 'سبتمبر':'أيلول', 'أكتوبر':'تشرين الأول', 'نوفمبر':'تشرين الثاني', 'ديسمبر':'كانون الأول'};
+const LEVANT_RE = new RegExp(Object.keys(LEVANT_MONTHS).join('|'), 'g');
+const gm = s => CONFIG.months === 'levant' ? String(s).replace(LEVANT_RE, m => LEVANT_MONTHS[m]) : s;
+const gregFmt = opts => { const f = new Intl.DateTimeFormat(GREG, opts); return {format: d => gm(f.format(d))}; };   // a Gregorian date with a month name
+const FMT_DAY_MONTH = gregFmt({timeZone:CONFIG.timezone,weekday:'long',day:'numeric',month:'long'});   // «السبت ٢٤ أكتوبر»
 const FMT_WEEKDAY = new Intl.DateTimeFormat(GREG,{timeZone:CONFIG.timezone,weekday:'long'});
 const hmParts = d => FMT_HM.formatToParts(d).reduce((a,x)=>(a[x.type]=x.value,a),{});
 function riyadhParts(d = new Date()){
@@ -752,10 +794,16 @@ function tzOffsetMs(ms){
   const p = riyadhParts(new Date(ms));
   return Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi, p.s) - Math.floor(ms / 1000) * 1000;
 }
-function fmt12(h, mi){
-  h %= 24;   // 24:30 (an Isha after midnight) is 12:30 ص
+// Every time of day on the screen is written here, so #clock=24 changes them all: {t:'٧:٣٠', u:'م', h:'٧'} (12-hour), {t:'١٩:٣٠', u:''} (24-hour).
+function timeParts(h, mi){
+  h %= 24;   // 24:30 (an Isha after midnight) is 12:30 ص, or 00:30
+  if(CONFIG.clock24) return {t: `${ar(pad(h))}:${ar(pad(mi))}`, u: ''};
   const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${ar(h12)}:${ar(pad(mi))} ${h < 12 ? 'ص' : 'م'}`;
+  return {t: `${ar(h12)}:${ar(pad(mi))}`, u: h < 12 ? 'ص' : 'م', h: ar(h12)};
+}
+function fmtTime(h, mi){
+  const x = timeParts(h, mi);
+  return x.u ? x.t + ' ' + x.u : x.t;
 }
 
 // An identical write still restyles and repaints, so the timers below write only what changed.
@@ -764,15 +812,17 @@ function setHTML(el, h, force){ if(force || el.__h !== h){ el.__h = h; el.innerH
 
 function tickClock(){
   const p = riyadhParts();
-  const h12 = p.h % 12 === 0 ? 12 : p.h % 12;
+  const h12 = p.h % 12 === 0 ? 12 : p.h % 12, h24 = CONFIG.clock24;
   // one box per digit: browsers ignore letter-spacing on Arabic digits, and ٤ reaches into the next digit
   const digits = s => [...s].map(ch => '<i>' + ch + '</i>').join('');
-  const key = h12 + ':' + p.mi;
+  const key = (h24 ? p.h : h12) + ':' + p.mi;
   if(key === tickClock.last) return;   // ticks every second, redraws once a minute
   tickClock.last = key;
-  document.getElementById('ck-h').innerHTML = digits(ar(h12));
+  document.getElementById('ck-h').innerHTML = digits(ar(h24 ? pad(p.h) : h12));   // 24-hour: «٠٧», still one box per digit
   document.getElementById('ck-m').innerHTML = digits(ar(pad(p.mi)));
-  setText(document.getElementById('ck-ap'), p.h < 12 ? 'ص' : 'م');
+  const ap = document.getElementById('ck-ap');
+  if(h24) ap.style.display = 'none';   // no ص or م on a 24-hour clock
+  else setText(ap, p.h < 12 ? 'ص' : 'م');
   if(CONFIG.yearStrip) renderYearStrip();   // the day may have turned; the clock's width may have changed
 }
 
@@ -792,6 +842,18 @@ function nationalNow(){
   return null;
 }
 
+// «فرق التاريخ الهجري»: the instant to give the Umm al-Qura calendar (formatted in the city's zone) so that it answers for the city's day
+// plus CONFIG.hijri days. At 0 it is `d` itself; otherwise noon of that day (the time of day does not matter to a date).
+function hijriAt(d){
+  const k = CONFIG.hijri;
+  if(!k) return d;
+  const p = riyadhParts(d);
+  const t = Date.UTC(p.y, p.mo - 1, p.d + k, 12);   // noon of the target day: a spring-forward at midnight cannot move it off its day
+  return new Date(t - tzOffsetMs(t));
+}
+// the same for a date held as UTC noon of a day (formatted with timeZone UTC): whole days, no summer time there
+const hijriUtc = d => CONFIG.hijri ? new Date(d.getTime() + CONFIG.hijri*86400000) : d;
+
 function tickDates(){
   const now = new Date();
   const nat = nationalNow(), nl = document.getElementById('natline');
@@ -799,14 +861,20 @@ function tickDates(){
   nl.hidden = !nat;
   if(nat) setText(nl, nat.name + ' ' + ar(nat.n) + nat.unit);
   try{
-    let h = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-' + NU,{
+    const hf = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-' + NU,{
       timeZone: CONFIG.timezone, weekday:'long', day:'numeric', month:'long', year:'numeric'
-    }).format(now);
+    });
+    let h;
+    if(!CONFIG.hijri) h = hf.format(now);
+    else{   // the day, month and year move; the weekday is today's
+      const wd = hf.formatToParts(now).find(x => x.type === 'weekday');
+      h = hf.formatToParts(hijriAt(now)).map(x => x.type === 'weekday' && wd ? wd.value : x.value).join('');
+    }
     h = h.replace(/\s*هـ\s*$/,'').replace(/،\s*$/,'');
     setText(document.getElementById('hijri'), h + ' هـ');
   }catch(e){}
   try{
-    setText(document.getElementById('greg'), new Intl.DateTimeFormat(GREG,{
+    setText(document.getElementById('greg'), gregFmt({
       timeZone: CONFIG.timezone, weekday:'long', day:'numeric', month:'long', year:'numeric'
     }).format(now));
   }catch(e){}
@@ -869,11 +937,16 @@ const PRAYER_METHODS = {
   9:  {fajr:18,   isha:17.5, ishaMin:0,  maghrib:.833, tune:[0,0,0,0]},      // Kuwait
   10: {fajr:18,   isha:0,    ishaMin:90, maghrib:.833, tune:[0,0,0,0]},      // Qatar
   16: {fajr:18.2, isha:18.2, ishaMin:0,  maghrib:.833, tune:[-3,3,3,3]},     // Dubai (the UAE)
+  5:  {fajr:19.5, isha:17.5, ishaMin:0,  maghrib:.833, tune:[0,0,0,0]},      // Egypt, and Syria, Lebanon, Palestine (no Aladhan method of their own; praytimes.org: Egyptian for Syria and Lebanon)
+  23:  {fajr:18, isha:18, ishaMin:0, maghrib:.833, tune:[0,0,0,5]},  // Jordan (the Ministry of Awqaf): Maghrib 5 minutes after sunset
+  21:  {fajr:19, isha:17, ishaMin:0, maghrib:.833, tune:[0,5,0,5]},  // Morocco (the Awqaf ministry): Dhuhr and Maghrib +5
+  19:  {fajr:18, isha:17, ishaMin:0, maghrib:.833, tune:[0,0,0,0]},  // Algeria (Ministry of Religious Affairs)
+  18:  {fajr:18, isha:18, ishaMin:0, maghrib:.833, tune:[0,0,0,0]},  // Tunisia (Ministry of Religious Affairs)
 };
 function computePrayers(){
   const p = riyadhParts(), lat = CONFIG.latitude, lng = CONFIG.longitude;
   const M = PRAYER_METHODS[CONFIG.prayerMethod] || PRAYER_METHODS[4];
-  const tz = Math.round((Date.UTC(p.y,p.mo-1,p.d,p.h,p.mi,p.s) - Date.now()) / 60000) / 60;
+  const noonUtc = Date.UTC(p.y,p.mo-1,p.d,12), tz = tzOffsetMs(noonUtc - tzOffsetMs(noonUtc)) / 3600000;   // the city's offset at its local noon (a change of clocks the same day does not move the whole day)
   const rad = d => d*Math.PI/180, deg = r => r*180/Math.PI;
   const fix = (a,b) => { a = a - b*Math.floor(a/b); return a < 0 ? a + b : a; };
   const jd0 = Date.UTC(p.y,p.mo-1,p.d)/86400000 + 2440587.5 - lng/(15*24);
@@ -906,7 +979,7 @@ function computePrayers(){
   const abs = m => pad(Math.floor(m/60)) + ':' + pad(m%60);
   const [tSun, tDhr, tAsr, tMag] = M.tune;
   const magM = Math.round(maghrib*60) + tMag;
-  const ishaM = M.ishaMin ? magM + M.ishaMin + (CONFIG.prayerMethod === 4 && hijriMonthNow() === 9 ? 30 : 0)
+  const ishaM = M.ishaMin ? magM + M.ishaMin + (CONFIG.prayerMethod === 4 && hijriMonthNow(true) === 9 ? 30 : 0)
                           : Math.max(magM, Math.round(adj(angleTime(M.isha, 18, false))*60));
   const at = (h, d) => hm(h + d/60);
   return {Fajr:hm(fajr), Sunrise:at(sunrise, tSun), Dhuhr:at(dhuhr, tDhr), Asr:at(asr, tAsr), Maghrib:at(maghrib, tMag), Isha:abs(ishaM)};
@@ -931,7 +1004,7 @@ async function loadPrayers(){
   }
   tickPrayer();
   tickOccasion();   // Ramadan mode needs the prayer times
-  renderPanel(false, 'prayers', 'adhkar', 'prayerrow');
+  renderPanel(false, 'prayers', 'adhkar', 'prayerrow', 'nextprayer');
 }
 
 const UNIT = {
@@ -970,8 +1043,28 @@ const ADHAN_BAR_MIN = 10;
 // «٤ دقائق»: what is left to an adhan, in the same words at the same second on the bar and in the panel below (whole minutes of the
 // rounded second; never less than one)
 const untilAdhan = leftMin => humanRemaining(Math.max(60, Math.round(leftMin * 60)));
+// while the adhan plays in the launcher (the screensaver only: window.UrtvNative.adhan() answers {"live":true,"prayer":4,"any":false}, "" otherwise)
+// the bar names it and says how to stop it: «أذان المغرب  ·  أي زر يوقف الأذان» (the default; «اختيار: إيقاف الأذان» when «إيقاف الأذان بأي زر» is off). The same words
+// as the launcher's bar (AdhanBarText.playing). Any key (or only OK, when the setting is off) is handled by the app, which also keeps the dream open.
+let ADHAN_LIVE = null;
+const ADHAN_PRAYER_NAMES = {0:'الفجر', 2:'الظهر', 3:'العصر', 4:'المغرب', 5:'العشاء'};
+function adhanLiveText(){
+  if(!ADHAN_LIVE) return '';
+  const n = ADHAN_LIVE.prayer === 2 && isFriday() ? 'الجمعة' : ADHAN_PRAYER_NAMES[ADHAN_LIVE.prayer];
+  return (n ? 'أذان ' + n : 'الأذان') + '  ·  ' + (ADHAN_LIVE.any ? 'أي زر يوقف الأذان' : 'اختيار: إيقاف الأذان');
+}
+function adhanLiveTick(){
+  if(CONFIG.widget || !CONFIG.adhanBar || !(window.UrtvNative && window.UrtvNative.adhan)) return;
+  // asked every 3 s whenever the app answers (a call to the app's provider, about a millisecond): an adhan started by hand has no time to wait for
+  let s = null;
+  try{ const raw = window.UrtvNative.adhan(); s = raw ? JSON.parse(raw) : null; }catch(e){}
+  ADHAN_LIVE = s && s.live && typeof s.prayer === 'number' && isFinite(s.prayer) ? {prayer: +s.prayer, any: !!s.any} : null;
+  tickAdhanBar();
+}
 function adhanBarText(){
-  if(!CONFIG.adhanBar || !PRAYERS.length) return '';
+  if(!CONFIG.adhanBar) return '';
+  if(ADHAN_LIVE) return adhanLiveText();
+  if(!PRAYERS.length) return '';
   const p = riyadhParts(), mins = p.h*60 + p.mi + p.s/60;
   for(const x of PRAYERS){
     const at = x.h*60 + x.mi, toAdhan = at - mins;
@@ -998,6 +1091,8 @@ function tickPrayer(){
   if(!PRAYERS.length) return;
   const p = riyadhParts();
   const mins = p.h*60 + p.mi + p.s/60;
+  const fill = document.getElementById('pbar-fill');
+  const progress = f => { if(CONFIG.prayerBar && fill) fill.style.width = (Math.max(0, Math.min(1, f)) * 100).toFixed(1) + '%'; };
 
   // between adhan and iqama: show the iqama countdown
   const cur = PRAYERS.find(x=>{
@@ -1007,23 +1102,51 @@ function tickPrayer(){
   });
   if(cur){
     const left = (cur.h*60 + cur.mi + CONFIG.iqama[cur.key]) - mins;
+    progress((mins - cur.h*60 - cur.mi) / Math.max(1, CONFIG.iqama[cur.key]));
     if(!panel.classList.contains('now')) panel.classList.add('now');
     setText(elL, 'حان الآن');
     setText(elN, prayerName(cur));
-    setText(elT, fmt12(cur.h, cur.mi));
+    setText(elT, fmtTime(cur.h, cur.mi));
     setHTML(elC, 'الإقامة بعد <b>' + humanRemaining(Math.max(60, Math.ceil(left)*60)) + '</b>');
     return;
   }
 
   if(panel.classList.contains('now')) panel.classList.remove('now');
+  if(CONFIG.sunrise && sunrisePanel(mins, elL, elN, elT, elC, progress)) return;
   setText(elL, 'الصلاة القادمة');
   let next = PRAYERS.find(x => (x.h*60+x.mi) > mins);
   const leftM = next ? (next.h*60 + next.mi) - mins
                      : (PRAYERS[0].h*60 + PRAYERS[0].mi) + 1440 - mins;
   if(!next) next = PRAYERS[0];
+  const last = PRAYERS.filter(x => x.h*60 + x.mi <= mins).pop(), lastAt = last ? last.h*60 + last.mi : PRAYERS[PRAYERS.length-1].h*60 + PRAYERS[PRAYERS.length-1].mi - 1440;
+  progress((mins - lastAt) / Math.max(1, mins + leftM - lastAt));
   setText(elN, prayerName(next));
-  setText(elT, fmt12(next.h, next.mi));
+  setText(elT, fmtTime(next.h, next.mi));
   setHTML(elC, 'بعد <b>' + untilAdhan(leftM) + '</b>');
+}
+
+// #sunrise=1 (from PR #28): after Fajr's iqama the panel counts to the sunrise («الشروق ٦:٠٥ ص · بعد ٢٣ دقيقة»), and for half an hour
+// after it says how long ago it was; then the Dhuhr countdown as always. The sunrise is not a prayer: the label says «الشروق», not «الصلاة
+// القادمة». True when it painted the panel.
+const SUNRISE_AFTER_MIN = 30;
+function sunrisePanel(mins, elL, elN, elT, elC, progress){
+  const fajr = PRAYERS.find(x => x.key === 'Fajr');
+  if(!DAY_TIMES || !DAY_TIMES.Sunrise || !fajr) return false;
+  const [sh, sm] = String(DAY_TIMES.Sunrise).split(':').map(Number), at = sh*60 + sm, from = fajr.h*60 + fajr.mi + (CONFIG.iqama.Fajr || 0);
+  if(mins >= from && mins < at){
+    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmtTime(sh, sm));
+    setHTML(elC, 'بعد <b>' + untilAdhan(at - mins) + '</b>');
+    progress((mins - from) / Math.max(1, at - from));
+    return true;
+  }
+  const ago = mins - at;
+  if(ago >= 0 && ago < SUNRISE_AFTER_MIN){
+    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmtTime(sh, sm));
+    setHTML(elC, ago < 1 ? 'الآن' : 'قبل <b>' + humanRemaining(Math.max(60, Math.floor(ago) * 60)) + '</b>');
+    progress(ago / SUNRISE_AFTER_MIN);
+    return true;
+  }
+  return false;
 }
 
 // ---- «المناسبة القادمة»: the card in the middle of the bottom row follows the Hijri year ----
@@ -1047,7 +1170,7 @@ function occasionNow(){
   const dayKey = FMT_DATE.format(new Date());
   if(OCC_CACHE.day === dayKey) return OCC_CACHE.val;
   const fmt = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura',{timeZone:CONFIG.timezone,year:'numeric',month:'numeric',day:'numeric'});
-  const hijri = d => fmt.formatToParts(d).reduce((a,x) => (a[x.type] = +x.value.replace(/[^0-9]/g,''), a), {});
+  const hijri = d => fmt.formatToParts(hijriAt(d)).reduce((a,x) => (a[x.type] = +x.value.replace(/[^0-9]/g,''), a), {});
   const base = Date.now();
   let val = null, found = {};
   for(let i = 0; i < 400 && !val; i++){
@@ -1069,10 +1192,11 @@ function occasionNow(){
   return val;
 }
 
-function hijriMonthNow(){
+// `raw`: the calendar's own month, without «فرق التاريخ الهجري»: prayer times never follow the offset (only what is shown does)
+function hijriMonthNow(raw){
   try{
     return +new Intl.DateTimeFormat('en-u-ca-islamic-umalqura',{timeZone:CONFIG.timezone,month:'numeric'})
-      .format(new Date()).replace(/[^0-9]/g,'');
+      .format(raw ? new Date() : hijriAt(new Date())).replace(/[^0-9]/g,'');
   }catch(e){ return 0; }
 }
 function tickOccasion(){
@@ -1102,8 +1226,8 @@ function tickOccasion(){
     else { label = 'الإمساك'; targetM = fajrM + 1440; }
     const th = Math.floor((targetM % 1440) / 60), tm = targetM % 60;
     setText(elL, label);
-    setHTML(elD, ar(th%12===0?12:th%12) + ':' + ar(String(tm).padStart(2,'0'))
-                  + ' <span class="unit">' + (th < 12 ? 'ص' : 'م') + '</span>');
+    const at = timeParts(th, tm);
+    setHTML(elD, at.t + (at.u ? ' <span class="unit">' + at.u + '</span>' : ''));
     setHTML(elS, 'بعد <b>' + humanRemaining(Math.max(0, Math.round((targetM - mins)*60))) + '</b>');
     return;
   }
@@ -1119,7 +1243,7 @@ function tickOccasion(){
     return;
   }
   setHTML(elD, ar(oc.days) + ' <span class="unit">' + OCC_TEXT.unit + '</span>');
-  setHTML(elS, esc(new Intl.DateTimeFormat(GREG,{timeZone:'UTC',weekday:'long',day:'numeric',month:'long'})
+  setHTML(elS, esc(gregFmt({timeZone:'UTC',weekday:'long',day:'numeric',month:'long'})
       .format(new Date(Date.UTC(oc.y, oc.mo-1, oc.d, 12))).replace('،','') + ' · ' + OCC_TEXT.expected)
     + (o.note ? '<div class="note">' + esc(o.note) + '</div>' : ''));
 }
@@ -1162,7 +1286,7 @@ const JITTER_MS = (()=>{
 const spread = ms => Math.floor(JITTER_MS * Math.min(ms, 30*60000) / (30*60000));
 const periodic = (fn, ms) => setTimeout(() => { fn(); setInterval(fn, ms); }, ms + spread(ms));   // the first periodic run is late by the offset
 const later = fn => setTimeout(fn, JITTER_MS);   // the same offset for the refresh at midnight
-const fmtAgo = ms => { const p = riyadhParts(new Date(ms)); return 'آخر تحديث ' + fmt12(p.h, p.mi); };
+const fmtAgo = ms => { const p = riyadhParts(new Date(ms)); return 'آخر تحديث ' + fmtTime(p.h, p.mi); };
 
 // ---------- team names in Arabic ----------
 // 1) built-in table, 2) the Arabic label on Wikidata (cached on the device), 3) transliteration meanwhile
@@ -1303,16 +1427,16 @@ function resultsFor(id){
 function matchWhen(d){
   const p = hmParts(d);
   return FMT_DAY_MONTH.format(d).replace('،','')
-    + ' · ' + fmt12(+p.hour % 24, +p.minute);
+    + ' · ' + fmtTime(+p.hour % 24, +p.minute);
 }
 
 // «الخميس ٢٢ أكتوبر»: the day of a finished game
 const matchDay = d => FMT_DAY_MONTH.format(d).replace('،','');
-const FMT_DM = new Intl.DateTimeFormat(GREG,{timeZone:CONFIG.timezone,day:'numeric',month:'long'});
+const FMT_DM = gregFmt({timeZone:CONFIG.timezone,day:'numeric',month:'long'});
 // the short form of matchWhen: «الجمعة ٩:٠٠ م» for a game this week, «٢٤ أكتوبر» for any other (and for a game already played)
 function matchWhenShort(d, now, done){
   const p = hmParts(d), ahead = d - now;
-  return !done && ahead > 0 && ahead < 6 * 86400000 ? FMT_WEEKDAY.format(d) + ' ' + fmt12(+p.hour % 24, +p.minute) : FMT_DM.format(d);
+  return !done && ahead > 0 && ahead < 6 * 86400000 ? FMT_WEEKDAY.format(d) + ' ' + fmtTime(+p.hour % 24, +p.minute) : FMT_DM.format(d);
 }
 
 // the final score of a finished game: «الهلال 2 - 1 النصر» and «النتيجة النهائية · السبت»
@@ -1330,11 +1454,11 @@ function gameBlock(ev, now, big){
     return `<div class="mblock"><div class="big"><span><span class="tm">${home}</span> × <span class="tm">${away}</span></span></div><div class="sub">${matchWhen(d)}</div></div>`;
   if(diff < -durMs(ev) || diff > CONFIG.weekWindowDays * 86400000) return '';   // in progress stays on screen
   const p = hmParts(d);
-  const t12 = ar(fmt12(+p.hour % 24, +p.minute));
+  const clk = ar(fmtTime(+p.hour % 24, +p.minute));
   const live = diff <= 0 && ev.intHomeScore != null && ev.intAwayScore != null;
   // «بعد ٣ أيام» and under it the date and time, small: «السبت ٢٤ أكتوبر · ٩:١٦ م»
   const dateLine = matchWhen(d);
-  const sub = diff > 0 ? `بعد ${shortRemaining(diff)}</div><div class="sub when">${dateLine}` : `<span class="live">مباشر</span> · ${liveStatus(ev, t12)}`;
+  const sub = diff > 0 ? `بعد ${shortRemaining(diff)}</div><div class="sub when">${dateLine}` : `<span class="live">مباشر</span> · ${liveStatus(ev, clk)}`;
   const mid = live ? ` <span class="sc">${ar(+ev.intHomeScore)} - ${ar(+ev.intAwayScore)}</span> ` : ' × ';
   return `<div class="mblock${big ? ' lvb' : ''}">`
        + `<div class="big"><span><span class="tm">${home}</span>${mid}<span class="tm">${away}</span></span></div>`
@@ -1408,12 +1532,12 @@ function leagueShow(now, shown){
   }).filter(Boolean).sort(byRank);
 }
 
-function liveStatus(ev, t12){
+function liveStatus(ev, clk){
   const st = (ev.strStatus || '').toUpperCase();
   if(st === 'HT') return 'استراحة';
   if(['FT','AET','PEN'].includes(st)) return 'انتهت';
   const m = parseInt(ev.strProgress, 10);
-  return isNaN(m) || (ev.strSport && ev.strSport !== 'Soccer') ? `بدأت ${t12}` : `الدقيقة ${ar(m)}`;   // minutes are football's
+  return isNaN(m) || (ev.strSport && ev.strSport !== 'Soccer') ? `بدأت ${clk}` : `الدقيقة ${ar(m)}`;   // minutes are football's
 }
 
 // while a picked team is playing, refresh that event every 2 minutes; so is a game of a followed league (a few at most)
@@ -1546,12 +1670,12 @@ function eventsOf(key, now){
 }
 function eventWhen(i, now){
   const p = hmParts(new Date(i.t));
-  const t12 = i.dateOnly ? '' : ar(fmt12(+p.hour % 24, +p.minute));
+  const clk = i.dateOnly ? '' : ar(fmtTime(+p.hour % 24, +p.minute));
   const sameDay = FMT_DATE.format(new Date(i.t + (i.dateOnly ? 3600000 : 0))) === FMT_DATE.format(new Date(now));
   const dayName = sameDay ? 'اليوم' : FMT_WEEKDAY.format(new Date(i.t + (i.dateOnly ? 3600000 : 0)));
   if(i.dateOnly) return {live:false, text: sameDay ? 'اليوم' : dayName, row: dayName};
-  if(now >= i.t) return {live:true, text: `<span class="live">مباشر</span> · بدأ ${t12}`, row: '<span class="live">مباشر</span>'};
-  return {live:false, text: `${dayName} · ${t12}`, row: `${dayName} ${t12}`};
+  if(now >= i.t) return {live:true, text: `<span class="live">مباشر</span> · بدأ ${clk}`, row: '<span class="live">مباشر</span>'};
+  return {live:false, text: `${dayName} · ${clk}`, row: `${dayName} ${clk}`};
 }
 function eventSlot(key, now){
   const x = eventsOf(key, now)[0];
@@ -1755,6 +1879,7 @@ const MARKETS = {
   btc:    {name:'بيتكوين',  cg:'bitcoin',   dec:0, unit:'$'},
   gold:   {name:'الذهب',    sym:'GC=F',     dec:2, unit:'ر.س', mul:GRAM},
   silver: {name:'الفضة',    sym:'SI=F',     dec:2, unit:'ر.س', mul:GRAM},
+  oil:    {name:'نفط برنت', sym:'BZ=F',     dec:2, unit:'دولار/برميل'},
   xrp:    {name:'ريبل',     cg:'ripple',    dec:2, unit:'$'},
 };
 const CG_YAHOO = {bitcoin:'BTC-USD', ripple:'XRP-USD'};   // the file CI keeps holds crypto under Yahoo's pair
@@ -1819,7 +1944,7 @@ function fastingNext(now){
   const p = riyadhParts(now), base = Date.UTC(p.y, p.mo - 1, p.d, 12);
   for(let i = 0; i < 12; i++){
     const date = new Date(base + i*86400000);
-    const h = FAST_HIJRI.formatToParts(date).reduce((a, x) => (a[x.type] = +x.value.replace(/[^0-9]/g, ''), a), {});
+    const h = FAST_HIJRI.formatToParts(hijriUtc(date)).reduce((a, x) => (a[x.type] = +x.value.replace(/[^0-9]/g, ''), a), {});
     const why = fastReasons(h.month, h.day, date.getUTCDay());
     if(!why.length || (i === 0 && p.h >= FAST_TODAY_UNTIL && why[0] !== 'ramadan')) continue;
     return {key:why[0], days:i, day:h.day, wd:date.getUTCDay(), date};
@@ -1874,7 +1999,7 @@ function slotHTML(s){
   if(s === 'countdown'){
     const n = countdownDays();
     const name = CONFIG.cdName ? esc(CONFIG.cdName)
-      : new Intl.DateTimeFormat(GREG, {timeZone:'UTC', day:'numeric', month:'long'}).format(new Date(CONFIG.cd + 'T12:00:00Z'));
+      : gregFmt({timeZone:'UTC', day:'numeric', month:'long'}).format(new Date(CONFIG.cd + 'T12:00:00Z'));
     return slotBlock(n === 0 ? 'اليوم' : '<span class="num">' + ar(n) + '</span> <span class="unit">يوم</span>', name);
   }
   return null;
@@ -2192,7 +2317,7 @@ function liveRect(){
 
 let FORECAST = [];
 try{ FORECAST = JSON.parse(localStorage.getItem(LS.forecast) || '[]') || []; }catch(e){}
-const PANEL_TITLE = {today:'يومك', shows:'هذا الأسبوع', prayers:'مواقيت اليوم', forecast:'الأيام القادمة', hourly:'الساعات القادمة', matches:CONFIG.leagues.length ? 'المباريات' : 'مباريات فرقك', tasks:'المهام', year:'السنة'};
+const PANEL_TITLE = {today:'يومك', shows:'هذا الأسبوع', prayers:'مواقيت اليوم', nextprayer:'الصلاة القادمة', forecast:'الأيام القادمة', hourly:'الساعات القادمة', matches:CONFIG.leagues.length ? 'المباريات' : 'مباريات فرقك', tasks:'المهام', year:'السنة'};
 const LISTS = ['matches', 'stocks', 'tasks', 'shows'];   // the kinds that page through their rows
 
 // ---- «يومك» (today): the day in one card: the next prayer, the next game of a followed team, the first open task, the next
@@ -2216,7 +2341,7 @@ function todayCard(){
     const p = riyadhParts(), mins = p.h * 60 + p.mi + p.s / 60;
     let n = PRAYERS.find(x => x.h * 60 + x.mi > mins), tomorrow = false;
     if(!n){ n = PRAYERS[0]; tomorrow = true; }
-    rows.push(tdRow('الصلاة القادمة', `${prayerName(n)} · ${fmt12(n.h, n.mi)}`, 'بعد ' + shortHM(Math.max(0, Math.round((n.h * 60 + n.mi + (tomorrow ? 1440 : 0) - mins) * 60)))));
+    rows.push(tdRow('الصلاة القادمة', `${prayerName(n)} · ${fmtTime(n.h, n.mi)}`, 'بعد ' + shortHM(Math.max(0, Math.round((n.h * 60 + n.mi + (tomorrow ? 1440 : 0) - mins) * 60)))));
   }
   const g = nextFollowedGame(now);
   if(g){
@@ -2237,7 +2362,7 @@ function todayCard(){
 // show it alone, with both crests where there are crests (on both match surfaces), until it ends; then they go back to the list.
 function liveWhen(ev){   // «مباشر» and «الدقيقة ٦٧» / «استراحة» / «بدأت ٦:٣٠ م»
   const p = hmParts(toDate(ev));
-  return `<span class="live">مباشر</span> · ${liveStatus(ev, ar(fmt12(+p.hour % 24, +p.minute)))}`;
+  return `<span class="live">مباشر</span> · ${liveStatus(ev, ar(fmtTime(+p.hour % 24, +p.minute)))}`;
 }
 const liveScore = ev => ev.intHomeScore != null && ev.intAwayScore != null ? `<span class="sc">${ar(+ev.intHomeScore)} - ${ar(+ev.intAwayScore)}</span>` : '<span class="sc">×</span>';
 function liveRow(ev){   // a row of the card: «الهلال [شعار] ٢ - ١ [شعار] النصر», the crests next to the score
@@ -2327,6 +2452,7 @@ function renderCard(card, animate, keepSize){
   else if(P === 'forecast') rows = forecastRows();
   else if(P === 'hourly') rows = hourlyRows();
   else if(P === 'prayerrow'){ const q = prayerRowCard(); paintHd(hd, q.title); rows = q.rows; }
+  else if(P === 'nextprayer') rows = nextPrayerRows();
   else if(P === 'matches') rows = matchRows(card);
   else if(P === 'year') rows = [yearCard(card)];
   else if(P === 'today'){ const q = todayCard(); paintHd(hd, q.title); rows = q.rows; }
@@ -2484,7 +2610,7 @@ function prayerRows(){
   return Object.keys(names).filter(k => DAY_TIMES[k]).map(k => {
     const [h, mi] = String(DAY_TIMES[k]).split(':').map(Number);
     const cls = k === lit ? 'next' : at(k) <= mins && !(tomorrow && k === lit) ? 'past' : '';
-    return `<li class="${cls}"><span>${names[k]}</span><span class="dt">${fmt12(h, mi)}</span></li>`;
+    return `<li class="${cls}"><span>${names[k]}</span><span class="dt">${fmtTime(h, mi)}</span></li>`;
   });
 }
 
@@ -2586,6 +2712,17 @@ function shortHM(sec){   // «١ س و ٥ د», «٢ س», «٥ د»
   const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60);
   return [h ? ar(h) + ' س' : '', m || !h ? ar(Math.max(m, 1)) + ' د' : ''].filter(Boolean).join(' و ');
 }
+// ---- «الصلاة القادمة»: one line, «المغرب ٥:٢١ م، بعد ١ ساعة و ٩ دقائق», the calm one of the prayer cards (after Isha: tomorrow's Fajr)
+function nextPrayerRows(){
+  if(!PRAYERS.length) return [];
+  const p = riyadhParts(), mins = p.h * 60 + p.mi + p.s / 60;
+  let n = PRAYERS.find(x => x.h * 60 + x.mi > mins), tomorrow = false;
+  if(!n){ n = PRAYERS[0]; tomorrow = true; }
+  // in the words of the bar and of the screensaver's own «الصلاة القادمة» (untilAdhan): the same minutes at the same second
+  const left = untilAdhan(n.h * 60 + n.mi + (tomorrow ? 1440 : 0) - mins);
+  return [`<li class="np"><b>${prayerName(n)}</b><span class="t">${fmtTime(n.h, n.mi)}،</span><span class="r">بعد ${left}</span></li>`];   // «،», not «·»: beside «م» it reads as «٠»
+}
+
 function prayerRowCard(){
   if(!PRAYERS.length) return {title:'مواقيت اليوم', rows:[]};
   const p = riyadhParts(), mins = p.h * 60 + p.mi + p.s / 60;
@@ -2595,7 +2732,7 @@ function prayerRowCard(){
   return {
     title: `${prayerName(n)} بعد ${shortHM(Math.max(0, Math.round(left * 60)))}`,
     rows: ['<li class="prow">' + PRAYERS.map((x, i) =>
-      `<div class="pc${i === next ? ' next' : tomorrow || x.h * 60 + x.mi <= mins ? ' past' : ''}"><b>${prayerName(x)}</b><i>${fmt12(x.h, x.mi)}</i></div>`).join('') + '</li>'],
+      `<div class="pc${i === next ? ' next' : tomorrow || x.h * 60 + x.mi <= mins ? ' past' : ''}"><b>${prayerName(x)}</b><i>${fmtTime(x.h, x.mi)}</i></div>`).join('') + '</li>'],
   };
 }
 
@@ -2631,8 +2768,8 @@ function hourlyRows(){
   const next = HOURLY.filter(x => x.t > hourKey() && x.temp != null).slice(0, 6);
   if(!next.length) return [];
   return ['<li class="hrs">' + next.map(x => {
-    const h = +x.t.slice(11, 13), h12 = h % 12 === 0 ? 12 : h % 12;
-    return `<div class="hc"><b>${ar(h12)} ${h < 12 ? 'ص' : 'م'}</b>${wxIcon(x.code, isNight(x.t))}<i>${ar(Math.round(x.temp))}°</i></div>`;
+    const h = +x.t.slice(11, 13), at = timeParts(h, 0), hr = at.u ? at.h + ' ' + at.u : at.t;   // «٦ م», or «١٨:٠٠»
+    return `<div class="hc"><b>${hr}</b>${wxIcon(x.code, isNight(x.t))}<i>${ar(Math.round(x.temp))}°</i></div>`;
   }).join('') + '</li>'];
 }
 
@@ -2869,19 +3006,31 @@ function wxAgeText(ms){
 function wxSource(){
   const el = document.getElementById('wx-src');
   if(!el) return;
-  setText(el, WX.at && Date.now() - WX.at < WX_STALE_MS ? 'Open-Meteo · ' + wxAgeText(Date.now() - WX.at) : '');
+  const fresh = WX.at && Date.now() - WX.at < WX_STALE_MS;
+  setText(el, fresh ? 'Open-Meteo · ' + wxAgeText(Date.now() - WX.at) : '');
+  // #wxmore=1: «رطوبة ٤٥٪، رياح ١٢ كم/س» («،», not «·»: beside «٪» it reads as «٠») from the same reading (none of it when the reading is stale or did not have it)
+  const more = document.getElementById('wx-more');
+  if(!more) return;
+  const parts = [];
+  if(CONFIG.wxMore && fresh && typeof WX.hum === 'number') parts.push('رطوبة ' + ar(Math.round(WX.hum)) + '٪');
+  if(CONFIG.wxMore && fresh && typeof WX.wind === 'number') parts.push('رياح ' + ar(Math.round(WX.wind)) + ' كم/س');
+  setText(more, parts.join('، '));
+  more.hidden = !parts.length;
 }
 async function loadWeather(){
   const q = `latitude=${CONFIG.latitude}&longitude=${CONFIG.longitude}&timezone=${encodeURIComponent(CONFIG.timezone)}`;
   try{
     // the hours card asks in the same request: its hourly values, and sunrise and sunset for the day or night icon
     const hours = USES('hourly');
-    const r = await fetchT(`https://api.open-meteo.com/v1/forecast?${q}&current=temperature_2m,weather_code,visibility`
+    const r = await fetchT(`https://api.open-meteo.com/v1/forecast?${q}&current=temperature_2m,weather_code,visibility${CONFIG.wxMore ? ',relative_humidity_2m,wind_speed_10m' : ''}`
                          + `&daily=temperature_2m_max,temperature_2m_min,weather_code${hours ? ',sunrise,sunset' : ''}&forecast_days=5`
                          + (hours ? '&hourly=temperature_2m,weather_code' : ''), 12000);
     if(!r.ok) throw 0;
     const j = await r.json();
-    WX.at = Date.now(); WX.vis = typeof j.current.visibility === 'number' ? j.current.visibility : null; saveWx();
+    WX.at = Date.now(); WX.vis = typeof j.current.visibility === 'number' ? j.current.visibility : null;
+    if(CONFIG.wxMore){ WX.hum = typeof j.current.relative_humidity_2m === 'number' ? j.current.relative_humidity_2m : null;
+                       WX.wind = typeof j.current.wind_speed_10m === 'number' ? j.current.wind_speed_10m : null; }
+    saveWx();
     setText(document.getElementById('wx-temp'), ar(Math.round(j.current.temperature_2m)) + '°');
     const d = document.getElementById('wx-desc');
     setText(d, WX_CODES[j.current.weather_code] || '');
@@ -3167,7 +3316,7 @@ function restoreSnap(){
 // What the cards need to be redrawn on, one place for the screensaver and the launcher: pages turn every 25 s, the clock-driven kinds
 // every 15 s (prayers, the row, the hours, the smart card, «يومك»), the windows and markets every minute.
 function cardTimers(){
-  const clocked = ['prayers', 'hourly', 'prayerrow', 'smart', 'today'];
+  const clocked = ['prayers', 'hourly', 'prayerrow', 'nextprayer', 'smart', 'today'];
   setInterval(() => renderPanel(false, ...clocked), 15000);
   setInterval(() => {
     for(const c of CARDS){
@@ -3250,10 +3399,19 @@ function boot(){
   setTimeout(saveSnap, 15*1000);   // the dream can be killed before pagehide
   setInterval(saveSnap, 60*1000);
   addEventListener('pagehide', saveSnap);
+  // the parts of the choices that are off by default are made only when chosen: off, the page is as it was, element for element
+  if(CONFIG.prayerBar) document.getElementById('prayer-count').insertAdjacentHTML('afterend', '<div class="pbar" id="pbar"><i id="pbar-fill"></i></div>');
+  if(CONFIG.wxMore) document.getElementById('wx-src').insertAdjacentHTML('beforebegin', '<div class="wxmore" id="wx-more" hidden></div>');
   const wxCity = document.getElementById('wx-city');
   if(wxCity) wxCity.textContent = CONFIG.city;
   const cs = document.getElementById('clock-sub');
-  if(cs) cs.textContent = 'بتوقيت ' + CONFIG.city;
+  if(cs) cs.textContent = clockSubText();
+  const cn = document.getElementById('citynote');
+  if(cn && CONFIG.cityNote){   // Location.note in the app says the same in the settings' top row
+    cn.textContent = 'المدينة: ' + CONFIG.city + '. لتغييرها: الإعدادات ثم الموقع';   // words, not «←» (not in Thmanyah) nor «‹›» (mirrored or not by the renderer)
+    cn.hidden = false;
+    setTimeout(() => { cn.hidden = true; }, 10*60*1000);
+  }
   document.title = 'شاشة تلفزيونك';
   applyBackground(true);
   loadPhotoIndex().then(() => applyBackground(true));
@@ -3267,6 +3425,7 @@ function boot(){
 
   nowPlayingTick();
   setInterval(nowPlayingTick, 60*1000);
+  setInterval(adhanLiveTick, 3000);
   setInterval(tickClock, 1000);
   setInterval(()=>{ tickDates(); tickPrayer(); tickOccasion(); wxExpire(); wxSource(); if(!SLOT_MATCHES) renderSlot(); }, 15000);
   if(SLOT_MATCHES){   // the matches timers run only while the slot shows matches
