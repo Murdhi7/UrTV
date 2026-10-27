@@ -400,6 +400,7 @@ optimize/music.sh adhan stopkey off              # ONLY if I asked that a key do
 optimize/saver.sh hijrioffset <-2 to 2>          # ONLY if I said the Hijri date is a day or two off mine (moon sighting: Egypt, Jordan, the Levant, Morocco) «التاريخ الهجري يتأخر/يتقدم يوم» (default 0: leave it; do not guess it from my country)
 optimize/saver.sh clock24 <on or off>             # ONLY if I asked for a 24-hour clock (19:30 instead of 7:30 م; default off: leave it)
 optimize/saver.sh digits <hindi or latin>        # ONLY if I asked for 123 instead of ١٢٣ (default hindi: leave it)
+optimize/saver.sh listenpill <on or off>          # ONLY if I asked to remove the «تلاوة وأذان» button from the home screen (default on: leave it; the adhan keeps working, the screen opens from the app menu)
 optimize/saver.sh markets <up to 4 of tasi, aramco, spx, btc, gold, silver, xrp, comma-separated>   # ONLY if I asked for other markets at the top left (default tasi,spx,btc: leave it)
 optimize/saver.sh markets off                    # ONLY if I asked to hide the markets line at the top and keep just the weather (`markets on` brings it back)
 optimize/saver.sh clocksize <large, medium or small>   # ONLY if I asked for a smaller screensaver clock (default large: leave it)

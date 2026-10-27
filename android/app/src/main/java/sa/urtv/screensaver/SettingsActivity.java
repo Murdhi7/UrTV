@@ -209,6 +209,9 @@ public class SettingsActivity extends Activity {
         }
         row("التحية والطقس", prefs.greeting() ? "تعمل" : "متوقفة", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setGreeting(!prefs.greeting()); render(); } });
+        // hiding removes only the button; the help line says where the screen opens from then
+        row("زر تلاوة وأذان", prefs.listenPill() ? "ظاهر" : "مخفي  •  الأذان والتلاوة تعمل، وتفتح الشاشة من قائمة التطبيق (OK مطوّلة) أو من بطاقة «يُتلى الآن»", R.drawable.ic_eye,
+            new Runnable() { public void run() { prefs.setListenPill(!prefs.listenPill()); render(); } });
         row("ترتيب التطبيقات المفضلة", "قائمة ترتّب فيها المفضلة بالأسهم", R.drawable.ic_star,
             new Runnable() { public void run() { openDockSettings(); } });
         row("تحديث تلفزيوني", "يعرض الإصدار ويتحقق من التحديث", R.drawable.ic_sync,

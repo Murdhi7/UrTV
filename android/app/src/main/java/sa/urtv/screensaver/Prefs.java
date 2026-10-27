@@ -644,6 +644,14 @@ final class Prefs {
     boolean greeting() { return sp.getBoolean("greeting", true); }
     void setGreeting(boolean v) { sp.edit().putBoolean("greeting", v).apply(); }
 
+    /**
+     * «زر تلاوة وأذان» on the launcher's home screen (default shown). Hidden removes only the button: the adhan, its alarm and bar, the
+     * any-key stop, the «يُتلى الآن» card and a Quran that was started elsewhere go on; the screen opens from the app menu (long OK on an
+     * app) or from the «يُتلى الآن» card instead.
+     */
+    boolean listenPill() { return sp.getBoolean("listenPill", true); }
+    void setListenPill(boolean v) { sp.edit().putBoolean("listenPill", v).apply(); }
+
     List<String> teamIds() {
         List<String> ids = new ArrayList<>();
         for (String t : teams()) ids.add(t.split("\\|", 2)[0]);

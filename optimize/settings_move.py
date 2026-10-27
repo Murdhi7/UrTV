@@ -44,7 +44,7 @@ MIGRATIONS = {}
 # into the file.
 # TODO(parental PIN, branch work/parental): the PIN must NEVER be added here, and must never be exported by any other way.
 ALLOWED_TOP = ("schema", "city", "digits", "prayer", "hijri_offset", "clock24", "clock_size", "card_style", "cards",
-               "greeting", "markets", "teams", "adhan")
+               "greeting", "listen_pill", "markets", "teams", "adhan")
 
 # The same lists the apps validate (android/app/src/main/java/sa/urtv/screensaver/Prefs.java; tests/settings_move_test.py
 # reads that file and fails if these drift from it).
@@ -151,6 +151,8 @@ def read_tv(keep_own=False):
         s["clock24"] = g["clock24"] == "on"
     if "greeting" in g:
         s["greeting"] = g["greeting"] == "on"
+    if "listenpill" in g:   # an older screensaver does not say; the key is then left out of the file
+        s["listen_pill"] = g["listenpill"] == "on"
     prayer = {}
     if "prayermethod" in g:
         prayer["method"] = g["prayermethod"]
@@ -233,7 +235,7 @@ def flat(s):
     if "city" in s:
         c = s["city"]
         out["city"] = (c["name"], float(c["lat"]), float(c["lon"]), c["tz"])
-    for k in ("digits", "clock24", "clock_size", "card_style", "greeting", "hijri_offset"):
+    for k in ("digits", "clock24", "clock_size", "card_style", "greeting", "listen_pill", "hijri_offset"):
         if k in s:
             out[k] = s[k]
     for k, v in s.get("prayer", {}).items():
@@ -401,7 +403,7 @@ def validate(d):
     for key, allowed in (("digits", DIGITS), ("clock_size", CLOCK_SIZES), ("card_style", CARD_STYLES)):
         if key in d and choice(d[key], allowed, key, errs):
             out[key] = d[key]
-    for key in ("clock24", "greeting"):
+    for key in ("clock24", "greeting", "listen_pill"):
         if key in d:
             n = len(errs)
             boolean(d[key], key, errs)
@@ -602,6 +604,8 @@ def ops(values, names):
             es("cardstyle", v)
         elif p == "greeting":
             es("greeting", flag(v))
+        elif p == "listen_pill":
+            es("listenpill", flag(v))
         elif p == "hijri_offset":
             es("hijrioffset", signed(v))
         elif p == "prayer.method":

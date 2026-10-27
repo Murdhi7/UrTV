@@ -16,6 +16,8 @@
 #   optimize/saver.sh home-card verse,hourly,year  on the home screen (launcher): up to 3 cards, same choices and nextprayer (home only), in this order
 #                                                  (one value works too; none = off). Two sit side by side, a third under them
 #   optimize/saver.sh greeting off                 home screen: the greeting (by prayer time) and the weather line under it: on (default) or off
+#   optimize/saver.sh listenpill off               home screen: the «تلاوة وأذان» button: on (default) or off. Off removes only the button: the adhan, its alarm and bar, the
+#                                                  any-key stop, the «يُتلى الآن» card and the Quran stay; the screen opens from the app menu (long OK on an app) or the card
 #   optimize/saver.sh adhanbar off                 the slim bar before the adhan (last 10 minutes, then until the iqama) on the screensaver and the home screen: on (default) or off
 #   optimize/saver.sh yearstrip on                 the slim year strip under the screensaver's clock (365 dots in 7 rows, today lit, no words): on or off (default)
 #   optimize/saver.sh sunrise on                   the prayer panel counts to the sunrise after Fajr's iqama, and tells it for 30 minutes: on or off (default)
@@ -156,6 +158,7 @@ case "${1:-}" in
             set1 panel "${2:?usage: optimize/saver.sh card prayers}" ;;
   home-card)set1 home_panel "${2?usage: optimize/saver.sh home-card verse,hourly,year | none}" ;;
   greeting) set1 greeting "${2:?usage: optimize/saver.sh greeting on|off}" ;;
+  listenpill) set1 listenpill "${2:?usage: optimize/saver.sh listenpill on|off}" ;;
   adhanbar) set1 adhanbar "${2:?usage: optimize/saver.sh adhanbar on|off}" ;;
   yearstrip)set1 yearstrip "${2:?usage: optimize/saver.sh yearstrip on|off}" ;;
   sunrise)  set1 sunrise "${2:?usage: optimize/saver.sh sunrise on|off}" ;;

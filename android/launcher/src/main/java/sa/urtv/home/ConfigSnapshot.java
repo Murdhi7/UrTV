@@ -15,17 +15,18 @@ final class ConfigSnapshot {
     /** "city=..&lat=..&lon=..&tz=..&..." as the page reads it; null when the screensaver is missing or does not answer */
     final String fragment;
     /** an older screensaver does not say: on, the default */
-    final boolean greetingOn, adhanBarOn;
+    final boolean greetingOn, adhanBarOn, listenPillOn;
 
-    private ConfigSnapshot(String fragment, boolean greetingOn, boolean adhanBarOn) {
+    private ConfigSnapshot(String fragment, boolean greetingOn, boolean adhanBarOn, boolean listenPillOn) {
         this.fragment = fragment;
         this.greetingOn = greetingOn;
         this.adhanBarOn = adhanBarOn;
+        this.listenPillOn = listenPillOn;
     }
 
     static ConfigSnapshot read(Context c) {
         String fragment = null;
-        boolean greeting = true, bar = true;
+        boolean greeting = true, bar = true, listenPill = true;
         try (Cursor cur = c.getContentResolver().query(URI, null, null, null, null)) {
             if (cur != null && cur.moveToFirst()) {
                 fragment = cur.getString(0);
@@ -33,11 +34,13 @@ final class ConfigSnapshot {
                 if (g >= 0 && "0".equals(cur.getString(g))) greeting = false;
                 int b = cur.getColumnIndex("adhan_bar");
                 if (b >= 0 && "0".equals(cur.getString(b))) bar = false;
+                int l = cur.getColumnIndex("listen_pill");   // an older screensaver does not say: the button is shown, as it always was
+                if (l >= 0 && "0".equals(cur.getString(l))) listenPill = false;
             }
         } catch (RuntimeException ignored) {
             // the screensaver is missing or signed with another key: the defaults (Riyadh, on)
         }
-        return new ConfigSnapshot(fragment, greeting, bar);
+        return new ConfigSnapshot(fragment, greeting, bar, listenPill);
     }
 
     /** {city, zone id}; null when the screensaver gave nothing: the TV's own zone then */
