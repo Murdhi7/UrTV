@@ -12,16 +12,16 @@ final class SettingsHub {
     static final String PLACE = "place", ADHAN = "adhan", SAVER = "saver", HOME = "home", CONTENT = "content", APPS = "apps",
             FAMILY = "family", PHONE = "phone";
 
-    /** key, name: the first screen in this order, two to a row from the right */
+    /** key, name, the line under its title on its own screen: the first screen in this order, two to a row from the right */
     static final String[][] CATEGORIES = {
-        {PLACE, "الموقع والصلاة"},
-        {ADHAN, "الأذان"},
-        {SAVER, "شاشة التوقف"},
-        {HOME, "الشاشة الرئيسية"},
-        {CONTENT, "المباريات والأسواق"},
-        {APPS, "التطبيقات والمفضلة"},
-        {FAMILY, "العائلة"},
-        {PHONE, "الجوال والتحديث"},
+        {PLACE, "الموقع والصلاة", "مدينتك تحدد الوقت والطقس، وطريقة الحساب تحدد مواقيت الصلاة."},
+        {ADHAN, "الأذان", "الأذان في وقته: تشغيله وصوته ومستواه، والتنبيه قبله على الشاشة."},
+        {SAVER, "شاشة التوقف", "ما يظهر على شاشة التوقف: الساعة والبطاقة بجانبها، والأرقام، والصور، ومتى تبدأ."},
+        {HOME, "الشاشة الرئيسية", "بطاقات الشاشة الرئيسية الثلاث، والتحية والطقس، وزر تلاوة وأذان."},
+        {CONTENT, "المباريات والأسواق", "ما تعرضه البطاقات: فرقك ودورياتك، والأسواق، والمسلسلات، والأسهم."},
+        {APPS, "التطبيقات والمفضلة", "ترتيب التطبيقات المفضلة وتعديلها، وأسماء مصادر التلفزيون مثل PS5."},
+        {FAMILY, "العائلة", "حماية العائلة على الشبكة: تفعيلها أو إيقافها، ويرجع الإعداد القديم تلقائياً."},
+        {PHONE, "الجوال والتحديث", "التحكم من الجوال، وتحديث تلفزيوني، وتحديث الشاشة، والإصدار."},
     };
 
     /** each row of SettingsActivity by its FocusKey.key (the name without its numbers), and its category */
@@ -66,6 +66,12 @@ final class SettingsHub {
     static String name(String category) {
         for (String[] c : CATEGORIES) if (c[0].equals(category)) return c[1];
         return null;
+    }
+
+    /** The line under a category's title on its own screen, "" for none. */
+    static String about(String category) {
+        for (String[] c : CATEGORIES) if (c[0].equals(category)) return c[2];
+        return "";
     }
 
     /** Where a category's tile is on the first screen, -1 for none. */

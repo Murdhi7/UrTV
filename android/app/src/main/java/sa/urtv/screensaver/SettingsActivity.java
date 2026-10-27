@@ -48,6 +48,8 @@ public class SettingsActivity extends Activity {
     private boolean entering = true; // the screen just changed: the focus goes to its first row (or that tile), not one kept by name
     private String groupCat, pendingHeader;   // while render runs: the category of the group being built, its header not drawn yet
     private TextView hint;
+    private LinearLayout side;       // a category's screen: its title and its line on the right, the rows on the left (hidden on the first)
+    private final java.util.Map<String, String> lastRow = new java.util.HashMap<>();   // each category's row last focused, for the way back in
 
     /** Arabic locale for this screen, so every dialog title, list and button is laid out right-to-left. */
     @Override
@@ -83,11 +85,24 @@ public class SettingsActivity extends Activity {
         list.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         list.setPadding(dp(8), dp(40), dp(8), dp(16));
         int width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(144), dp(1100));
-        frame.addView(list, new FrameLayout.LayoutParams(width, -2, Gravity.CENTER_HORIZONTAL));
+        frame.addView(list, new FrameLayout.LayoutParams(-1, -2));
         scroll.addView(frame);
+        LinearLayout panes = new LinearLayout(this);   // right to left: the side (a category's title), then the rows
+        panes.setOrientation(LinearLayout.HORIZONTAL);
+        panes.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        side = new LinearLayout(this);
+        side.setOrientation(LinearLayout.VERTICAL);
+        side.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        side.setPadding(dp(8), dp(48), dp(8), dp(16));
+        LinearLayout.LayoutParams sideLp = new LinearLayout.LayoutParams(0, -1, 0.36f);
+        sideLp.setMarginEnd(dp(36));
+        panes.addView(side, sideLp);
+        panes.addView(scroll, new LinearLayout.LayoutParams(0, -1, 0.64f));
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
-        column.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        LinearLayout.LayoutParams panesLp = new LinearLayout.LayoutParams(width, 0, 1f);
+        panesLp.gravity = Gravity.CENTER_HORIZONTAL;
+        column.addView(panes, panesLp);
         hint = new TextView(this);
         hint.setTextColor(0xFFC6BBA4);
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
@@ -110,6 +125,8 @@ public class SettingsActivity extends Activity {
     @Override
     public void onBackPressed() {
         if (screen == null) { super.onBackPressed(); return; }
+        View f = focusedRow();
+        if (f != null) lastRow.put(screen, (String) f.getTag());   // the way back in starts there
         hubAt = screen;
         open(null);
     }
@@ -133,7 +150,7 @@ public class SettingsActivity extends Activity {
         latinDigits = DigitsText.isLatin(prefs.digits());
         List<View> before = rows();
         View had = entering ? null : focusedRow();
-        final String want = entering ? (screen == null && hubAt != null ? "hub:" + hubAt : null) : had == null ? null : (String) had.getTag();
+        final String want = entering ? (screen == null ? (hubAt != null ? "hub:" + hubAt : null) : lastRow.get(screen)) : had == null ? null : (String) had.getTag();
         final int wasIndex = had == null ? 0 : before.indexOf(had), scrollY = entering ? 0 : scroll.getScrollY();
         entering = false;
         groupCat = null;
@@ -141,6 +158,7 @@ public class SettingsActivity extends Activity {
         hint.setText(screen == null ? "الأسهم بين الأقسام  •  اختيار لفتح القسم  •  رجوع للخروج"
             : "أعلى/أسفل بين الصفوف  •  اختيار لفتح الصف  •  رجوع للأقسام");
         list.removeAllViews();
+        sidePane();
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
@@ -159,7 +177,7 @@ public class SettingsActivity extends Activity {
         LinearLayout.LayoutParams sp0 = new LinearLayout.LayoutParams(-2, -2);
         sp0.setMarginStart(dp(20));
         head.addView(sub, sp0);
-        list.addView(head);
+        if (screen == null) list.addView(head);   // a category's screen has its title on the side instead
         if (screen == null || on(SettingsHub.PLACE))   // on the categories and on «الموقع والصلاة»
             if (prefs.cityNoteDue()) line(Location.note(prefs.city()[0]), 0xFFD6AF6B, dp(14));   // still the install's Riyadh: say where to change it
         if (screen == null) { hub(want, wasIndex); return; }
@@ -294,6 +312,41 @@ public class SettingsActivity extends Activity {
         View last = row("تحديث الشاشة الآن", "ينزّل أحدث نسخة من الشاشة", R.drawable.ic_sync, new Runnable() { public void run() { updateNow(); } });
         if (last.getParent() == list) note(last, Updater.versionLines(this));
         restoreFocus(want, wasIndex, scrollY);   // a screen just opened: its first row
+    }
+
+    /** The side of a category's screen: its icon, its name, its line, and the way back; nothing on the first screen. */
+    private void sidePane() {
+        side.removeAllViews();
+        side.setVisibility(screen == null ? View.GONE : View.VISIBLE);
+        if (screen == null) return;
+        int at = SettingsHub.index(screen);
+        final ImageView ic = new ImageView(this);
+        final android.graphics.drawable.Drawable d = getDrawable(at >= 0 && at < HUB_ICONS.length ? HUB_ICONS[at] : R.drawable.ic_settings).mutate();
+        d.setTint(0xFFD6AF6B);
+        ic.setImageDrawable(d);
+        side.addView(ic, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        TextView t = new TextView(this);
+        t.setText(conv(SettingsHub.name(screen)));
+        t.setTextColor(0xFFF6EFE0);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 38);
+        t.setTypeface(font("ThmanyahDisplay-Bold"));
+        t.setPadding(0, dp(16), 0, dp(10));
+        side.addView(t);
+        TextView a = new TextView(this);
+        a.setText(conv(SettingsHub.about(screen)));
+        a.setTextColor(0xFFC6BBA4);
+        a.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
+        a.setTypeface(font("Thmanyah-Regular"));
+        a.setLineSpacing(dp(4), 1f);
+        a.setTextDirection(View.TEXT_DIRECTION_RTL);
+        side.addView(a);
+        TextView up = new TextView(this);
+        up.setText("رجوع إلى الأقسام");   // words, not «‹›» (mirrored or not by the renderer)
+        up.setTextColor(0x99C6BBA4);
+        up.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        up.setTypeface(font("Thmanyah-Regular"));
+        up.setPadding(0, dp(22), 0, 0);
+        side.addView(up);
     }
 
     private static final int[] HUB_ICONS = {R.drawable.ic_place, R.drawable.ic_settings, R.drawable.ic_screensaver, R.drawable.ic_category,

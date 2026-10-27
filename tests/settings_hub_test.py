@@ -105,6 +105,17 @@ check("each tile says what is set in it now (a summary for every category)", all
 back = st[st.index("public void onBackPressed()"):].split("\n    }\n")[0]
 check("Back on a category goes back to the categories with the focus on its tile; on the categories it leaves the settings",
       "if (screen == null) { super.onBackPressed(); return; }" in back and "hubAt = screen;" in back and "open(null);" in back)
+check("each category's screen comes back on its row last focused (the first row the first time); the hub on the tile last opened",
+      "lastRow.put(screen, (String) f.getTag());" in back and back.index("lastRow.put(") < back.index("open(null);")
+      and ": lastRow.get(screen))" in render)
+side = st[st.index("private void sidePane()"):].split("\n    }\n")[0]
+check("a category's screen: its title and its line on the right (the side pane, first in the RTL panes), the rows on the left; no side on the first screen",
+      "side.setVisibility(screen == null ? View.GONE : View.VISIBLE);" in side and "SettingsHub.name(screen)" in side and "SettingsHub.about(screen)" in side
+      and st.index("panes.addView(side, sideLp);") < st.index("panes.addView(scroll,") and "panes.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);" in st
+      and "if (screen == null) list.addView(head);" in render)
+abouts = re.findall(r'\{(?:PLACE|ADHAN|SAVER|HOME|CONTENT|APPS|FAMILY|PHONE), "[^"]+", "([^"]*)"\}', hub)
+check("every category has its line for its screen", len(abouts) == n and all(len(a) > 20 for a in abouts), abouts)
+check("«الأرقام» (digits) is in a tile, «شاشة التوقف»", got.get("الأرقام") == "saver")
 check("a tile opens its category from the top (OK on it)", "card.setOnClickListener(x -> open(cat));" in st and "entering = true;" in st[st.index("private void open(String category)"):].split("\n    }\n")[0])
 check("the first screen is the categories, built before any row", render.index("if (screen == null) { hub(want, wasIndex); return; }") < render.index('row("معاينة الشاشة"'))
 rowfn = st[st.index("private View row(String label, String value, int icon, final Runnable onClick)"):].split("\n    }\n")[0]
