@@ -42,6 +42,23 @@ docs = text("docs/SETTINGS.md")
 check("SETTINGS.md documents it as testing only", "updatechannel" in docs and "testing only" in docs)
 check("the apk-next release carries version.txt (CI), or the channel could not read a version", re.search(r"apk-next.*?version\.txt", text(".github/workflows/android.yml"), re.S) is not None)
 
+# every `files: |` block of the workflows is a literal block: a trailing «# comment» would be part of the file pattern (it then matches nothing and
+# the file is silently not uploaded), so every line of it is a bare file name
+for wf in sorted((ROOT / ".github/workflows").glob("*.yml")):
+    lines = wf.read_text(encoding="utf-8").split("\n")
+    for n, line in enumerate(lines):
+        if re.match(r"\s*files:\s*\|\s*$", line):
+            indent = len(line) - len(line.lstrip())
+            block = []
+            for nxt in lines[n + 1:]:
+                if nxt.strip() and len(nxt) - len(nxt.lstrip()) <= indent:
+                    break
+                if nxt.strip():
+                    block.append(nxt.strip())
+            check(f"{wf.name}:{n + 1} files block: every line a bare file name, no comment", bool(block) and all(re.fullmatch(r"[A-Za-z0-9_.\-*/]+", b) for b in block), block)
+            if "apk-next" in "\n".join(lines[max(0, n - 6):n]):
+                check("the apk-next release uploads exactly the two APKs and version.txt", block == ["urtv-screensaver.apk", "urtv-home.apk", "version.txt"], block)
+
 tmp = tempfile.mkdtemp()
 log = os.path.join(tmp, "sent")
 fake = os.path.join(tmp, "fakepy")
