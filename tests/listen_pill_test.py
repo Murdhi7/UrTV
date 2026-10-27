@@ -57,6 +57,25 @@ check("shown: the button itself is still behind that lock",
 check("the «يُتلى الآن» card still opens the player (long OK) behind the same lock",
       'nowCard.setOnLongClickListener(v -> { launchGuarded(ParentalPolicy.PILL_LISTEN, NowPlaying.player(this)' in main)
 
+# ---- the adhan's settings are reachable without the button, from the same screen (no second copy of the logic)
+til = text(HOME / "tilawah/MainActivity.java")
+check("«تلاوة وأذان» can open on its adhan tab (EXTRA_OPEN = adhan)", 'public static final String EXTRA_OPEN = "open";' in til
+      and 'selectTab("adhan".equals(getIntent().getStringExtra(EXTRA_OPEN)) ? TAB_ADHAN : TAB_RECITERS)' in til)
+adhan_rows = til.split("KIND_ADHAN_TOGGLE, getString(R.string.adhan_auto)")[1].split("notifyDataSetChanged")[0] if "KIND_ADHAN_TOGGLE, getString(R.string.adhan_auto)" in til else ""
+check("that tab has everything: on or off, the voice, the Fajr voice, short, any key stops it, the volume",
+      all(k in til for k in ("KIND_ADHAN_TOGGLE", "KIND_VOICE", "KIND_FAJR_VOICE", "KIND_SHORT", "KIND_STOPKEY", "KIND_VOLUME")), "")
+check("hidden: the app menu also has «إعدادات الأذان…», the same screen on that tab, behind the same family lock",
+      'labels.add("إعدادات الأذان…");' in menu and 'launchGuarded(ParentalPolicy.PILL_LISTEN, adhanSettingsIntent(), "إعدادات الأذان")' in menu
+      and menu.index("if (listenPillHidden()) {") < menu.index('labels.add("إعدادات الأذان…");'), menu)
+check("adhanSettingsIntent opens it on the adhan tab", 'putExtra(sa.urtv.home.tilawah.MainActivity.EXTRA_OPEN, "adhan")' in main)
+req = main.split("private void openRequested(Intent i) {")[1].split("\n    }\n")[0]
+check("the home opens the adhan settings when asked with open=adhan, behind the family lock (shown or hidden button), and forgets the request",
+      '"adhan".equals(i.getStringExtra("open"))' in req and 'i.removeExtra("open")' in req and "launchGuarded(ParentalPolicy.PILL_LISTEN, adhanSettingsIntent()" in req, req)
+check("it asks on create and on a new intent (the home is singleTask)", "openRequested(getIntent());" in main and "openRequested(intent);" in main.split("protected void onNewIntent(Intent intent) {")[1].split("\n    }\n")[0])
+row2 = settings.split('row("الأذان"')[1].split("});")[0]
+check("the screensaver's settings have an «الأذان» row that brings the home up with open=adhan (the lock applies there, not here)",
+      "openAdhanSettings()" in row2 and 'setClassName("sa.urtv.home", "sa.urtv.home.MainActivity").putExtra("open", "adhan")' in settings, row2)
+
 # ---- nothing else depends on the button
 others = [f.name for f in sorted(list(HOME.rglob("*.java")) + list(APP.glob("*.java"))) if "listenPill" in text(f) or "listen_pill" in text(f) or "tilawahPill" in text(f)]
 check("only the setting's own files and the home screen know about the button: not the adhan, its alarm or bar, the stop key or the card",

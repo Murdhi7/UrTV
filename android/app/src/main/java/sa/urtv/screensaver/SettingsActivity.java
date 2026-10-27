@@ -209,6 +209,10 @@ public class SettingsActivity extends Activity {
         }
         row("التحية والطقس", prefs.greeting() ? "تعمل" : "متوقفة", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setGreeting(!prefs.greeting()); render(); } });
+        // the adhan's settings (on or off, the voice, the Fajr voice, short, any key stops it, the volume): the same screen as the player's adhan tab,
+        // opened through the home (behind its family lock), so they are reachable with the «تلاوة وأذان» button hidden too
+        row("الأذان", "تشغيله وصوته وصوت الفجر والمختصر والإيقاف بأي زر والمستوى", R.drawable.ic_settings,
+            new Runnable() { public void run() { openAdhanSettings(); } });
         // hiding removes only the button; the help line says where the screen opens from then
         row("زر تلاوة وأذان", prefs.listenPill() ? "ظاهر" : "مخفي  •  الأذان والتلاوة تعمل، وتفتح الشاشة من قائمة التطبيق (اختيار مطوّلة) أو من بطاقة «يُتلى الآن»", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setListenPill(!prefs.listenPill()); render(); } });
@@ -597,6 +601,15 @@ public class SettingsActivity extends Activity {
     private void openDockSettings() {
         try {
             startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.DockActivity"));
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
+    /** The adhan's settings are the launcher's: its home opens them (behind the family lock) when asked with open=adhan. */
+    private void openAdhanSettings() {
+        try {
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.MainActivity").putExtra("open", "adhan"));
         } catch (RuntimeException e) {
             toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
         }

@@ -168,6 +168,7 @@ public class MainActivity extends Activity {
                 View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                         | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
         setContentView(buildUi());
+        openRequested(getIntent());   // started by the screensaver's «الأذان» row
         buildApps();
 
         IntentFilter pf = new IntentFilter();
@@ -241,6 +242,7 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         Parental.SESSION.clear();
+        openRequested(intent);
         // Home pressed while already home: jump back to the first dock app.
         if (inputsPopup != null) inputsPopup.dismiss();
         if (!dockCards.isEmpty()) dockCards.get(0).requestFocus();
@@ -470,6 +472,21 @@ public class MainActivity extends Activity {
         right.addView(nowCard, 0, llp(-2, dp(NowCard.HEIGHT), dp(10), -hang, 0, -hang));
         header.addView(right, new FrameLayout.LayoutParams(-2, -2, Gravity.LEFT | Gravity.TOP));
         return header;
+    }
+
+    /** «تلاوة وأذان» opened on its adhan tab: the adhan's settings, the same screen and the same prefs as the player's. */
+    private Intent adhanSettingsIntent() {
+        return new Intent(this, sa.urtv.home.tilawah.MainActivity.class).putExtra(sa.urtv.home.tilawah.MainActivity.EXTRA_OPEN, "adhan");
+    }
+
+    /**
+     * The screensaver's settings row «الأذان» brings the home to the front with open=adhan: the adhan settings open from here, behind the same
+     * family lock as the «تلاوة وأذان» button (it asks for the PIN when that is locked), whether the button is shown or hidden.
+     */
+    private void openRequested(Intent i) {
+        if (i == null || !"adhan".equals(i.getStringExtra("open"))) return;
+        i.removeExtra("open");
+        if (getResources().getBoolean(R.bool.show_listening)) handler.post(() -> launchGuarded(ParentalPolicy.PILL_LISTEN, adhanSettingsIntent(), "إعدادات الأذان"));
     }
 
     /** The button is wanted: the screensaver's setting says shown, and this build has the listening part at all. */
@@ -885,6 +902,8 @@ public class MainActivity extends Activity {
         if (listenPillHidden()) {   // the button is hidden: the player (and the adhan's settings in it) opens from here, behind the same lock
             labels.add("تلاوة وأذان…");
             actions.add(() -> launchGuarded(ParentalPolicy.PILL_LISTEN, new Intent(this, sa.urtv.home.tilawah.MainActivity.class), "تلاوة وأذان"));
+            labels.add("إعدادات الأذان…");   // the same screen, on its «الأذان» tab: on or off, the voices, short, any key, the volume
+            actions.add(() -> launchGuarded(ParentalPolicy.PILL_LISTEN, adhanSettingsIntent(), "إعدادات الأذان"));
         }
         labels.add("الرقابة الأبوية…");
         actions.add(() -> launchGuarded(ParentalPolicy.PARENTAL_SCREEN, new Intent(this, ParentalActivity.class), "الرقابة الأبوية"));
