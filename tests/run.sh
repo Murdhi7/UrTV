@@ -80,6 +80,7 @@ python3 tests/bounded_test.py
 python3 tests/adhan_bar_test.py
 python3 tests/adhan_keys_test.py
 python3 tests/remote_keys_test.py
+python3 tests/dpad_rtl_test.py
 python3 tests/adhan_reply_test.py
 python3 tests/clock_zone_test.py
 python3 tests/phone_test.py
