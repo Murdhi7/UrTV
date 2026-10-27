@@ -143,7 +143,9 @@ public class ParentalActivity extends Activity {
             case ParentalPolicy.TASKS: return "المهام";
             case ParentalPolicy.SAVER: return "شاشة التوقف";
             case ParentalPolicy.LISTEN: return "تلاوة وأذان";
-            default: return "مؤقت النوم";
+            case ParentalPolicy.CENTER: return "مركز التحكم";
+            case ParentalPolicy.SLEEP: return "مؤقت النوم";
+            default: return pill;
         }
     }
 

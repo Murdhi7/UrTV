@@ -33,7 +33,7 @@ rc, out, sent = run("pin", "set", "4829")
 check("pin set: one broadcast with the four digits", rc == 0 and sent == A + "PIN_SET --es pin 4829", (rc, sent))
 check("pin set: the answer is printed, and the PIN is not", out.strip() == "pin: set" and "4829" not in out, out)
 for cmd, act in (("lock", "PIN_LOCK"), ("unlock", "PIN_UNLOCK")):
-    for tgt in ("com.netflix.ninja", "@wifi", "@urtv", "a.b"):
+    for tgt in ("com.netflix.ninja", "@wifi", "@center", "@urtv", "a.b"):
         rc, out, sent = run("pin", cmd, tgt)
         check(f"pin {cmd} {tgt}: {act} with the target", rc == 0 and sent == A + f"{act} --es target {tgt}", (rc, sent))
     for bad in ("", "netflix", "com.x; reboot", "com..x", "@WIFI", "@wifi extra", "'quoted'", "com.x'y", "$(id)", "1com.x", "-rf"):

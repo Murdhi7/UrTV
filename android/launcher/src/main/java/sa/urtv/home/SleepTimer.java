@@ -78,6 +78,17 @@ final class SleepTimer {
     /** The alarm: the time is up. Returns what was done, for the log and for dock.sh. */
     static String fire(Context c) {
         prefs(c).edit().remove("end").remove("since").apply();
+        String done = turnOff(c);
+        prefs(c).edit().putString("last", done).apply();
+        c.sendBroadcast(new Intent(CHANGED).setPackage(c.getPackageName()));
+        return done;
+    }
+
+    /**
+     * The TV goes to sleep now, the way the timer's end does it (and «أطفئ الآن» in «مركز التحكم»): the sound stops, then the screen is
+     * turned off by the sleep service, or the screensaver comes up without the service. Returns «screen off», «screensaver» or «sound stopped only».
+     */
+    static String turnOff(Context c) {
         String done;
         try { MusicService.stopIfPlaying(c); } catch (RuntimeException ignored) { }
         if (SleepService.sleepNow()) {
@@ -91,8 +102,6 @@ final class SleepTimer {
                 done = "sound stopped only";
             }
         }
-        prefs(c).edit().putString("last", done).apply();
-        c.sendBroadcast(new Intent(CHANGED).setPackage(c.getPackageName()));
         return done;
     }
 

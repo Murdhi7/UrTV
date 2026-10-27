@@ -18,7 +18,7 @@
 #   optimize/dock.sh familydns on|off|status|grant   «حماية العائلة (DNS)»: Private DNS to AdGuard Family, checked and undone by optimize/familydns.sh
 #   optimize/dock.sh sleep-setup           turn on the sleep service (an accessibility service, once) so the end turns the screen off
 #   optimize/dock.sh pin set 1234         «الرقابة الأبوية»: the master PIN (4 digits), set or changed from here without the old one; never printed back
-#   optimize/dock.sh pin lock PKG          lock one app (its package, e.g. com.netflix.ninja), a pill (@inputs @wifi @tvsettings @tasks @saver @listen @sleep) or @urtv (our settings); `pin unlock PKG` opens it again
+#   optimize/dock.sh pin lock PKG          lock one app (its package, e.g. com.netflix.ninja), a pill (@inputs @wifi @tvsettings @tasks @saver @listen @sleep @center) or @urtv (our settings); `pin unlock PKG` opens it again
 #   optimize/dock.sh pin status            what is set: PIN or not, what is locked, kids mode, wrong tries (never the PIN)
 #   optimize/dock.sh pin off               no PIN: nothing asks, kids mode ends; the apps chosen stay for the next PIN
 #   optimize/dock.sh pin reset             the PIN was forgotten: everything parental back to nothing (the PIN, the locks, kids mode, the wrong tries)

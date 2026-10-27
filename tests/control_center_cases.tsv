@@ -1,0 +1,39 @@
+# control center text (ControlText.java). freed: before, after, tried, -, answer, note | mbps: value, -, -, -, answer, note | signal: rssi, -, -, -, answer, note
+# network: wired, wifi, ssid, rssi, answer (name|detail), note | output: types, -, -, -, answer, note | killable: pkg, system, keyboard, -, answer, note
+freed	1000000000	1300000000	6		تحرر ٢٨٦ ميجابايت	300000000 bytes, rounded to whole MB (digits are Digits.of's job: western here)
+freed	1000000000	1000000000	6		لم يتحرر شيء: الذاكرة مرتاحة	nothing freed: said plainly
+freed	1000000000	900000000	6		لم يتحرر شيء: الذاكرة مرتاحة	the system took memory back meanwhile: never a negative number
+freed	1000000000	1000400000	6		لم يتحرر شيء: الذاكرة مرتاحة	under half a MB is 0
+freed	1000000000	1000600000	6		تحرر ١ ميجابايت	just over half a MB is 1
+freed	1000000000	1300000000	0		لا تطبيقات في الخلفية لإغلاقها	no app was asked: not a «freed» claim
+mbps	12.34				١٢٫٣ ميجابت/ث	one decimal below 100
+mbps	250.6				٢٥١ ميجابت/ث	whole above 100
+mbps	0				٠٫٠ ميجابت/ث	zero is shown as zero
+mbps	-4				٠٫٠ ميجابت/ث	never negative
+signal	-40				4	strong
+signal	-55				4	the top step
+signal	-78				2	middle
+signal	-100				0	none
+signal	-120				0	below the floor
+network	0	1	home	-50	home|إشارة ممتازة	Wi-Fi by name with its signal
+network	0	1	home	-90	home|إشارة ضعيفة	weak
+network	0	1	null	-70	واي فاي|إشارة جيدة	the name unreadable: «واي فاي»
+network	0	1	"<unknown ssid>"	0	واي فاي|افتح إعدادات الشبكة	signal unknown (0): no invented bars
+network	1	0	null	0	شبكة سلكية|اتصال ثابت	the cable
+network	0	0	null	0	غير متصل|افتح إعدادات الشبكة	not connected
+output	2				سماعات التلفزيون	the TV's own speakers
+output	10				HDMI ARC (مضخم أو ساوند بار)	ARC
+output	29				HDMI ARC (مضخم أو ساوند بار)	eARC says the same
+output	2,8,8				سماعات التلفزيون، بلوتوث	each named once
+output	8				بلوتوث	Bluetooth
+output	0,15,16				لا يُعرف	types that are not outputs a person names
+output					لا يُعرف	the TV said nothing
+killable	com.example.player	0	0		true	an app the person installed
+killable	sa.urtv.home	0	0		false	ours: the home
+killable	sa.urtv.screensaver	0	0		false	ours: the screensaver (the adhan)
+killable	com.android.vending	0	0		false	a system package name
+killable	com.example.preinstalled	1	0		false	a system app
+killable	com.example.pad	0	1		false	the keyboard
+killable	com.google.android.inputmethod.latin	0	0		false	a keyboard by name even if the TV did not list it
+killable	android	0	0		false	the framework
+killable		0	0		false	nothing

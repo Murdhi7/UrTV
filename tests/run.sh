@@ -83,6 +83,7 @@ python3 tests/own_adhan_keep_test.py
 python3 tests/player_logic_test.py
 python3 tests/seek_burst_test.py
 python3 tests/pill_text_test.py
+python3 tests/control_center_test.py
 python3 tests/tasks_card_test.py
 python3 tests/now_playing_test.py
 python3 tests/digits_text_test.py
