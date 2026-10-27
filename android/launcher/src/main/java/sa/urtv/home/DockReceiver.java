@@ -24,6 +24,7 @@ import java.util.Map;
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.SET_NAMES --es names 'pkg|الاسم;pkg2|'   (empty: back)
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.CLEAR_NAMES
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_SET --es pin 1234   «الرقابة الأبوية»: the master PIN (never printed back)
+ *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_LOCK --es target com.example.app   (PIN_UNLOCK to open it again; a pill: @wifi...)
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_STATUS            what is set
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_OFF               no PIN: nothing asks, kids mode ends, the choices stay
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_RESET             a forgotten PIN: everything parental back to nothing
@@ -93,6 +94,12 @@ public class DockReceiver extends BroadcastReceiver {
             case "sa.urtv.home.PIN_SET": {   // from here only: the shell's DUMP is needed to send it, and this is where a forgotten PIN is put right
                 String pin = i.getStringExtra("pin");
                 setResultData(pin == null ? "error: add --es pin 1234 (4 digits)" : Parental.adbSet(c, pin));
+                return;
+            }
+            case "sa.urtv.home.PIN_LOCK":
+            case "sa.urtv.home.PIN_UNLOCK": {   // one app, pill or «قفل الإعدادات»; from here only, like the PIN
+                String target = i.getStringExtra("target");
+                setResultData(target == null ? "error: add --es target com.example.app" : Parental.adbLock(c, target, "sa.urtv.home.PIN_LOCK".equals(action)));
                 return;
             }
             case "sa.urtv.home.PIN_STATUS":

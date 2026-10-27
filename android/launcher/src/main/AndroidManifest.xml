@@ -149,6 +149,8 @@
                 <action android:name="sa.urtv.home.HIDE" />
                 <action android:name="sa.urtv.home.SHOW" />
                 <action android:name="sa.urtv.home.PIN_SET" />
+                <action android:name="sa.urtv.home.PIN_LOCK" />
+                <action android:name="sa.urtv.home.PIN_UNLOCK" />
                 <action android:name="sa.urtv.home.PIN_STATUS" />
                 <action android:name="sa.urtv.home.PIN_OFF" />
                 <action android:name="sa.urtv.home.PIN_RESET" />

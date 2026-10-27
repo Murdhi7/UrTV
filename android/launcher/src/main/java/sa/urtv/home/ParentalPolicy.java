@@ -92,6 +92,20 @@ final class ParentalPolicy {
         return t.toArray(new String[0]);
     }
 
+    /** What `dock.sh pin lock/unlock` may name: an app's package, one of the pills, or «قفل الإعدادات» (@urtv). Never anything else in the lists. */
+    static boolean validTarget(String t) {
+        if (t == null) return false;
+        if (t.equals(OWN_SETTINGS)) return true;
+        for (String p : PILLS) if (p.equals(t)) return true;
+        return t.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+");
+    }
+
+    /** The «locked:» line of `pin status`: the list is kept when the PIN is off, and the line says plainly that nothing asks then. */
+    static String lockedLine(State s) {
+        if (s.locked.isEmpty()) return "none";
+        return join(s.locked) + (s.pinSet ? "" : " (kept, but nothing asks while there is no PIN)");
+    }
+
     /** What the owner set. Nothing set (no PIN, no kids mode) is the home screen as it always was. */
     static final class State {
         final boolean pinSet, kids;

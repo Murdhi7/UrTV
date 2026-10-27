@@ -402,3 +402,28 @@ visible	a,b,x,z,y			z
 ask	TILE	a	ASK
 ask	TILE	b	GO
 paths				ARRANGE_SCREEN,CARD_TASKS,GRID,INPUT_LIVE_TV,INPUT_PICKER,MENU,MENU_ARRANGE,MENU_KEY,MENU_UPDATE,PARENTAL_SCREEN,PILL_INPUTS,PILL_LISTEN,PILL_SAVER,PILL_SAVER_SETTINGS,PILL_SLEEP,PILL_TASKS,PILL_TV_SETTINGS,PILL_WIFI,SLEEP_ACCESSIBILITY,TILE,UPDATE_SCREEN
+# `dock.sh pin lock/unlock`: what may be named, and what `pin status` says about a kept list
+state	1	0	com.netflix.ninja,@wifi		-
+lockedline					@wifi,com.netflix.ninja
+state	0	0	com.netflix.ninja,@wifi		-
+lockedline					@wifi,com.netflix.ninja (kept, but nothing asks while there is no PIN)
+state	0	0			-
+lockedline					none
+validtarget	com.netflix.ninja				true
+validtarget	a.b				true
+validtarget	@inputs				true
+validtarget	@wifi				true
+validtarget	@tvsettings				true
+validtarget	@tasks				true
+validtarget	@saver				true
+validtarget	@listen				true
+validtarget	@sleep				true
+validtarget	@urtv				true
+validtarget	@parental				false
+validtarget	@kids				false
+validtarget	netflix				false
+validtarget	com..x				false
+validtarget	1com.x				false
+validtarget	com.x'y				false
+validtarget	com.x;reboot				false
+validtarget					false

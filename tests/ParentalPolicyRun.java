@@ -49,6 +49,8 @@ public final class ParentalPolicyRun {
                     out.append(shown.isEmpty() ? "-" : String.join(",", shown)).append('\n');
                     break;
                 }
+                case "validtarget": out.append(ParentalPolicy.validTarget(f[1].isEmpty() ? null : f[1])).append('\n'); break;
+                case "lockedline": out.append(ParentalPolicy.lockedLine(state)).append('\n'); break;
                 case "kidsstart": out.append(ParentalPolicy.canStartKids(state)).append('\n'); break;
                 case "kidsleave": out.append(ParentalPolicy.leavingKidsNeedsPin(state)).append('\n'); break;
                 case "paths": {   // every launch path the policy knows, so the test can compare it with the home screen's

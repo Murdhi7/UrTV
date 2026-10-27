@@ -15,6 +15,7 @@
 #   optimize/dock.sh sleep cancel          stop it
 #   optimize/dock.sh sleep-setup           turn on the sleep service (an accessibility service, once) so the end turns the screen off
 #   optimize/dock.sh pin set 1234         «الرقابة الأبوية»: the master PIN (4 digits), set or changed from here without the old one; never printed back
+#   optimize/dock.sh pin lock PKG          lock one app (its package, e.g. com.netflix.ninja), a pill (@inputs @wifi @tvsettings @tasks @saver @listen @sleep) or @urtv (our settings); `pin unlock PKG` opens it again
 #   optimize/dock.sh pin status            what is set: PIN or not, what is locked, kids mode, wrong tries (never the PIN)
 #   optimize/dock.sh pin off               no PIN: nothing asks, kids mode ends; the apps chosen stay for the next PIN
 #   optimize/dock.sh pin reset             the PIN was forgotten: everything parental back to nothing (the PIN, the locks, kids mode, the wrong tries)
@@ -76,10 +77,12 @@ case "${1:-}:$#" in
     case "${1:-}:$#" in
       set:2) [[ "$2" =~ ^[0-9]{4}$ ]] || { echo "usage: optimize/dock.sh pin set <4 digits>"; exit 1; }
              send PIN_SET "--es pin $2" ;;
+      lock:2|unlock:2) [[ "$2" =~ ^(@[a-z]+|[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+)$ ]] || { echo "usage: optimize/dock.sh pin lock|unlock <package, e.g. com.example.app, or a pill like @wifi, or @urtv>"; exit 1; }
+             send "PIN_$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')" "--es target $2" ;;
       status:1) send PIN_STATUS ;;
       off:1) send PIN_OFF ;;
       reset:1) send PIN_RESET ;;
-      *) echo "usage: optimize/dock.sh pin set <4 digits> | status | off | reset"; exit 1 ;;
+      *) echo "usage: optimize/dock.sh pin set <4 digits> | lock <target> | unlock <target> | status | off | reset"; exit 1 ;;
     esac ;;
   names:1) send NAMES ;;
   names-clear:1) send CLEAR_NAMES ;;
@@ -94,5 +97,5 @@ case "${1:-}:$#" in
       shift 2
     done
     send SET_NAMES "--es names '$pairs'" ;;
-  *) sed -n '2,21p' "$0"; exit 1 ;;
+  *) sed -n '2,22p' "$0"; exit 1 ;;
 esac
