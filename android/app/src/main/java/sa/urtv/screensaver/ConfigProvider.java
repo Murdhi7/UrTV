@@ -6,11 +6,13 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
+import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -28,6 +30,12 @@ import java.util.List;
  * the photos do); openFile .../own/N opens photo N (1..n) read-only, which READ_CONFIG allows the launcher. Nothing
  * else can be read or written there. .../own-in takes the next photo from the shell (`content write`), which the
  * manifest lets in with DUMP, as for SaverReceiver; SaverReceiver PHOTOS then checks and keeps it.
+ *
+ * «تحكم من الجوال» (the launcher's phone control) uses call(), and only with PHONE_SETTINGS (signature, same key):
+ *   phone_state                         -> city, home_cards (list), panels (codes) and panel_names (Arabic, same order)
+ *   phone_set  extras city, home_panel  -> ok, and the same checks as SaverReceiver SET (it is that code)
+ *   phone_cities  arg = words           -> cities: the built-in names that match (at most 20)
+ * Nothing else can be set this way.
  */
 public class ConfigProvider extends ContentProvider {
     @Override public boolean onCreate() { return true; }
@@ -57,6 +65,44 @@ public class ConfigProvider extends ContentProvider {
     }
 
     @Override public String getType(Uri uri) { return null; }
+
+    static final String PHONE_PERMISSION = "sa.urtv.screensaver.PHONE_SETTINGS";
+
+    @Override
+    public Bundle call(String method, String arg, Bundle extras) {
+        if (method == null || !method.startsWith("phone_")) return super.call(method, arg, extras);
+        Context c = getContext();
+        if (c.checkCallingPermission(PHONE_PERMISSION) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            throw new SecurityException("phone control only");
+        Prefs p = new Prefs(c);
+        Bundle out = new Bundle();
+        switch (method) {
+            case "phone_state": {
+                ArrayList<String> codes = new ArrayList<>(), names = new ArrayList<>();
+                for (String[] x : Prefs.PANELS) { codes.add(x[0]); names.add(x[1]); }
+                out.putString("city", p.city()[0]);
+                out.putStringArrayList("home_cards", new ArrayList<>(p.homePanels()));
+                out.putStringArrayList("panels", codes);
+                out.putStringArrayList("panel_names", names);
+                return out;
+            }
+            case "phone_set": {
+                android.content.Intent i = new android.content.Intent();
+                for (String k : new String[] {"city", "home_panel"}) if (extras != null && extras.getString(k) != null) i.putExtra(k, extras.getString(k));
+                String r = SaverReceiver.set(c, p, i);
+                out.putBoolean("ok", r.startsWith("saved"));
+                return out;
+            }
+            case "phone_cities": {
+                ArrayList<String> names = new ArrayList<>();
+                for (String[] city : CityMatch.find(arg == null ? "" : arg)) if (names.size() < 20) names.add(city[0]);
+                out.putStringArrayList("cities", names);
+                return out;
+            }
+            default:
+                return super.call(method, arg, extras);
+        }
+    }
 
     private static boolean isOwn(Uri uri) {
         return uri != null && uri.getPathSegments().size() == 1 && "own".equals(uri.getPathSegments().get(0));

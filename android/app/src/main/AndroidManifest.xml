@@ -17,6 +17,11 @@
         android:name="sa.urtv.screensaver.WRITE_TASKS"
         android:protectionLevel="signature" />
 
+    <!-- the launcher's «تحكم من الجوال» changes the city and the home cards through the same provider (ConfigProvider.call) -->
+    <permission
+        android:name="sa.urtv.screensaver.PHONE_SETTINGS"
+        android:protectionLevel="signature" />
+
     <!-- the launcher says what it is playing, for the screen's «يُتلى الآن» card (same signing key) -->
     <uses-permission android:name="sa.urtv.home.READ_NOW_PLAYING" />
 

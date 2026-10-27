@@ -105,7 +105,8 @@ public class SaverReceiver extends BroadcastReceiver {
         return CityMatch.find(name).size() == 1;
     }
 
-    private static String set(Context c, Prefs p, Intent i) {
+    /** The one place a setting is checked and saved: the ADB receiver and the launcher's phone control (ConfigProvider.call) both come here. */
+    static String set(Context c, Prefs p, Intent i) {
         // check everything first, then save: a typo never leaves half the settings changed
         String[] city = null;
         String name = i.getStringExtra("city"), lat = i.getStringExtra("lat"), lon = i.getStringExtra("lon");
