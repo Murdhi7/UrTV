@@ -45,7 +45,7 @@ public final class PhoneUpdater {
     private static final String TAG = "UrTVUpdate";
 
     private static final long STUCK_MS = 10 * 60_000L;   // an install screen nobody answers for ten minutes no longer blocks a new try
-    private static String state = "idle", error = "", detail = "";
+    private static String state = "idle", error = "", detail = "", why = "";
     private static int build;
     private static long since;
     private static final List<File> ready = new ArrayList<>();           // downloaded and checked, in install order
@@ -61,9 +61,11 @@ public final class PhoneUpdater {
 
     public static synchronized Map<String, Object> status() {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("status", state);
-        if (!error.isEmpty()) m.put("reason", error);
+        String[] shown = UpdateFlow.shown(state, error, busy(), confirm != null);   // a «waiting» nobody is answering is a failure, not a dead end
+        m.put("status", shown[0]);
+        if (!shown[1].isEmpty()) m.put("reason", shown[1]);
         if (!detail.isEmpty()) m.put("detail", detail);
+        if (!why.isEmpty()) m.put("why", why);
         if (build > 0) m.put("build", (long) build);
         return m;
     }
@@ -74,12 +76,16 @@ public final class PhoneUpdater {
     /** The update screen is in front: the installer's confirm screen may be opened from it. */
     public static synchronized void setVisible(boolean v) { visible = v; }
 
-    private static void set(String s, String why, String d) {
+    private static void set(String s, String reason, String d) { set(s, reason, d, ""); }
+
+    /** w: the installer's or the check's word for a failure (storage, installer, blocked…), kept for the phone page and the log. */
+    private static void set(String s, String reason, String d, String w) {
         Runnable r;
         synchronized (PhoneUpdater.class) {
             state = s;
-            error = why;
+            error = reason;
             detail = d;
+            why = w;
             since = System.currentTimeMillis();
             r = listener;
         }
@@ -95,7 +101,13 @@ public final class PhoneUpdater {
 
     // ---- check
 
-    public static Map<String, Object> check(final Context c) {
+    /** The TV's own screen: reads version.txt, and when there is a newer version downloads and checks the files. */
+    public static Map<String, Object> check(final Context c) { return check(c, true); }
+
+    /** The phone page's «افحص التحديث»: version.txt only, nothing is downloaded until «ثبّت» (install). */
+    public static Map<String, Object> checkVersion(final Context c) { return check(c, false); }
+
+    private static Map<String, Object> check(final Context c, final boolean download) {
         synchronized (PhoneUpdater.class) {
             if (busy()) return status();
             set("checking", "", "");
@@ -104,34 +116,41 @@ public final class PhoneUpdater {
         new Thread(new Runnable() {
             @Override public void run() {
                 try {
-                    prepare(app);
+                    prepare(app, download);
                 } catch (Exception e) {
                     Log.w(TAG, "check failed: " + e);
-                    set("error", "offline", "");
+                    cannot(UpdateFlow.crashed().reason);   // no network was already told by version.txt; this is something else
                 }
             }
         }, "tv-update-check").start();
         return status();
     }
 
-    private static void prepare(Context c) throws Exception {
+    private static void prepare(Context c, boolean download) throws Exception {
         clearReady();
-        String text;
-        try {
-            text = readText(UpdateRules.VERSION_URL);
-        } catch (java.io.IOException e) {
-            text = "";
-        }
-        int newest = UpdateRules.buildOf(text);
+        Version ver = readVersion(UpdateRules.VERSION_URL);
+        int newest = UpdateRules.buildOf(ver.text);
         synchronized (PhoneUpdater.class) { if (newest > 0) build = newest; }
-        UpdateFlow.Verdict v = UpdateFlow.first(newest, lowestInstalled(c), canInstall(c));
+        UpdateFlow.Verdict v = UpdateFlow.versionRead(ver.reached, ver.code, newest);
+        if (v.result == UpdateFlow.Result.OFFLINE) { set("error", "offline", ""); return; }
+        if (v.result == UpdateFlow.Result.CANNOT) { cannot(v.reason); return; }
+        v = UpdateFlow.first(newest, lowestInstalled(c), canInstall(c));
         switch (v.result) {
             case OFFLINE: set("error", "offline", ""); return;
             case UP_TO_DATE: set("uptodate", "", ""); return;
             case NEED_PERMISSION: set("error", "need_permission", ""); return;
             default: break;
         }
-        // newer, and allowed: what is installed here, how big the files are, is there room, then the files themselves
+        if (UpdateFlow.plan(v, download).result == UpdateFlow.Result.FOUND) { set("found", "", ""); return; }
+        downloadAndVerify(c, false);
+    }
+
+    /**
+     * Newer, and allowed: what is installed here, how big the files are, is there room, then the files themselves and their checks. thenInstall:
+     * the owner already pressed «ثبّت», so the queue starts (the state goes to «waiting_owner») instead of stopping at «available». False when
+     * it stopped on an error (already set).
+     */
+    private static boolean downloadAndVerify(Context c, boolean thenInstall) throws Exception {
         List<String> have = new ArrayList<>();
         for (String[] apk : UpdateRules.APKS) if (installedCode(c, apk[0]) >= 0) have.add(apk[0]);
         List<String> order = UpdateOrder.order(have);
@@ -141,10 +160,10 @@ public final class PhoneUpdater {
             sizes[i] = n > 0 ? n : UpdateRules.MAX_APK_BYTES;   // unknown: the most a file may be
         }
         File dir = new File(c.getFilesDir(), "phone-update");
-        if (!dir.isDirectory() && !dir.mkdirs()) { cannot("storage"); return; }
+        if (!dir.isDirectory() && !dir.mkdirs()) { cannot("storage"); return false; }
         clean(dir);
-        v = UpdateFlow.room(wifiOrEthernet(c), dir.getUsableSpace(), sizes);
-        if (v.result == UpdateFlow.Result.CANNOT) { cannot(v.reason); return; }
+        UpdateFlow.Verdict v = UpdateFlow.room(wifiOrEthernet(c), dir.getUsableSpace(), sizes);
+        if (v.result == UpdateFlow.Result.CANNOT) { cannot(v.reason); return false; }
 
         set("downloading", "", "");
         Map<String, String> verdicts = new LinkedHashMap<>();
@@ -152,20 +171,33 @@ public final class PhoneUpdater {
         List<String> pkgs = new ArrayList<>();
         for (String pkg : order) {
             File f = new File(dir, fileOf(pkg));
-            if (!fetch(UpdateRules.BASE + fileOf(pkg), f)) { clean(dir); set("error", "offline", ""); return; }
+            boolean got;
+            try {
+                got = fetch(UpdateRules.BASE + fileOf(pkg), f);
+            } catch (java.io.IOException e) {
+                Log.w(TAG, "download failed: " + e);
+                got = false;
+            }
+            if (!got) { clean(dir); cannot(UpdateFlow.fetchFailed().reason); return false; }   // version.txt was read: this is not «no connection»
             String why = verify(c, pkg, f);
             verdicts.put(pkg, why);
             if (why == null) { files.add(f); pkgs.add(pkg); }
         }
         v = UpdateFlow.files(verdicts);
-        if (v.result != UpdateFlow.Result.AVAILABLE) { clean(dir); cannot(v.reason); return; }
+        if (v.result != UpdateFlow.Result.AVAILABLE) { clean(dir); cannot(v.reason); return false; }
         synchronized (PhoneUpdater.class) {
             ready.clear();
             ready.addAll(files);
             readyPackages.clear();
             readyPackages.addAll(pkgs);
+            if (thenInstall) {
+                if (!canInstall(c)) { set("error", "need_permission", ""); return false; }
+                startQueue();
+                return true;
+            }
         }
         set("available", "", "");
+        return true;
     }
 
     /** The TV can't update itself: the screen shows the message about the AI assistant. The reason goes to the log. */
@@ -184,24 +216,38 @@ public final class PhoneUpdater {
         readyPackages.clear();
     }
 
-    private static String readText(String url) throws Exception {
-        HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
-        con.setConnectTimeout(10000);
-        con.setReadTimeout(10000);
+    /** What reading version.txt gave: reached is false only when the connection itself failed (no network). */
+    private static final class Version {
+        boolean reached;
+        int code;
+        String text = "";
+    }
+
+    private static Version readVersion(String url) {
+        Version v = new Version();
+        HttpURLConnection con = null;
         try {
-            if (con.getResponseCode() != HttpURLConnection.HTTP_OK) return "";
+            con = (HttpURLConnection) new URL(url).openConnection();
+            con.setConnectTimeout(10000);
+            con.setReadTimeout(10000);
+            v.code = con.getResponseCode();
+            v.reached = true;
+            if (v.code != HttpURLConnection.HTTP_OK) return v;
             InputStream in = con.getInputStream();
             try {
                 byte[] buf = new byte[64];   // "3.51\n": anything longer is not it
                 int n = 0, r;
                 while (n < buf.length && (r = in.read(buf, n, buf.length - n)) > 0) n += r;
-                return new String(buf, 0, n, "UTF-8");
+                v.text = new String(buf, 0, n, "UTF-8");
             } finally {
                 in.close();
             }
+        } catch (java.io.IOException e) {
+            Log.w(TAG, "version.txt: " + e);   // reached stays as it was: false before any answer, true after
         } finally {
-            con.disconnect();
+            if (con != null) con.disconnect();
         }
+        return v;
     }
 
     /** The size of a file without downloading it: the first byte only, and the total from Content-Range. -1 when the server doesn't say. */
@@ -233,22 +279,17 @@ public final class PhoneUpdater {
     /** From the TV's own screen or from the phone page (fromPhone: the TV is brought to the update screen, where the owner confirms). */
     public static Map<String, Object> install(final Context c, boolean fromPhone) {
         final Context app = c.getApplicationContext();
+        final boolean found;
         synchronized (PhoneUpdater.class) {
             if (busy()) return status();
-            if (!state.equals("available") || ready.isEmpty()) return status();   // the checks come first: nothing is installed that wasn't checked
+            found = state.equals("found");   // the phone page only read version.txt: the files come now, with their checks
+            if (!found && (!state.equals("available") || ready.isEmpty())) return status();   // the checks come first: nothing is installed that wasn't checked
             if (!canInstall(app)) {
                 set("error", "need_permission", "");
                 return status();
             }
-            queue.clear();
-            queuePackages.clear();
-            for (String pkg : UpdateOrder.order(readyPackages)) {
-                queue.add(ready.get(readyPackages.indexOf(pkg)));
-                queuePackages.add(pkg);
-            }
-            confirm = null;
-            confirmShown = false;
-            set("waiting_owner", "", "");
+            if (found) set("downloading", "", "");
+            else startQueue();
         }
         if (fromPhone) {
             try {
@@ -256,9 +297,30 @@ public final class PhoneUpdater {
             } catch (RuntimeException ignored) { }
         }
         new Thread(new Runnable() {
-            @Override public void run() { installNext(app); }
+            @Override public void run() {
+                try {
+                    if (found && !downloadAndVerify(app, true)) return;   // stopped on an error, which is already on the screen
+                    installNext(app);
+                } catch (Exception e) {
+                    Log.w(TAG, "install failed: " + e);
+                    cannot(UpdateFlow.crashed().reason);
+                }
+            }
         }, "tv-update").start();
         return status();
+    }
+
+    /** The checked files become the queue for the installer, and the state «waiting_owner». Called with the lock held. */
+    private static void startQueue() {
+        queue.clear();
+        queuePackages.clear();
+        for (String pkg : UpdateOrder.order(readyPackages)) {
+            queue.add(ready.get(readyPackages.indexOf(pkg)));
+            queuePackages.add(pkg);
+        }
+        confirm = null;
+        confirmShown = false;
+        set("waiting_owner", "", "");
     }
 
     /** The TV's screen where the owner allows this app to install updates; false when it can't be opened. */
@@ -374,6 +436,16 @@ public final class PhoneUpdater {
         return out;
     }
 
+    /** The version code the file itself says (what the installer will make of it), or -1 when it can't be read. */
+    private static long archiveCode(Context c, File f) {
+        try {
+            PackageInfo archive = c.getPackageManager().getPackageArchiveInfo(f.getAbsolutePath(), 0);
+            return archive == null ? -1 : code(archive);
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
     /** Null when the file may be installed; else a word from UpdateRules.verify, or "unreadable". */
     private static String verify(Context c, String pkg, File f) {
         try {
@@ -412,13 +484,17 @@ public final class PhoneUpdater {
         UpdateStore store = new UpdateStore(c);
         if (UpdateOrder.replacesUs(pkg)) {
             // this process dies with the launcher: the next start of the launcher reads this and tells the owner how it went
-            if (!UpdateRecords.begin(store, build, pkg)) { fail(c, "failed", pkg, "record"); return; }
+            // the target is what the file says, not what version.txt said: the screen compares it with the build that is installed then
+            long target = archiveCode(c, file);
+            if (target < 0 || !UpdateRecords.begin(store, (int) Math.min(target, 999_999_999L), pkg)) { fail(c, "failed", pkg, "record"); return; }
         }
+        PackageInstaller installer = null;
+        int id = -1;
         try {
-            PackageInstaller installer = c.getPackageManager().getPackageInstaller();
+            installer = c.getPackageManager().getPackageInstaller();
             PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
             params.setAppPackageName(pkg);
-            int id = installer.createSession(params);
+            id = installer.createSession(params);
             PackageInstaller.Session session = installer.openSession(id);
             try {
                 OutputStream out = session.openWrite("base.apk", 0, file.length());
@@ -440,6 +516,9 @@ public final class PhoneUpdater {
             }
         } catch (Exception e) {
             Log.w(TAG, "session failed: " + e);
+            if (installer != null && id >= 0) {
+                try { installer.abandonSession(id); } catch (Exception ignored) { }   // the session is not left open
+            }
             fail(c, "failed", pkg, "installer");
         }
     }
@@ -454,7 +533,7 @@ public final class PhoneUpdater {
             installing = "";
             confirm = null;
         }
-        set("error", reason, pkg);
+        set("error", reason, pkg, why);
     }
 
     /** The installer's answer (PhoneInstallReceiver): the confirm screen is needed, it went through, or it failed. */

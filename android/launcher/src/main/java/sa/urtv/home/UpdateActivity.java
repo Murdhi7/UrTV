@@ -25,7 +25,8 @@ import sa.urtv.home.phone.UpdateText;
  * the same code the phone page's button calls). When there is a newer version and every check passed, the line «تحديث جديد · اضغط للتحديث» is
  * the button; Android's own install screen follows and the owner confirms with the remote, nothing is installed silently. After the launcher
  * has been replaced, the first start reads the «update in progress» record and opens this screen with how it went (once). No dialogs, like
- * DockActivity. Opened from the launcher's menu, from the screensaver's settings, or `am start -n sa.urtv.home/.UpdateActivity`.
+ * DockActivity. Opened from the launcher's menu or from the screensaver's settings; only our two apps can open it (the signature permission
+ * sa.urtv.home.OPEN_UPDATE, so `am start` from a shell is refused).
  */
 public class UpdateActivity extends Activity {
     private static final int GOLD = 0xFFD6AF6B, INK = 0xFF04120C, TEXT = 0xFFF6EFE0, DIM = 0xFFC6BBA4, RED = 0xFFEE8B70;
@@ -122,6 +123,7 @@ public class UpdateActivity extends Activity {
             case "uptodate":
                 col.addView(text(UpdateText.upToDate(PhoneUpdater.installedName(this)), 20, "Medium", GOLD, Gravity.RIGHT), right(dp(16)));
                 return checkButton();
+            case "found":       // the phone page only read version.txt: pressing downloads, checks, then installs
             case "available":
                 return button(UpdateText.available(newest), GOLD, new View.OnClickListener() {
                     @Override public void onClick(View v) {

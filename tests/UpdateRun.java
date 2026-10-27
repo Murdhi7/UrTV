@@ -164,6 +164,33 @@ public final class UpdateRun {
         check("the installed version line carries the version", bare(UpdateText.installed("3.51")).endsWith("3.51"), "");
         check("the build number gives the app's version name (3.N)", "3.51".equals(UpdateText.versionOf(51)), "");
 
+        // ---- failures after version.txt are never «no connection»
+        check("version.txt: no network is «OFFLINE», and only that", UpdateFlow.versionRead(false, 0, -1).result == UpdateFlow.Result.OFFLINE
+            && UpdateFlow.versionRead(false, 200, 52).result == UpdateFlow.Result.OFFLINE, "");
+        check("version.txt answered with an error (404, 500) is «CANNOT» (download), not offline", UpdateFlow.versionRead(true, 404, -1).result == UpdateFlow.Result.CANNOT
+            && "download".equals(UpdateFlow.versionRead(true, 404, -1).reason) && "download".equals(UpdateFlow.versionRead(true, 503, 52).reason), "");
+        check("version.txt that is a page instead of the file is «CANNOT» (download)", UpdateFlow.versionRead(true, 200, UpdateRules.buildOf("<html>")).result == UpdateFlow.Result.CANNOT, "");
+        check("version.txt read well goes on", UpdateFlow.versionRead(true, 200, 52).result == UpdateFlow.Result.CONTINUE, "");
+        check("a file that can't be fetched is «CANNOT» (download), never «OFFLINE»", UpdateFlow.fetchFailed().result == UpdateFlow.Result.CANNOT
+            && "download".equals(UpdateFlow.fetchFailed().reason), "");
+        check("any other exception is «CANNOT» (exception), never «OFFLINE»", UpdateFlow.crashed().result == UpdateFlow.Result.CANNOT
+            && "exception".equals(UpdateFlow.crashed().reason), "");
+
+        // ---- the phone page's check reads version.txt only
+        check("check without downloading stops at FOUND when there is a newer build", UpdateFlow.plan(UpdateFlow.first(52, 51, true), false).result == UpdateFlow.Result.FOUND, "");
+        check("check with downloading goes on to the files", UpdateFlow.plan(UpdateFlow.first(52, 51, true), true).result == UpdateFlow.Result.CONTINUE, "");
+        check("check without downloading changes no other answer", UpdateFlow.plan(UpdateFlow.first(51, 51, true), false).result == UpdateFlow.Result.UP_TO_DATE
+            && UpdateFlow.plan(UpdateFlow.first(52, 51, false), false).result == UpdateFlow.Result.NEED_PERMISSION
+            && UpdateFlow.plan(UpdateFlow.first(-1, 51, true), false).result == UpdateFlow.Result.OFFLINE, "");
+
+        // ---- a «waiting» nobody answers is not a dead end
+        String[] w = UpdateFlow.shown("waiting_owner", "", false, false);
+        check("waiting_owner, no longer busy, no confirm screen: shown as the failure «failed» (its screen has the check button)", "error".equals(w[0]) && "failed".equals(w[1]), w[0] + " " + w[1]);
+        check("waiting_owner still busy is left as it is", "waiting_owner".equals(UpdateFlow.shown("waiting_owner", "", true, false)[0]), "");
+        check("waiting_owner with a confirm screen to open again keeps its «show it» button", "waiting_owner".equals(UpdateFlow.shown("waiting_owner", "", false, true)[0]), "");
+        check("the other states are never changed", "error".equals(UpdateFlow.shown("error", "cannot", false, false)[0]) && "cannot".equals(UpdateFlow.shown("error", "cannot", false, false)[1])
+            && "uptodate".equals(UpdateFlow.shown("uptodate", null, false, false)[0]) && "".equals(UpdateFlow.shown("uptodate", null, false, false)[1]), "");
+
         System.exit(failed == 0 ? 0 : 1);
     }
 }

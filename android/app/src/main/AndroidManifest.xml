@@ -25,6 +25,9 @@
     <!-- the launcher says what it is playing, for the screen's «يُتلى الآن» card (same signing key) -->
     <uses-permission android:name="sa.urtv.home.READ_NOW_PLAYING" />
 
+    <!-- opens the launcher's «تحديث تلفزيوني» from settings (signature permission, same key) -->
+    <uses-permission android:name="sa.urtv.home.OPEN_UPDATE" />
+
     <!-- opens the launcher's «ترتيب المفضلة» from settings -->
     <queries>
         <package android:name="sa.urtv.home" />

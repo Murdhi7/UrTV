@@ -54,7 +54,7 @@ check("the permission is read with canRequestPackageInstalls() on Android 8+, an
 check("free space, Wi-Fi or Ethernet, and the signer are all checked before «available»",
       "getUsableSpace()" in upd and "TRANSPORT_WIFI" in upd and "TRANSPORT_ETHERNET" in upd and "UpdateRules.verify(" in upd, "")
 check("install does nothing unless the checks ran and passed (state «available» with files ready)",
-      re.search(r'if \(!state\.equals\("available"\) \|\| ready\.isEmpty\(\)\) return status\(\);', upd) is not None, "")
+      re.search(r'if \(!found && \(!state\.equals\("available"\) \|\| ready\.isEmpty\(\)\)\) return status\(\);', upd) is not None, "")
 check("the file is checked again right before its own turn", "verify(c, pkg, file)" in install_next, "")
 begin = install_next.find("UpdateRecords.begin(")
 commit = install_next.find("session.commit(")
@@ -70,7 +70,7 @@ check("a failure empties the queue and clears the record, so nothing more is ins
 check("the failure words come from UpdateFlow.failure", "UpdateFlow.failure(status)" in upd, "")
 check("the files are downloaded only from the release address", "startsWith(UpdateRules.BASE)" in upd, "")
 check("nothing is uninstalled and the apps' auto-update is not touched", not re.search(r"pm uninstall|\.uninstall\(|deletePackage|setAutoUpdate|auto_update", upd), "")
-check("the phone page and the TV's screen call the same engine", "PhoneUpdater.install(app, true)" in text(PHONE / "PhoneActions.java") and "PhoneUpdater.check(" in text(PHONE / "PhoneActions.java")
+check("the phone page and the TV's screen call the same engine", "PhoneUpdater.install(app, true)" in text(PHONE / "PhoneActions.java") and "PhoneUpdater.checkVersion(" in text(PHONE / "PhoneActions.java")
       and "PhoneUpdater.install(UpdateActivity.this, false)" in text(JAVA / "UpdateActivity.java"), "")
 check("only the update's own downloaded files are deleted, inside its own folder", len(re.findall(r"\.delete\(\)", upd)) == 1 and "phone-update" in upd, "")
 
@@ -142,7 +142,7 @@ for shown, want in [("REQUEST_INSTALL_PACKAGES: default; rejectTime=+1d\n", "def
         given = (ALLOW in sent) == (want == "default")   # only Android's own default is replaced: an explicit deny/ignore/foreground (or an allow) stays
         check(f"install.sh: «{shown.strip()[:40]}» is recorded as «{want}»" + (" and the permission is given" if want == "default" else " and left as it is"), rc == 0 and record(tmp) == want and given, f"{rc} {record(tmp)} {sent} {err}")
 with tempfile.TemporaryDirectory() as tmp:
-    rc, sent, err = run_install(tmp, "REQUEST_INSTALL_PACKAGES: ignore\n")
+    rc, sent, err = run_install(tmp, "REQUEST_INSTALL_PACKAGES: default\n")
     rc, sent, err = run_install(tmp, "REQUEST_INSTALL_PACKAGES: allow\n")   # a second run: «allow» is ours now
     check("install.sh: a second run keeps the mode from before our change, it does not record our own «allow»", record(tmp) == "default" and ALLOW in sent
           and not any(l.startswith("appops get") for l in sent), f"{record(tmp)} {sent}")
@@ -191,5 +191,44 @@ with tempfile.TemporaryDirectory() as tmp:
 with tempfile.TemporaryDirectory() as tmp:
     rc, sent, still, err = run_reset(tmp, "ignore\n", fail=True)
     check("reset.sh keeps the record when the TV refused, and carries on", rc == 0 and still, f"{rc} {still} {err}")
+
+# ---- the review's fixes, read from the source
+act_src = text(JAVA / "UpdateActivity.java")
+flow = text(PHONE / "UpdateFlow.java")
+prepare = upd.split("private static void prepare")[1].split("private static boolean downloadAndVerify")[0]
+download = upd.split("private static boolean downloadAndVerify")[1].split("private static void cannot")[0]
+check("the engine's status goes through UpdateFlow.shown, so a stale «waiting» is a failure on the TV and on the phone",
+      "UpdateFlow.shown(state, error, busy(), confirm != null)" in upd, "")
+check("«offline» is set only from the answer of version.txt (UpdateFlow.versionRead / first), nowhere else in the engine",
+      len(re.findall(r'"offline"', upd)) == 2 and 'set("error", "offline", "")' in prepare and '"offline"' not in download, upd.count('"offline"'))
+check("a failed fetch is cannot(download), and an exception is cannot(exception)",
+      "UpdateFlow.fetchFailed().reason" in download and upd.count("UpdateFlow.crashed().reason") == 2 and 'set("error", "offline", "");\n                }' not in upd, "")
+check("a fetch that throws (a dropped connection) is caught in the download loop, not turned into «offline»", "catch (java.io.IOException e)" in download and "fetchFailed" in download, "")
+check("a non-200 version.txt is read as «reached» with its code (readVersion), not as no network", "v.code = con.getResponseCode();" in upd and "v.reached = true;" in upd, "")
+check("the receiver answers on a worker thread with goAsync(), and finish() is in a finally",
+      re.search(r"goAsync\(\).*new Thread\(.*try \{\s*PhoneUpdater\.onResult\(app, intent\);\s*\} finally \{\s*pending\.finish\(\);", text(PHONE / "PhoneInstallReceiver.java"), re.S) is not None, "")
+check("the record's target is what the APK says (archiveCode), not version.txt's build",
+      "UpdateRecords.begin(store, (int) Math.min(target, 999_999_999L), pkg)" in install_next and "archiveCode(c, file)" in install_next and "UpdateRecords.begin(store, build" not in upd, "")
+check("a session whose write or commit failed is abandoned (guarded)", re.search(r"catch \(Exception e\) \{.*abandonSession\(id\);.*catch \(Exception ignored\)", install_next, re.S) is not None, "")
+check("the failure word goes to the status as «why» (the phone page has the texts for storage, installer…)",
+      'set("error", reason, pkg, why)' in upd and 'm.put("why", why)' in upd and "UPWHY[u.why]" in text(ROOT / "android/launcher/src/main/assets/phone/index.html"), "")
+check("the phone page's check reads version.txt only: PhoneActions calls checkVersion, and the plan stops at FOUND before any download",
+      "PhoneUpdater.checkVersion(app)" in text(PHONE / "PhoneActions.java") and "UpdateFlow.plan(v, download)" in prepare and prepare.index("UpdateFlow.plan(") < prepare.index("downloadAndVerify(") and "fetch(" not in prepare, "")
+check("the files are downloaded when the owner presses «ثبّت» on a «found» state", 'state.equals("found")' in upd and "downloadAndVerify(app, true)" in upd, "")
+check("the phone page offers «ثبّت» for «found» too", "u.status !== 'available' && u.status !== 'found'" in text(ROOT / "android/launcher/src/main/assets/phone/index.html"), "")
+check("the TV's screen treats «found» like «available»", 'case "found":' in act_src and act_src.index('case "found":') < act_src.index('case "available":'), "")
+launcher_manifest = manifest
+saver_manifest = text(ROOT / "android/app/src/main/AndroidManifest.xml")
+check("the update screen needs a signature permission that only our two apps hold: defined by the launcher, used by the screensaver app",
+      re.search(r'<permission\s+android:name="sa\.urtv\.home\.OPEN_UPDATE"\s+android:protectionLevel="signature"', launcher_manifest) is not None
+      and re.search(r'android:name="\.UpdateActivity"\s+android:exported="true"\s+android:permission="sa\.urtv\.home\.OPEN_UPDATE"', launcher_manifest) is not None
+      and '<uses-permission android:name="sa.urtv.home.OPEN_UPDATE" />' in saver_manifest, "")
+check("the launcher opens its own screen without the permission question (own app), and the settings' row still starts it by class name",
+      'setClassName("sa.urtv.home", "sa.urtv.home.UpdateActivity")' in saver and 'new Intent(this, UpdateActivity.class)' in main, "")
+show_result = main.split("private void showUpdateResult()")[1].split("private android.content.SharedPreferences prefs()")[0]
+check("the launcher leaves the record alone while an install confirm is pending", "PhoneUpdater.confirmKnown()) return;" in show_result and show_result.index("confirmKnown()") < show_result.index("UpdateRecords.peek("), "")
+doc_above = main.split("private void showUpdateResult()")[0].rstrip().rsplit("\n", 6)
+check("the dock javadoc sits on loadDock, not above showUpdateResult", "/** The user's dock if they edited it, else res/values/config.xml. */\n    private String[] loadDock()" in main
+      and "/** The user's dock if they edited it" not in main.split("private void showUpdateResult()")[0], "")
 
 sys.exit(1 if failed else 0)

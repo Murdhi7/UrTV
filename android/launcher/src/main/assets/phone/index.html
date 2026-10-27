@@ -126,14 +126,16 @@ label.sw input { width:auto; transform:scale(1.4); }
     saved: 'تم الحفظ.', sent: 'أُرسل.', done: ''
   };
   var UP = {
-    idle: '', checking: 'جارٍ الفحص…', uptodate: 'تلفزيونك محدّث.', available: 'يوجد تحديث جديد.', downloading: 'جارٍ التنزيل والتحقق من التوقيع…',
+    idle: '', checking: 'جارٍ الفحص…', uptodate: 'تلفزيونك محدّث.', available: 'يوجد تحديث جديد.', found: 'يوجد تحديث جديد. اضغط «ثبّت» لينزّله التلفزيون ويتحقق منه.', downloading: 'جارٍ التنزيل والتحقق من التوقيع…',
     waiting_owner: 'أكّد التثبيت على التلفزيون بالريموت.', done: 'اكتمل التحديث.', error: 'تعذّر التحديث.'
   };
   var UPWHY = {
     offline: 'لا يوجد اتصال بالإنترنت أو الملف غير متاح.', other_key: 'رُفض: توقيع الملف يختلف عن التطبيق المثبّت.', other_app: 'رُفض: الملف ليس للتطبيق المطلوب.',
     unsigned: 'رُفض: الملف أو التطبيق بلا توقيع يمكن مقارنته.', unreadable: 'رُفض: تعذّرت قراءة الملف.', need_permission: 'اسمح لتطبيق تلفزيونك بالتثبيت من إعدادات التلفزيون ثم أعد المحاولة.',
     cannot: 'التحديث من التلفزيون ما يشتغل على هذا الجهاز. اطلب من مساعد الذكاء الاصطناعي على جهازك: حدّث تلفزيوني (github.com/tshi-dev/UrTV)', failed: 'ما اكتمل التحديث. اطلب من مساعد الذكاء الاصطناعي على جهازك: حدّث تلفزيوني (github.com/tshi-dev/UrTV)',
-    declined: 'ألغيت التثبيت على التلفزيون.', installer: 'رفض مثبّت أندرويد الملف.', storage: 'لا توجد مساحة كافية.'
+    declined: 'ألغيت التثبيت على التلفزيون.', installer: 'رفض مثبّت أندرويد الملف.', storage: 'لا توجد مساحة كافية.', download: 'تعذّر تنزيل ملف التحديث.', exception: 'حدث خطأ غير متوقع أثناء التحديث.',
+    network: 'التلفزيون غير متصل بالواي فاي أو الإيثرنت.', space: 'لا توجد مساحة كافية.', blocked: 'نظام التلفزيون يمنع التثبيت.', invalid: 'رفض مثبّت أندرويد الملف.',
+    conflict: 'يتعارض مع نسخة مثبّتة.', incompatible: 'لا يناسب هذا الجهاز.', record: 'تعذّر حفظ سجل التحديث.'
   };
 
   function toast(t) {
@@ -298,9 +300,10 @@ label.sw input { width:auto; transform:scale(1.4); }
     if (!u) return;
     var t = UP[u.status] || '';
     if (u.status === 'error' && u.reason) t += ' ' + (UPWHY[u.reason] || '');
-    if (u.status === 'available' && u.build) t += ' (الإصدار ' + u.build + ')';
+    if (u.status === 'error') { var w = UPWHY[u.why] || UPWHY[u.detail]; if (w && w !== UPWHY[u.reason]) t += ' ' + w; }   // the specific word: storage, installer, download…
+    if ((u.status === 'available' || u.status === 'found') && u.build) t += ' (الإصدار ' + u.build + ')';
     $('upState').textContent = t;
-    $('upGo').classList.toggle('hidden', u.status !== 'available');
+    $('upGo').classList.toggle('hidden', u.status !== 'available' && u.status !== 'found');
   }
   function upPoll() { setTimeout(function () { api('/api/state').then(function (s) { if (!s.ok) return; upText(s.update); if (s.update.status === 'checking' || s.update.status === 'downloading') upPoll(); }); }, 1500); }
   $('upCheck').onclick = function () { api('/api/update', { op: 'check' }).then(function (j) { if (j.ok) { upText(j); upPoll(); } else say(j); }); };

@@ -8,7 +8,7 @@ import java.util.Map;
  * the message that sends the owner to their AI assistant, and nothing is installed.
  */
 public final class UpdateFlow {
-    public enum Result { UP_TO_DATE, OFFLINE, NEED_PERMISSION, CONTINUE, AVAILABLE, CANNOT }
+    public enum Result { UP_TO_DATE, OFFLINE, NEED_PERMISSION, CONTINUE, FOUND, AVAILABLE, CANNOT }
 
     /** The answer, and for CANNOT the reason in a word (kept for the log and the phone page, never shown to the owner). */
     public static final class Verdict {
@@ -40,6 +40,39 @@ public final class UpdateFlow {
         if (!isNewer(newest, installed)) return of(Result.UP_TO_DATE);
         if (!canRequestInstalls) return of(Result.NEED_PERMISSION);
         return of(Result.CONTINUE);
+    }
+
+    /**
+     * What reading version.txt itself says, before the build number is looked at. reached: the server answered (false only when there is no
+     * network); httpCode: its answer; newest: the build read from the body (-1 for a page instead of the file). «OFFLINE» is only for no
+     * network: a server that answered with an error or a page is «CANNOT» (download), the owner is not told to check the Wi-Fi.
+     */
+    public static Verdict versionRead(boolean reached, int httpCode, int newest) {
+        if (!reached) return of(Result.OFFLINE);
+        if (httpCode != 200 || newest < 0) return cannot("download");
+        return of(Result.CONTINUE);
+    }
+
+    /** From the phone page's «افحص التحديث» only version.txt is read: CONTINUE then stops at FOUND (nothing downloaded until «ثبّت»). */
+    public static Verdict plan(Verdict first, boolean downloadNow) {
+        if (first.result == Result.CONTINUE && !downloadNow) return of(Result.FOUND);
+        return first;
+    }
+
+    /** Once version.txt was read, a file that could not be fetched (404, a renamed file, too big, empty, a dropped connection) is never «offline». */
+    public static Verdict fetchFailed() { return cannot("download"); }
+
+    /** Any other exception while checking, after or before the files: never «offline» either. */
+    public static Verdict crashed() { return cannot("exception"); }
+
+    /**
+     * What the screen shows for the state the engine reports. «waiting_owner» that is no longer busy (ten minutes without an answer) and has no
+     * confirm screen to open again would be a dead end with no button: it is shown as the failure «failed» (its button is «تحقق من التحديث»).
+     * Returns {status, reason}.
+     */
+    public static String[] shown(String status, String reason, boolean busy, boolean confirmKnown) {
+        if ("waiting_owner".equals(status) && !busy && !confirmKnown) return new String[] {"error", "failed"};
+        return new String[] {status, reason == null ? "" : reason};
     }
 
     /** Before downloading: Wi-Fi or Ethernet is up, and there is room for every file twice (the download and the installer's copy). */

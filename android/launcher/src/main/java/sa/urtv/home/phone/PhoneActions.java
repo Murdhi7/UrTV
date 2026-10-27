@@ -187,6 +187,6 @@ final class PhoneActions implements Actions {
     }
 
     @Override public Map<String, Object> update(String op) {
-        return "install".equals(op) ? PhoneUpdater.install(app, true) : PhoneUpdater.check(app);
+        return "install".equals(op) ? PhoneUpdater.install(app, true) : PhoneUpdater.checkVersion(app);   // «افحص التحديث» reads version.txt only; the files come with «ثبّت»
     }
 }

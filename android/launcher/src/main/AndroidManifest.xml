@@ -32,6 +32,11 @@
         android:name="sa.urtv.home.READ_NOW_PLAYING"
         android:protectionLevel="signature" />
 
+    <!-- «تحديث تلفزيوني»: only our two apps (same signing key) may open the update screen -->
+    <permission
+        android:name="sa.urtv.home.OPEN_UPDATE"
+        android:protectionLevel="signature" />
+
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
@@ -106,10 +111,12 @@
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.Material.NoActionBar" />
 
-        <!-- «تحديث تلفزيوني»: the version, the check and the update. Exported only so the screensaver's settings can open it, as with DockActivity. -->
+        <!-- «تحديث تلفزيوني»: the version, the check and the update. Exported only so the screensaver's settings can open it, behind a signature
+             permission (same key): no other app can. -->
         <activity
             android:name=".UpdateActivity"
             android:exported="true"
+            android:permission="sa.urtv.home.OPEN_UPDATE"
             android:label="تحديث تلفزيوني"
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.Material.NoActionBar" />

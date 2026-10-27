@@ -773,7 +773,6 @@ public class MainActivity extends Activity {
     private final Map<String, View> cardByPkg = new HashMap<>();
     static final int MIN_DOCK = Dock.MIN, MAX_DOCK = Dock.MAX;
 
-    /** The user's dock if they edited it, else res/values/config.xml. */
     /**
      * After «تحديث تلفزيوني» replaced this app, the first start finds the «update in progress» record: the update screen opens once and says how it
      * went (it removes the record). Nothing happens without a record, so a normal start costs one missing-file check.
@@ -781,6 +780,7 @@ public class MainActivity extends Activity {
     private void showUpdateResult() {
         try {
             if (sa.urtv.home.phone.PhoneUpdater.isBusy()) return;   // an update running in this very process: its own screen says how it goes
+            if (sa.urtv.home.phone.PhoneUpdater.confirmKnown()) return;   // an install confirm is still pending: the record stays unread until it is answered
             long mine = sa.urtv.home.phone.PhoneUpdater.installedCode(this, getPackageName());
             if (sa.urtv.home.phone.UpdateRecords.peek(new sa.urtv.home.phone.UpdateStore(this), mine).kind != sa.urtv.home.phone.UpdateRecords.Kind.NONE) {
                 launchGuarded(ParentalPolicy.UPDATE_SCREEN, new Intent(this, UpdateActivity.class), "تحديث تلفزيوني");   // the result of an update: behind «قفل الإعدادات» like the rest of the screen
@@ -791,6 +791,7 @@ public class MainActivity extends Activity {
     /** The launcher's settings file, shared with DockReceiver. */
     private android.content.SharedPreferences prefs() { return Dock.prefs(this); }
 
+    /** The user's dock if they edited it, else res/values/config.xml. */
     private String[] loadDock() {
         String saved = prefs().getString("dock", null);
         return saved != null ? (saved.isEmpty() ? new String[0] : saved.split(","))
