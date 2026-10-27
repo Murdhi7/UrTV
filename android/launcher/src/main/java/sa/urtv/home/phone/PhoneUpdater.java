@@ -555,7 +555,9 @@ public final class PhoneUpdater {
                 showConfirm(c);
             }
         } else if (status == PackageInstaller.STATUS_SUCCESS) {
-            installNext(c);
+            // the next install (an APK parse, a signature check, a copy of up to 80 MB) never runs inside the receiver's answer: it finishes first
+            final Context app = c;
+            new Thread(new Runnable() { @Override public void run() { installNext(app); } }, "tv-update-next").start();
         } else {
             String why = UpdateFlow.failure(status);
             if (UpdateFlow.isDeclined(why)) {
@@ -596,5 +598,6 @@ public final class PhoneUpdater {
         state = "idle";
         error = "";
         detail = "";
+        why = "";
     }
 }

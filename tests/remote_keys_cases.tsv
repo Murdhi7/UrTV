@@ -56,3 +56,13 @@ reset							-
 key	190	0	0	0	YouTube	APP:com.google.android.youtube.tv	press
 key	190	0	1	0	YouTube	EAT	release
 key	190	0	0	0		PASS	the app is gone later: nothing
+reset							-
+key	190	0	0	0	YouTube,Netflix	APP:com.google.android.youtube.tv	a press opens YouTube
+key	190	0	0	0	YouTube,Netflix	APP:com.google.android.youtube.tv	its release was lost (it went to the opened app): the next press is a new press and opens YouTube again
+key	190	0	0	2	YouTube,Netflix	EAT	and its repeats are still consumed
+key	190	0	1	0	YouTube,Netflix	EAT	and its release too
+reset							-
+key	176	0	0	0	YouTube,Netflix	SETTINGS	Settings opens the TV settings
+key	176	0	0	0	YouTube,Netflix	SETTINGS	a lost release: the next press works at once
+key	0	578	0	0	YouTube,Netflix	INPUTS	the star key (scan code) opens the inputs
+key	0	578	0	0	YouTube,Netflix	INPUTS	a lost release: the next press works at once

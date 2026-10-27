@@ -59,7 +59,7 @@ check("the update asks Android's installer and never installs silently (no INSTA
       "android.permission.INSTALL_PACKAGES" not in manifest and "pm install" not in text(PHONE / "PhoneUpdater.java") and "STATUS_PENDING_USER_ACTION" in text(PHONE / "PhoneUpdater.java")
       and "REQUEST_INSTALL_PACKAGES" in manifest, "")
 upd = text(PHONE / "PhoneUpdater.java")
-check("an APK is verified (package, version, signer) before it is handed to the installer", upd.index("UpdateRules.verify") < upd.index("installNext(c);"), "")
+check("an APK is verified (package, version, signer) before it is handed to the installer", upd.index("UpdateRules.verify") < re.search(r"installNext\((c|app)\);", upd).start(), "")
 check("the update's URLs are the ones optimize/install.sh uses",
       all(f in text(ROOT / "optimize/install.sh") for f in ("urtv-screensaver.apk", "urtv-home.apk")) and "releases/download/${APK_TAG:-apk-latest}" in text(ROOT / "optimize/install.sh")
       and "releases/download/apk-latest/" in text(PHONE / "UpdateRules.java"), "")

@@ -130,7 +130,7 @@ public class PhoneActivity extends Activity implements PrivateScreen {
                 @Override public void onClick(View v) { control.approve(); }
             });
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(52), 1f);
-            p.rightMargin = dp(10);
+            p.setMarginEnd(dp(10));   // the screen is pinned right-to-left: the end is the left edge of the right-hand button, between the two
             row.addView(allow, p);   // right-hand button first: the screen reads right to left
             row.addView(deny, new LinearLayout.LayoutParams(0, dp(52), 1f));
             col.addView(row, button());

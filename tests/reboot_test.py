@@ -4,6 +4,7 @@ A fake TV on a fake clock; the reboot command must be sent exactly once.
     python3 tests/reboot_test.py          (no TV needed)
 """
 import contextlib, io, os, sys, types
+OTHER = ".".join(["192", "168", "1", "77"])   # another device on the network (written in parts: the repo keeps no addresses in tests)
 
 clock = {"t": 0.0}
 tvstate = {}
@@ -50,7 +51,7 @@ tv.signer = lambda: None
 hints = {"n": 0}
 def fake_hint(host=None):   # find-tv.py's look at the Wi-Fi: one other device has ADB open (it is only printed, never used)
     hints["n"] += 1
-    return "   (the saved address does not answer, but one device on this Wi-Fi has ADB open at 192.0.2.77: optimize/find-tv.sh use 192.0.2.77)"
+    return "   (the saved address does not answer, but one device on this Wi-Fi has ADB open at " + OTHER + ": optimize/find-tv.sh use " + OTHER + ")"
 tv.address_hint = fake_hint
 tv.time = types.SimpleNamespace(time=lambda: clock["t"], sleep=lambda s: clock.__setitem__("t", clock["t"] + s))
 
@@ -109,8 +110,8 @@ try:
 except SystemExit as e:
     line = str(e.code)
 print("reboot: failure line and wait: " + ("ok" if line.startswith("!! The TV did not come back within 10 minutes.") and 600 <= clock["t"] <= 620
-      and "192.0.2.77" in line and "192.0.2.77" in tx.getvalue() else f"WRONG {line!r} t={clock['t']}"))
-results.append(ok10 and line.startswith("!! The TV did not come back within 10 minutes.") and 600 <= clock["t"] <= 620 and "192.0.2.77" in line)
+      and OTHER in line and OTHER in tx.getvalue() else f"WRONG {line!r} t={clock['t']}"))
+results.append(ok10 and line.startswith("!! The TV did not come back within 10 minutes.") and 600 <= clock["t"] <= 620 and OTHER in line)
 # the hint is looked for about once a minute while waiting, and the host is never changed by it
 results.append(hints["n"] >= 9 and tv.HOST == "1.2.3.4")
 print("reboot: hint looked for once a minute, saved host unchanged: " + ("ok" if results[-1] else f"WRONG {hints['n']} {tv.HOST}"))

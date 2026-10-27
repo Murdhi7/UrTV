@@ -615,6 +615,8 @@ public class SettingsActivity extends Activity {
     private void openUpdate() {
         try {
             startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.UpdateActivity"));
+        } catch (SecurityException e) {   // the home is newer than this app (or the other way round): it asks for a permission this one does not have yet
+            toast("حدّث التطبيقين «شاشة تلفزيونك» و«تلفزيونك»: واحد منهم أقدم من الثاني");
         } catch (RuntimeException e) {
             toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
         }

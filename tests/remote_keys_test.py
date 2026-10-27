@@ -26,6 +26,12 @@ check("the apps open through the family lock (REMOTE_APP / REMOTE_SETTINGS), the
 check("an app hidden by kids mode counts as not installed (the key then does nothing)", "ParentalPolicy.visible(" in main.split("Set<String> remoteInstalled()")[1][:600] if "Set<String> remoteInstalled()" in main else False)
 check("no GLOBAL_BUTTON receiver (the system sends that broadcast to a named component only)",
       "GLOBAL_BUTTON" not in (ROOT / "android/launcher/src/main/AndroidManifest.xml").read_text(encoding="utf-8"))
+main_src = (HOME / "MainActivity.java").read_text(encoding="utf-8")
+check("MainActivity forgets a held shortcut key when it goes to the background (its release went to the opened app)",
+      "remoteKeys.reset();" in main_src.split("protected void onPause() {")[1].split("\n    }\n")[0])
+check("MainActivity logs every first press that reaches it, codes only, for the TV test (adb logcat -s UrTVKeys)",
+      'android.util.Log.d("UrTVKeys", "key=" + e.getKeyCode() + " scan=" + e.getScanCode())' in main_src)
+check("TVS.md says the key may be taken before our home sees it, and how to check", "before our home sees it" in (ROOT / "docs/TVS.md").read_text(encoding="utf-8") and "logcat -s UrTVKeys" in (ROOT / "docs/TVS.md").read_text(encoding="utf-8"))
 if not shutil.which("javac"):
     print("SKIP remote keys: no javac here")
     sys.exit(1 if failed else 0)
