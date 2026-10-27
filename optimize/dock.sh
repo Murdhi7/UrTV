@@ -10,6 +10,8 @@
 #   optimize/dock.sh names                 every app's name: package | shown | its own | from (agent, own, table)
 #   optimize/dock.sh name PKG 'الاسم' ...   give apps an Arabic name on this TV (pairs; '' = its usual name again)
 #   optimize/dock.sh names-clear           every app back to its usual name
+#   optimize/dock.sh input-names           the TV's inputs: id | shown | the TV's own name | ours (the sources list's «أسماء المصادر»)
+#   optimize/dock.sh input-name ID 'PS5'   name an input in the sources list on this TV (ID from input-names; '' = the TV's own name again)
 #   optimize/dock.sh sleep 30              «مؤقت النوم» for the whole TV: 15 30 60 90, or any 1 to 600 minutes; then the TV goes to sleep
 #   optimize/dock.sh sleep                 how the timer stands: minutes left, and what its end will do
 #   optimize/dock.sh sleep cancel          stop it
@@ -104,5 +106,17 @@ case "${1:-}:$#" in
       shift 2
     done
     send SET_NAMES "--es names '$pairs'" ;;
-  *) sed -n '2,22p' "$0"; exit 1 ;;
+  input-names:1) send INPUT_NAMES ;;
+  input-name:3)
+    # the id goes to the TV's shell in single quotes, so a $ in it (com.x/.Svc$Inner/HDMI1) is not expanded there
+    [[ "$2" =~ ^[A-Za-z0-9._/%:\$-]+$ ]] || { echo "not an input id (use one from: optimize/dock.sh input-names): $2"; exit 1; }
+    case "$3" in *"'"*) echo "no ' in a name: $3"; exit 1 ;; esac
+    bytes=$(printf '%s' "$3" | LC_ALL=C wc -c)
+    plain=$(printf '%s' "$3" | LC_ALL=C tr -d '\000-\037\177' | LC_ALL=C wc -c)
+    [ "$bytes" -eq "$plain" ] || { echo "a name is one line with no control characters"; exit 1; }
+    chars=$(printf '%s' "$3" | LC_ALL=C tr -d '\200-\277' | LC_ALL=C wc -c)   # letters, not bytes (an Arabic letter is two bytes)
+    [ "$chars" -le 20 ] || { echo "a name is up to 20 characters: $3"; exit 1; }
+    send SET_INPUT_NAME "--es id '$2' --es name '$3'" ;;
+  input-name:*) echo "usage: optimize/dock.sh input-name ID 'الاسم'   (ID from: optimize/dock.sh input-names; '' = the TV's own name)"; exit 1 ;;
+  *) sed -n '2,24p' "$0"; exit 1 ;;
 esac
