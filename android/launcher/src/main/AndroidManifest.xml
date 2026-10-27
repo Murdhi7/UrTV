@@ -204,6 +204,19 @@
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/sleep_service" />
         </service>
 
+        <!-- The phone remote's typing into other apps: a second accessibility service, on only when the owner turns it on (or
+             optimize/dock.sh type-setup). It listens to no events and looks at the screen only when a phone sends text: see TypeService. -->
+        <service
+            android:name=".TypeService"
+            android:exported="true"
+            android:label="@string/type_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/type_service" />
+        </service>
+
         <!-- the «تلاوة» screens: the Quran recitations and the radio, inside the home screen (the «تلاوة» pill).
              Not exported and with no launcher category on purpose: it must not show up among the apps. -->
 

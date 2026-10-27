@@ -147,11 +147,11 @@ public class MainActivity extends Activity {
         @Override public void onReceive(Context c, Intent i) { updateSleepPill(); }
     };
     private final BroadcastReceiver packages = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { buildApps(); }   // buildApps ends «تعديل المفضلة» without saving: the row it edits is stale
+        @Override public void onReceive(Context c, Intent i) { PhoneApps.invalidate(); buildApps(); }   // buildApps ends «تعديل المفضلة» without saving: the row it edits is stale
     };
     // favourites changed in «ترتيب المفضلة» or from ADB while the home screen is up
     private final BroadcastReceiver dockChanged = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { dockApps = loadDock(); buildApps(); }
+        @Override public void onReceive(Context c, Intent i) { PhoneApps.invalidate(); dockApps = loadDock(); buildApps(); }
     };
 
     // ---------------------------------------------------------------- lifecycle
@@ -516,6 +516,7 @@ public class MainActivity extends Activity {
         final String t = i.getStringExtra(PhoneApps.EXTRA_LAUNCH);
         if (t == null) return;
         i.removeExtra(PhoneApps.EXTRA_LAUNCH);
+        if (t.startsWith("@") && Parental.state(this).kids) return;   // kids mode shows no pills: the phone cannot open one either
         handler.post(() -> {
             switch (t) {
                 case "@tasks": launchGuarded(ParentalPolicy.PILL_TASKS, new Intent(this, TasksActivity.class), "المهام"); break;

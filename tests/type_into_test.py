@@ -37,27 +37,40 @@ if shutil.which("javac") and shutil.which("java"):
 else:
     print("SKIP the Java cases: no javac")
 
-svc = text(HOME + "SleepService.java")
+svc = text(HOME + "TypeService.java")
+sleep = text(HOME + "SleepService.java")
 ti = text(HOME + "TypeInto.java")
 act = text(HOME + "phone/PhoneActions.java")
-xml = text("android/launcher/src/main/res/xml/sleep_service.xml")
-body = svc.split("static String typeText(")[1].split("    /** Presses Back")[0]
-check("the service listens to NO events (no accessibilityEventTypes) and reads window content only for this", "android:accessibilityEventTypes" not in xml and 'canRetrieveWindowContent="true"' in xml
+res = "android/launcher/src/main/res/"
+xml = text(res + "xml/type_service.xml")
+body = svc.split("static String typeText(")[1].split("    /** The package an intent opens")[0]
+check("typing is a service of its own, turned on on its own: it can read the screen, the sleep service cannot (no window content, no events)",
+      'canRetrieveWindowContent="true"' in xml and "android:accessibilityEventTypes" not in xml and 'canRetrieveWindowContent="false"' in text(res + "xml/sleep_service.xml")
+      and "android:accessibilityEventTypes" not in text(res + "xml/sleep_service.xml") and "getRootInActiveWindow" not in sleep and "AccessibilityNodeInfo" not in sleep
       and "onAccessibilityEvent(AccessibilityEvent e) { }" in svc)
-check("it only types when the service is on, and the family lock and kids mode are asked first (the same policy as opening the app)",
-      "TypeInto.allowed(s != null, pkg != null && Parental.needsPin(c, pkg), pkg != null && !ParentalPolicy.visible(st, pkg))" in body and body.index("TypeInto.allowed(") < body.index("TypeInto.pick("))
+man = text("android/launcher/src/main/AndroidManifest.xml")
+check("both services are declared with the system's bind permission, each with its own xml and label",
+      '<service\n            android:name=".TypeService"' in man and "@xml/type_service" in man and "@string/type_service_label" in man and "@xml/sleep_service" in man)
+check("it only types when the service is on, the window names its package and is not ours, and the family lock and kids mode (also for the TV's settings and Wi-Fi screens) are asked first",
+      "TypeInto.allowed(s != null, pkg, ours, pkg != null && Parental.needsPin(c, pkg), pkg != null && !ParentalPolicy.visible(st, pkg), systemScreen)" in body
+      and body.index("TypeInto.allowed(") < body.index("TypeInto.pick(") and "ParentalPolicy.TV_SETTINGS" in body and "ParentalPolicy.WIFI" in body
+      and 'pkg.equals("sa.urtv.screensaver")' in body and "pkg.equals(c.getPackageName())" in body)
 check("a password field is never typed into", "TypeInto.fieldProblem(picked)" in body and "PASSWORD" in body)
 check("nothing of the screen is logged or stored (no Log, no preferences, no file, no broadcast in the typing code)", not re.search(r"\bLog\.|SharedPreferences|getSharedPreferences|FileOutputStream|sendBroadcast|setPrimaryClip|toString\(\)\.getBytes", body + ti))
 check("what the field holds is used only to build the new text, in one expression, and never returned", body.count("field.getText()") == 1 and "return now" not in body and "return out" not in body)
-check("the answer is one of a few fixed words", re.search(r'TYPED = "typed_other", TYPED_NO_SEARCH = "typed_other_nosearch", OFF = "service_off", LOCKED = "locked",\s+NO_FIELD = "no_field", PASSWORD = "password_field", FAILED = "failed";', svc) is not None
+check("the answer is one of a few fixed words", re.search(r'TYPED = "typed_other", TYPED_NO_SEARCH = "typed_other_nosearch", OFF = "service_off", LOCKED = "locked", REFUSED = "refused",\s+NO_FIELD = "no_field", PASSWORD = "password_field", FAILED = "failed";', svc) is not None
       and not re.search(r"return [a-z]+\.get(Text|ContentDescription|Package)", body))
-check("the phone path: the service off is a failure the page explains (nothing is copied), locked and password stay failures, only «no field» falls back to the clipboard",
+check("the phone path: the service off is a failure the page explains (nothing is copied), locked, refused and password stay failures, only «no field» falls back to the clipboard",
       'default: return Result.fail(r);' in act and 'case "no_field": break;' in act and 'if (Foreground.current() == null)' in act)
-check("the node walk is bounded (depth and count)", "depth >= 40" in svc and "new int[] {3000}" in svc)
+check("the node walk is bounded (depth and a small count)", "depth >= 40" in svc and "new int[] {500}" in svc)
 check("search presses the keyboard's action only on Android 11+ and only when asked", "SDK_INT < 30" in body and "ACTION_IME_ENTER" in body and body.index("if (!search) return TYPED;") < body.index("ACTION_IME_ENTER"))
+check("the state tells the page whether the typing service is on (its own field, apart from Back's keys_everywhere)", '"typing_service", PhoneApps.typingEnabled()' in act and '"keys_everywhere", PhoneApps.keysEverywhere()' in act)
 for d in ("docs/FEATURES.md", "docs/SETTINGS.md"):
     t = text(d)
     check(f"{d} says plainly what the service sees and keeps", "الكتابة في التطبيقات الأخرى" in t or "typing into other apps" in t.lower())
-check("the service's own description (shown in the TV's accessibility settings) says it too",
-      "لا يقرأ الشاشة إلا لحظة وصول نص" in text("android/launcher/src/main/res/values/strings.xml") and "لا يحفظ ولا يسجّل ولا يرسل" in text("android/launcher/src/main/res/values/strings.xml"))
+    check(f"{d} names the separate service and how to turn it on", "type-setup" in t and "تلفزيونك: الكتابة من الجوال" in t)
+strings = text(res + "values/strings.xml")
+check("the typing service's own description (shown in the TV's accessibility settings) says what it sees and keeps",
+      "لا ينظر في الشاشة إلا لحظة وصول نص" in strings and "لا يحفظ ولا يسجّل ولا يرسل" in strings and "ولا في تطبيق مقفول بالرقم السري" in strings)
+check("the sleep service's description still says it reads nothing", "لا يقرأ شيئًا من الشاشة" in strings)
 sys.exit(1 if failed else 0)

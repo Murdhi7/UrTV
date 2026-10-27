@@ -138,6 +138,11 @@ check("the phone has no way to change the family lock, reset, uninstall or reach
 check("Back reaches every app through the accessibility service when it is on, and only Back (the arrows stay on our own screens)",
       'key.equals("back") && PhoneApps.globalBack()' in actions_src and "GLOBAL_ACTION_BACK" in text(JAVA / "SleepService.java") and "GLOBAL_ACTION_HOME" not in text(JAVA / "SleepService.java"))
 check("the adhan stop and the sleep timer go through the app's own code", "MusicService.stopAdhan(c)" in text(til / "PhoneBridge.java") and "SleepTimer.start(" in apps_src and "SleepTimer.MINUTES" in apps_src)
+check("the favourites are looked up at most every few seconds and cleared on a package or favourites change; an icon comes from the cache after that check and expires",
+      "APPS_TTL_MS = 5_000" in apps_src and "public static synchronized void invalidate()" in apps_src and "PhoneApps.invalidate();" in main_src and main_src.count("PhoneApps.invalidate();") == 2
+      and "ICON_TTL_MS" in apps_src and apps_src.index("for (String[] a : apps(app)) shown |= a[0].equals(pkg);") < apps_src.index("ICONS.get(pkg)"))
+check("kids mode: a pill request from the phone is ignored by the home (it shows none)", 'if (t.startsWith("@") && Parental.state(this).kids) return;' in main_src)
+check("cancelling the sleep timer from the phone is a PIN-protected change", '(endpoint.equals("do") && "sleep_cancel".equals(v.get("op")))' in api and 'only(body, "op", "pin")' in text(PHONE / "Schema.java"))
 check("the new settings are the app's lists", re.findall(r"MINUTES = \{([0-9, ]+)\}", text(JAVA / "SleepTimer.java"))[0].replace(" ", "") == "15,30,60,90"
       and re.findall(r"IDLE_MINUTES = \{([^}]*)\}", text(ROOT / "android/app/src/main/java/sa/urtv/screensaver/Prefs.java"))[0].replace('"', "").replace(" ", "") == "1,2,5,10,15,30", "")
 

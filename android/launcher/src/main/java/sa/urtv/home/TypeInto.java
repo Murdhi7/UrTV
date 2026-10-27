@@ -22,15 +22,18 @@ final class TypeInto {
         List<? extends Node> children();
     }
 
-    enum Refusal { NONE, SERVICE_OFF, LOCKED, NO_FIELD, PASSWORD_FIELD }
+    enum Refusal { NONE, SERVICE_OFF, LOCKED, REFUSED, NO_FIELD, PASSWORD_FIELD }
 
     /**
-     * Before the screen is looked at: the service must be on, and the app in front must be one the home screen would open now (not locked behind
-     * the PIN and, in kids mode, one of the allowed apps): typing follows the same policy as opening it.
+     * Before the field is looked for: the service must be on; the app in front must be known (a window that does not say its package is not typed
+     * into) and not one of our own (our screens take the text by their own path); and it must be one the home screen would open now: not locked
+     * behind the PIN, in kids mode one of the allowed apps, and not the screen of the TV's settings or Wi-Fi while those are locked
+     * (lockedSystemScreen): typing follows the same policy as opening it.
      */
-    static Refusal allowed(boolean serviceOn, boolean needsPin, boolean hiddenByKidsMode) {
+    static Refusal allowed(boolean serviceOn, String pkg, boolean ours, boolean needsPin, boolean hiddenByKidsMode, boolean lockedSystemScreen) {
         if (!serviceOn) return Refusal.SERVICE_OFF;
-        if (needsPin || hiddenByKidsMode) return Refusal.LOCKED;
+        if (pkg == null || pkg.isEmpty() || ours) return Refusal.REFUSED;
+        if (needsPin || hiddenByKidsMode || lockedSystemScreen) return Refusal.LOCKED;
         return Refusal.NONE;
     }
 

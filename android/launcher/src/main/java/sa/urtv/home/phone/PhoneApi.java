@@ -81,7 +81,9 @@ final class PhoneApi implements PhoneServer.Handler {
         if (!c.ok()) return json(400, err("bad_request"));
         Map<String, Object> v = c.values;
 
-        boolean protectedChange = endpoint.equals("set") || (endpoint.equals("update") && "install".equals(v.get("op")));
+        // cancelling the sleep timer is a change like the others: a child's phone must not undo a parent's bedtime timer (the screensaver, which only opens a screen, is not)
+        boolean protectedChange = endpoint.equals("set") || (endpoint.equals("update") && "install".equals(v.get("op")))
+            || (endpoint.equals("do") && "sleep_cancel".equals(v.get("op")));
         PinGate gate = control.pinGate();
         if (protectedChange && gate.required()) {
             Object given = v.get("pin");

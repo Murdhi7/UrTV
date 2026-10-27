@@ -33,14 +33,33 @@ public final class PhoneApps {
         {"settings", "الإعدادات", ParentalPolicy.TV_SETTINGS},
         {"listen", "تلاوة وأذان", ParentalPolicy.LISTEN},
     };
-    private static final LruCache<String, byte[]> ICONS = new LruCache<>(64);
+    /** The favourites are looked up at most this often (the phone asks for every icon); a package or favourites change clears it at once. */
+    private static final long APPS_TTL_MS = 5_000, ICON_TTL_MS = 10 * 60_000L;
+    private static final class Icon { final byte[] png; final long at; Icon(byte[] png, long at) { this.png = png; this.at = at; } }
+    private static final LruCache<String, Icon> ICONS = new LruCache<>(64);
+    private static List<String[]> appsCache;
+    private static long appsAt;
 
     private PhoneApps() { }
 
     private static boolean listening(Context c) { return c.getResources().getBoolean(R.bool.show_listening); }
 
+    /** A package was installed, replaced or removed, or the favourites changed: the next ask looks again. */
+    public static synchronized void invalidate() {
+        appsCache = null;
+        ICONS.evictAll();
+    }
+
     /** The favourites as the home screen's row shows them (kids mode already applied): {package, name, "1" when it asks for the PIN}. */
-    public static List<String[]> apps(Context c) {
+    public static synchronized List<String[]> apps(Context c) {
+        long now = System.currentTimeMillis();
+        if (appsCache != null && now - appsAt < APPS_TTL_MS) return appsCache;
+        appsCache = scan(c);
+        appsAt = now;
+        return appsCache;
+    }
+
+    private static List<String[]> scan(Context c) {
         Context app = c.getApplicationContext();
         Map<String, String> all = Dock.launchable(app);
         ParentalPolicy.State st = Parental.state(app);
@@ -70,8 +89,8 @@ public final class PhoneApps {
         boolean shown = false;
         for (String[] a : apps(app)) shown |= a[0].equals(pkg);
         if (!shown) return null;
-        byte[] cached = ICONS.get(pkg);
-        if (cached != null) return cached;
+        Icon cached = ICONS.get(pkg);
+        if (cached != null && System.currentTimeMillis() - cached.at < ICON_TTL_MS) return cached.png;
         try {
             PackageManager pm = app.getPackageManager();
             Drawable d = pm.getApplicationIcon(pkg);
@@ -83,7 +102,7 @@ public final class PhoneApps {
             b.compress(Bitmap.CompressFormat.PNG, 100, out);
             b.recycle();
             byte[] png = out.toByteArray();
-            ICONS.put(pkg, png);
+            ICONS.put(pkg, new Icon(png, System.currentTimeMillis()));
             return png;
         } catch (PackageManager.NameNotFoundException | RuntimeException e) {
             return null;
@@ -169,8 +188,11 @@ public final class PhoneApps {
     /** Is the accessibility service on? Then Back works in every app (the service presses it), not only on our own screens. */
     public static boolean keysEverywhere() { return SleepService.enabled(); }
 
-    /** The phone's text into another app (SleepService.typeText); one of its fixed words. */
-    public static String typeText(Context c, String text, boolean append, boolean search) { return SleepService.typeText(c.getApplicationContext(), text, append, search); }
+    /** The phone's text into another app (TypeService.typeText); one of its fixed words. */
+    public static String typeText(Context c, String text, boolean append, boolean search) { return TypeService.typeText(c.getApplicationContext(), text, append, search); }
+
+    /** Is the typing service on? Without it a phone cannot type into other apps (the page says how to turn it on). */
+    public static boolean typingEnabled() { return TypeService.enabled(); }
 
     /** Presses Back through the accessibility service; false when it is off. */
     public static boolean globalBack() { return SleepService.back(); }

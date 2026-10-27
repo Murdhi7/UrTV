@@ -93,9 +93,10 @@ public final class Schema {
             }
             case "adhanstop": return only(body);
             case "do": {
-                Clean c = only(body, "op");
+                Clean c = only(body, "op", "pin");
                 if (!c.ok()) return c;
                 if (!(body.get("op") instanceof String) || !Arrays.asList(DO_OPS).contains(body.get("op"))) return no("bad op");
+                if (!pin(body)) return no("bad pin");
                 return c;
             }
             case "logout": return only(body);

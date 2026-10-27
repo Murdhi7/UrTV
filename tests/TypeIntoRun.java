@@ -34,11 +34,15 @@ public final class TypeIntoRun {
     static String id(TypeInto.Node n) { return n == null ? "none" : ((N) n).id; }
 
     public static void main(String[] args) {
-        check("service off: refused before anything is looked at", TypeInto.allowed(false, false, false) == TypeInto.Refusal.SERVICE_OFF);
-        check("service off wins over a lock", TypeInto.allowed(false, true, false) == TypeInto.Refusal.SERVICE_OFF);
-        check("a locked app is refused", TypeInto.allowed(true, true, false) == TypeInto.Refusal.LOCKED);
-        check("an app kids mode hides is refused", TypeInto.allowed(true, false, true) == TypeInto.Refusal.LOCKED);
-        check("an app that is neither is allowed", TypeInto.allowed(true, false, false) == TypeInto.Refusal.NONE);
+        check("service off: refused before anything is looked at", TypeInto.allowed(false, "com.app", false, false, false, false) == TypeInto.Refusal.SERVICE_OFF);
+        check("service off wins over a lock", TypeInto.allowed(false, "com.app", false, true, false, false) == TypeInto.Refusal.SERVICE_OFF);
+        check("a window that does not say its package is refused", TypeInto.allowed(true, null, false, false, false, false) == TypeInto.Refusal.REFUSED
+            && TypeInto.allowed(true, "", false, false, false, false) == TypeInto.Refusal.REFUSED);
+        check("our own screens are refused (they take the text by their own path)", TypeInto.allowed(true, "sa.urtv.home", true, false, false, false) == TypeInto.Refusal.REFUSED);
+        check("a locked app is refused", TypeInto.allowed(true, "com.app", false, true, false, false) == TypeInto.Refusal.LOCKED);
+        check("an app kids mode hides is refused", TypeInto.allowed(true, "com.app", false, false, true, false) == TypeInto.Refusal.LOCKED);
+        check("the TV's settings or Wi-Fi screen while those are locked is refused", TypeInto.allowed(true, "com.settings", false, false, false, true) == TypeInto.Refusal.LOCKED);
+        check("an app that is none of those is allowed", TypeInto.allowed(true, "com.app", false, false, false, false) == TypeInto.Refusal.NONE);
 
         N screen = N.box("root", N.field("search"), N.box("row", N.focusedField("name"), N.field("other")));
         check("the field with the focus wins over an earlier one", id(TypeInto.pick(screen)).equals("name"));

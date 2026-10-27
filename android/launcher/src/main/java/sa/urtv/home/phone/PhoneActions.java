@@ -172,6 +172,7 @@ final class PhoneActions implements Actions {
             m.put("saver_idle_options", options);
         }
         m.put("keys_everywhere", PhoneApps.keysEverywhere());
+        m.put("typing_service", PhoneApps.typingEnabled());
         m.put("family", PhoneApps.family(app));
         m.put("foreground", Foreground.current() != null ? "own" : "other");
         m.put("update", PhoneUpdater.status());

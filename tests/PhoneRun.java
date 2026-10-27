@@ -330,6 +330,15 @@ public final class PhoneRun {
         Reply si = authed(e, "POST", "/api/set", "{\"saver_idle\":5}", sess);
         check("v2: with a PIN set, the sleep timer and the idle time ask for it like every setting, and nothing was done without it",
             sm.status == 403 && "pin_required".equals(sm.json().get("error")) && si.status == 403 && e.actions.calls.isEmpty(), sm.body + si.body);
+        e.actions.calls.clear();
+        Reply sc = authed(e, "POST", "/api/do", "{\"op\":\"sleep_cancel\"}", sess);
+        Reply scBad = authed(e, "POST", "/api/do", "{\"op\":\"sleep_cancel\",\"pin\":\"9999\"}", sess);
+        check("v2: with a PIN set, cancelling the sleep timer asks for it (a child's phone cannot undo a bedtime timer) and nothing was done without it",
+            sc.status == 403 && "pin_required".equals(sc.json().get("error")) && scBad.status == 403 && "pin_wrong".equals(scBad.json().get("error")) && e.actions.calls.isEmpty(), sc.body + scBad.body);
+        check("v2: the right PIN lets the cancel through and the PIN goes no further", authed(e, "POST", "/api/do", "{\"op\":\"sleep_cancel\",\"pin\":\"1234\"}", sess).status == 200 && e.actions.calls.equals(Arrays.asList("do:sleep_cancel")), e.actions.calls.toString());
+        e.actions.calls.clear();
+        check("v2: the screensaver stays open to the phone (it only opens a screen; a locked saver asks on the TV)", authed(e, "POST", "/api/do", "{\"op\":\"screensaver\",\"pin\":\"12345\"}", sess).status == 400
+            && authed(e, "POST", "/api/do", "{\"op\":\"screensaver\"}", sess).status == 200, "");
         check("v2: with the right PIN they go through", authed(e, "POST", "/api/set", "{\"sleep_minutes\":30,\"pin\":\"1234\"}", sess).status == 200 && e.actions.calls.contains("set:[sleep_minutes]"), e.actions.calls.toString());
         check("v2: launching, stopping the adhan, the screensaver and reading the family card never ask the phone for the PIN (a locked app asks on the TV)",
             authed(e, "POST", "/api/launch", "{\"target\":\"@tasks\"}", sess).status == 200 && authed(e, "POST", "/api/adhan_stop", "{}", sess).status == 200
