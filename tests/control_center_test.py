@@ -63,7 +63,7 @@ check("the talkies credit headers are in the files that adapt it", all("rajupp/t
 check("«حرّر الذاكرة»: only killBackgroundProcesses, only for ControlText.killable, never ours", "killBackgroundProcesses(pkg)" in center and "ControlText.killable(pkg, system, keyboards.contains(pkg))" in center
       and "forceStopPackage" not in center and 'startsWith("sa.urtv.")' in text)
 check("the manifest asks for the normal KILL_BACKGROUND_PROCESSES, and no QUERY_ALL_PACKAGES, no new accessibility capability",
-      "android.permission.KILL_BACKGROUND_PROCESSES" in manifest and "QUERY_ALL_PACKAGES" not in manifest and manifest.count("android.accessibilityservice.AccessibilityService") == 1)
+      "android.permission.KILL_BACKGROUND_PROCESSES" in manifest and "QUERY_ALL_PACKAGES" not in manifest and manifest.count("android.accessibilityservice.AccessibilityService") == 2)   # the sleep service and the phone remote's typing service; the Control Center adds none
 check("every number goes through Digits.of (no String.valueOf of a number into a label), every format has Locale.ROOT",
       "String.valueOf" not in center and all("Locale.ROOT" in l for l in (text + speed).split("\n") if "String.format" in l))
 check("no new receiver, service or alarm for it", not re.search(r"registerReceiver|startService|AlarmManager|JobScheduler|postDelayed", center))

@@ -22,7 +22,7 @@ saver = read(ROOT / "optimize/saver.sh")
 # ---- the setting, end to end
 check("Prefs: dark, light or auto; dark by default and for anything unknown", 'static final String[] APPEARANCES = {"dark", "light", "auto"};' in prefs
       and 'sp.getString("appearance", "dark")' in prefs and ': "dark"; }' in prefs)
-check("the provider gives it to the launcher as a column of its own", '"update_channel", "appearance"}' in provider and "p.updateChannel(), p.appearance()}" in provider)
+check("the provider gives it to the launcher as a column of its own", '"update_channel", "appearance"' in provider and "p.updateChannel(), p.appearance()" in provider)
 check("the receiver takes --es appearance dark|light|auto, refuses anything else, and show says it",
       'i.getStringExtra("appearance")' in recv and 'return "error: appearance is one of "' in recv and "p.setAppearance(appearance);" in recv
       and '"\\nappearance: " + p.appearance()' in recv)

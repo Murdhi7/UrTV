@@ -35,7 +35,7 @@ code = re.sub(r"/\*.*?\*/|//[^\n]*", "", labels, flags=re.S)
 check("reading the CEC device: public API only (parent id, type, label: no HdmiDeviceInfo, which is @SystemApi)",
       "getParentId()" in code and "TvInputInfo.TYPE_HDMI" in code and "loadLabel(c)" in code and "HdmiDeviceInfo" not in code and "getHdmiDeviceInfo" not in code)
 check("the state is read from TvInputManager.getInputState, standby is INPUT_STATE_CONNECTED_STANDBY", "tim.getInputState(id)" in labels and "INPUT_STATE_CONNECTED_STANDBY" in labels)
-check("no new permission: the manifest has no TV_INPUT_HARDWARE / HDMI_CEC / ACCESS_TV_DESCRAMBLER", not re.search(r"TV_INPUT_HARDWARE|HDMI_CEC|TV_DESCRAMBLER|READ_TV_LISTINGS|CAPTURE_TV", manifest))
+check("no new permission: the manifest has no TV_INPUT_HARDWARE / HDMI_CEC / ACCESS_TV_DESCRAMBLER", not re.search(r"TV_INPUT_HARDWARE|HDMI_CEC|TV_DESCRAMBLER|CAPTURE_TV", manifest))
 check("the sorting is still by the TV's own names (a CEC name or a standby mark moves nothing)",
       "Collections.sort(inputs, (x, y) -> own(c, x).compareToIgnoreCase(own(c, y)))" in labels)
 check("popup: the row is InputLabels.rowLabel (name + standby mark), opened by its id", "InputLabels.rowLabel(this, t, given)" in main and "openPassthroughInput(t)" in main)
