@@ -392,8 +392,9 @@
        (--ckk, so nothing moves at 10 o'clock) and holds the clock over the next prayer; the other two hold the card over the
        occasion and the slot: one card on the left edge, as wide as beside the medium clock, or the card and a second one
        (#panel2=) as a pair of the same height, a column each. The Hijri date, the headline beside a small clock, is a step larger. */
-  html.ck-medium .clock{font-size:clamp(96px,min(13.6vw,24.8vh),276px)}
-  html.ck-small{--ckf:clamp(74px,min(10.5vw,19vh),214px);--ckc:calc(var(--ckf) * var(--ckk,3.26))}   /* --ckk: the widest time, in ems (boot) */
+  /* the three sizes as 1 : .75 : .55 of the large clock's clamp(120px, min(17vw, 31vh), 345px): a size you can tell apart */
+  html.ck-medium .clock{font-size:clamp(90px,min(12.75vw,23.25vh),259px)}
+  html.ck-small{--ckf:clamp(66px,min(9.35vw,17.05vh),190px);--ckc:calc(var(--ckf) * var(--ckk,3.26))}   /* --ckk: the widest time, in ems (boot) */
   html.ck-small .clock{font-size:var(--ckf)}
   html.ck-medium .mid{gap:3.6vw}
   html.ck-medium .mid > .clockwrap,html.ck-small .mid > .clockwrap{justify-self:start;align-items:flex-start}
@@ -405,6 +406,15 @@
   html.ck-small .mid > .week{grid-row:2;width:auto;max-width:none;justify-self:stretch}
   html.ck-small .mid.n1 > .week{grid-column:2/-1;justify-self:end;width:min(1000px,56vw);max-width:100%}   /* one card: as wide as beside the medium clock */
   html.ck-small .mid.n2:not(.fit) > .week{align-self:stretch}
+  /* the pair is one height: a shorter list spreads its rows down its card instead of leaving the lower part empty, and a verse or
+     a dhikr does not end on one word alone */
+  html.ck-small .mid.n2 > .week{display:flex;flex-direction:column}
+  html.ck-small .mid.n2:not(.fit) > .week > ul:not(.pgrid){flex:1;justify-content:space-evenly}
+  html.ck-small .mid.n2 > .week li.quote{text-wrap:pretty}
+  /* a dhikr's foot in a narrow card: the source on its own line (two if it must, never «…»), the count and the dots under it */
+  html.ck-small .mid.n2 > .week li.adf{grid-template-columns:auto minmax(0,1fr);row-gap:.35em}
+  html.ck-small .mid.n2 > .week li.adf .s{grid-column:1/-1;white-space:normal;text-overflow:clip;overflow:visible;line-height:1.35}
+  html.ck-small .mid.n2 > .week li.adf .d{flex-wrap:wrap;row-gap:.3em}
   @media (min-aspect-ratio:5/4){
     html.ck-small:not(.slot-none) .bottom{grid-template-columns:var(--ckc) minmax(0,1fr) minmax(0,1fr)}
   }
@@ -2535,7 +2545,25 @@ function cardCut(card){   // a name or a cell wider than its place: it would end
   }
   return false;
 }
+// The screensaver's pair is read from the sofa: its text never goes below a floor (a row's text 2.1vh, every other line 1.45vh);
+// at the floor a verse or a dhikr takes a shorter text and a list fewer rows, as the home screen's cards do, instead of a smaller size.
+const PAIR_FLOOR = {row: .021, small: .0145};
+function aboveFloor(c){
+  const vh = innerHeight, px = e => parseFloat(getComputedStyle(e).fontSize);
+  for(const li of c.ul.children) if(li.textContent.trim() && px(li) < PAIR_FLOOR.row * vh - .05) return false;
+  for(const e of c.el.querySelectorAll('.hd, li *')) if(e.children.length === 0 && e.textContent.trim() && px(e) < PAIR_FLOOR.small * vh - .05) return false;
+  return true;
+}
 function shrinkCard(c, tooWide){   // false when there is no step left
+  if(!CONFIG.widget){   // the pair: a smaller size only while it stays above the floor; else the other ways
+    const zi = c.zi;
+    if(c.zi < Z_STEPS.length - 1){
+      c.zi++; c.el.style.setProperty('--z', Z_STEPS[c.zi]);
+      const ok = aboveFloor(c);
+      c.zi = zi; c.el.style.setProperty('--z', Z_STEPS[zi]);
+      if(!ok) return shrinkByContent(c);
+    }else return shrinkByContent(c);
+  }
   const list = LISTS.includes(c.eff), quote = c.eff === 'verse' || c.eff === 'adhkar', zLeft = c.zi < Z_STEPS.length - 1;
   if(tooWide){ if(!zLeft) return false; c.zi++; }
   else if(list && c.ri < c.base - 1) c.ri++;
@@ -2547,6 +2575,16 @@ function shrinkCard(c, tooWide){   // false when there is no step left
   c.z = Z_STEPS[c.zi];
   c.el.style.setProperty('--z', c.z);
   if(c.eff === 'matches') shortenRows(c.ul);   // smaller text: a row may keep more of its names and date now
+  if(cap !== c.cap || maxLen !== c.maxLen){ c.cap = cap; c.maxLen = maxLen; renderCard(c, false, true); }
+  return true;
+}
+// at the pair's floor: fewer rows of a list, a shorter verse or dhikr; false when neither is left (the card is then as it is)
+function shrinkByContent(c){
+  const list = LISTS.includes(c.eff), quote = c.eff === 'verse' || c.eff === 'adhkar';
+  if(list && c.ri < c.base - 1) c.ri++;
+  else if(quote && c.ri < 6) c.ri++;
+  else return false;
+  const cap = list ? c.base - c.ri : 0, maxLen = quote ? Math.max(20, Math.floor(c.len0 * Math.pow(.8, c.ri))) : 0;
   if(cap !== c.cap || maxLen !== c.maxLen){ c.cap = cap; c.maxLen = maxLen; renderCard(c, false, true); }
   return true;
 }

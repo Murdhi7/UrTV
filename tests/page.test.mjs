@@ -4152,6 +4152,30 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
       !fails.length && !o.errors.length, fails.slice(0, 3).join(' | ') + o.errors.join('; '));
     await o.ctx.close();
   }
+  // read from the sofa (Look's review): in the pair no text goes below its floor, a row's text 2.1vh and any other line 1.45vh; the
+  // three clock sizes are 1 : .75 : .55; a shorter list's rows spread down its card
+  for (const [w, h] of [[960, 540], [1280, 720]]) for (const digits of ['hindi', 'latin']) for (const pair of [['matches', 'adhkar'], ['adhkar', 'forecast'], ['verse', 'stocks'], ['today', 'hourly']]) {
+    const o = await openSaver(`clocksize=small&panel=${pair[0]}&panel2=${pair[1]}&digits=${digits}`, w, h);
+    await o.p.evaluate(() => { renderPanel(false); fitCards(); });
+    const r = await o.p.evaluate(() => {
+      const vh = innerHeight, px = e => parseFloat(getComputedStyle(e).fontSize), low = [];
+      for (const c of CARDS) {
+        for (const li of c.ul.children) if (li.textContent.trim() && px(li) < .021 * vh - .05) low.push(c.eff + ' row ' + px(li).toFixed(1));
+        for (const e of c.el.querySelectorAll('.hd, li *')) if (!e.children.length && e.textContent.trim() && px(e) < .0145 * vh - .05) low.push(c.eff + ' ' + (e.className || e.tagName) + ' ' + px(e).toFixed(1));
+      }
+      return { low, dots: CARDS.some(c => c.el.innerText.includes('…')), kinds: CARDS.map(c => c.eff) };
+    });
+    check(`pair ${pair} at ${w}x${h} (${digits}): no text under its floor (rows 2.1vh, the rest 1.45vh), nothing ends in «…»`, !o.errors.length && !r.low.length && !r.dots
+      && r.kinds.join() === pair.join(), JSON.stringify(r) + o.errors.join('; '));
+    await o.ctx.close();
+  }
+  for (const [w, h] of SCREENS) {
+    const size = [];
+    for (const clock of ['large', 'medium', 'small']) { const o = await openSaver(`clocksize=${clock}&panel=verse`, w, h);
+      size.push(await o.p.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.clock')).fontSize))); await o.ctx.close(); }
+    check(`clock sizes at ${w}x${h}: large, medium, small as 1 : .75 : .55 (${size.map(x => x.toFixed(0)).join(' : ')})`,
+      Math.abs(size[1] / size[0] - .75) < .02 && Math.abs(size[2] / size[0] - .55) < .02, JSON.stringify(size));
+  }
   // nothing moves when the clock gains a digit (9:59 → 10:00), nor at the widest time (١٢:٣٣ م; 10:00 م in Latin digits)
   for (const [w, h] of SCREENS) for (const digits of ['hindi', 'latin']) {
     const at = [];
