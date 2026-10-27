@@ -758,13 +758,13 @@ const CONFIG = {
 };
 // The cards on this page: the screensaver's one (#panel=); the launcher's up to three (#home_panel=a,b,c, none or empty = no card;
 // an older launcher sends the one card as #panel=). Each kind once, in order.
-// the prayer calculation (Aladhan's id): #pm=jafari everywhere, else the country's by the zone, else Umm al-Qura 4; PrayerMath.methodFor
+// the prayer calculation (Aladhan's id; 100 is ours, Oman's ministry, which Aladhan does not have): #pm=jafari or #pm=gulf everywhere, else the country's by the zone, else Umm al-Qura 4; PrayerMath.methodFor
 // (launcher) and PrayerMethod (app) say the same, tests/prayer_method_test.py compares them
-CONFIG.prayerMethod = _Q.get('pm') === 'jafari' ? 0
-  : ({'Asia/Kuwait':9, 'Asia/Qatar':10, 'Asia/Dubai':16, 'Asia/Bahrain':8, 'Asia/Muscat':8, 'Africa/Cairo':5, 'Asia/Amman':23, 'Asia/Damascus':5, 'Asia/Beirut':5, 'Asia/Gaza':5, 'Asia/Hebron':5, 'Asia/Jerusalem':5, 'Africa/Casablanca':21, 'Africa/El_Aaiun':21, 'Africa/Algiers':19, 'Africa/Tunis':18})[CONFIG.timezone] || 4;
+CONFIG.prayerMethod = _Q.get('pm') === 'jafari' ? 0 : _Q.get('pm') === 'gulf' ? 8
+  : ({'Asia/Kuwait':9, 'Asia/Qatar':10, 'Asia/Dubai':16, 'Asia/Bahrain':8, 'Asia/Muscat':100, 'Africa/Cairo':5, 'Asia/Amman':23, 'Asia/Damascus':5, 'Asia/Beirut':5, 'Asia/Gaza':5, 'Asia/Hebron':5, 'Asia/Jerusalem':5, 'Africa/Casablanca':21, 'Africa/El_Aaiun':21, 'Africa/Algiers':19, 'Africa/Tunis':18})[CONFIG.timezone] || 4;
 // the calculation's name under the clock when it is not Umm al-Qura: «بتوقيت المنامة · حساب الخليج» (ClockZone.calendar in the launcher
 // says the same on the home screen); Umm al-Qura says nothing, «بتوقيت الرياض» as it always was
-const CAL_LABEL = {0:'الحساب الجعفري', 8:'حساب الخليج', 9:'حساب الكويت', 10:'حساب قطر', 16:'حساب الإمارات', 5:'حساب الهيئة المصرية', 23:'حساب الأردن', 21:'حساب المغرب', 19:'حساب الجزائر', 18:'حساب تونس'};
+const CAL_LABEL = {0:'الحساب الجعفري', 8:'حساب الخليج', 100:'حساب عُمان', 9:'حساب الكويت', 10:'حساب قطر', 16:'حساب الإمارات', 5:'حساب الهيئة المصرية', 23:'حساب الأردن', 21:'حساب المغرب', 19:'حساب الجزائر', 18:'حساب تونس'};
 const clockSubText = () => 'بتوقيت ' + CONFIG.city + (CAL_LABEL[CONFIG.prayerMethod] ? ' · ' + CAL_LABEL[CONFIG.prayerMethod] : '');
 // «بطاقة ثانية» (#panel2=): a second card beside the small clock only; with a larger clock, on the launcher, without a first card,
 // or when it is the first card again or the next prayer (the bottom-right panel says it already), there is none
@@ -973,7 +973,7 @@ function buildPrayers(t){
 const PRAYER_METHODS = {
   0:  {fajr:16,   isha:14,   ishaMin:0,  maghrib:4,    tune:[0,0,0,0]},      // Ja'fari (Leva, Qum)
   4:  {fajr:18.5, isha:0,    ishaMin:90, maghrib:.833, tune:[0,0,0,0]},      // Umm al-Qura
-  8:  {fajr:19.5, isha:0,    ishaMin:90, maghrib:.833, tune:[0,0,0,0]},      // Gulf (Bahrain, Oman)
+  8:  {fajr:19.5, isha:0,    ishaMin:90, maghrib:.833, tune:[0,0,0,0]},      // Gulf (Bahrain; Oman by #pm=gulf)
   9:  {fajr:18,   isha:17.5, ishaMin:0,  maghrib:.833, tune:[0,0,0,0]},      // Kuwait
   10: {fajr:18,   isha:0,    ishaMin:90, maghrib:.833, tune:[0,0,0,0]},      // Qatar
   16: {fajr:18.2, isha:18.2, ishaMin:0,  maghrib:.833, tune:[-3,3,3,3]},     // Dubai (the UAE)
@@ -982,6 +982,9 @@ const PRAYER_METHODS = {
   21:  {fajr:19, isha:17, ishaMin:0, maghrib:.833, tune:[0,5,0,5]},  // Morocco (the Awqaf ministry): Dhuhr and Maghrib +5
   19:  {fajr:18, isha:17, ishaMin:0, maghrib:.833, tune:[0,0,0,0]},  // Algeria (Ministry of Religious Affairs)
   18:  {fajr:18, isha:18, ishaMin:0, maghrib:.833, tune:[0,0,0,0]},  // Tunisia (Ministry of Religious Affairs)
+  // 100 is ours, not Aladhan's: Oman's Ministry of Awqaf and Religious Affairs. Fajr 18, Isha 18, Dhuhr/Asr/Maghrib +5 (Fajr, sunrise and Isha untouched), the
+  // numbers egyjs/afnon-android-tv-launcher (MIT, Method.OMAN_AWQAF) fitted to the ministry's 2026 timetable to within about two minutes. Never asked of Aladhan.
+  100: {fajr:18, isha:18, ishaMin:0, maghrib:.833, tune:[0,5,5,5]},
 };
 function computePrayers(){
   const p = riyadhParts(), lat = CONFIG.latitude, lng = CONFIG.longitude;
@@ -1032,6 +1035,7 @@ async function loadPrayers(){
             + `?latitude=${CONFIG.latitude}&longitude=${CONFIG.longitude}`
             + `&method=${CONFIG.prayerMethod}&timezonestring=${encodeURIComponent(CONFIG.timezone)}`;
   try{
+    if(CONFIG.prayerMethod >= 100) throw 0;   // Aladhan has no such method (Oman's ministry): the computed times are the times
     const r = await fetchT(url, 12000);
     const t = checkedTimings(await r.json(), want);
     if(!t) throw 0;

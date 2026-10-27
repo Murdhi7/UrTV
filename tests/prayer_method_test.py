@@ -19,11 +19,11 @@ def check(name, ok, detail=""):
     failed += not ok
 
 
-EXPECTED_METHODS = 11   # Ja'fari, Umm al-Qura, the four Gulf ones, Egypt, Jordan, Morocco, Algeria, Tunisia
+EXPECTED_METHODS = 12   # Ja'fari, Umm al-Qura, the four Gulf ones, Egypt, Jordan, Morocco, Algeria, Tunisia, and Oman's ministry (100, ours: Aladhan has none)
 EXPECTED_ZONES = 16   # the zones that have a method of their own: the Gulf's five, Cairo, Amman, Damascus, Beirut, Gaza, Hebron, Jerusalem (hand-entered), Casablanca, El_Aaiun (hand-entered), Algiers, Tunis
 # the page: CONFIG.prayerMethod = pm=jafari ? 0 : ({'Asia/Kuwait':9, ...})[zone] || 4
 tpl = (ROOT / "src/template.html").read_text(encoding="utf-8")
-m = re.search(r"CONFIG\.prayerMethod = _Q\.get\('pm'\) === 'jafari' \? 0\s*:\s*\(\{([^}]*)\}\)\[CONFIG\.timezone\] \|\| 4;", tpl)
+m = re.search(r"CONFIG\.prayerMethod = _Q\.get\('pm'\) === 'jafari' \? 0 : _Q\.get\('pm'\) === 'gulf' \? 8\s*:\s*\(\{([^}]*)\}\)\[CONFIG\.timezone\] \|\| 4;", tpl)
 check("page: CONFIG.prayerMethod is worked out from #pm= and the zone", bool(m))
 page = {z: int(i) for z, i in re.findall(r"'([A-Za-z_/]+)':\s*(\d+)", m.group(1))} if m else {}
 
@@ -32,7 +32,7 @@ pm_src = (ROOT / "android/launcher/src/main/java/sa/urtv/home/tilawah/PrayerMath
 body = pm_src[pm_src.index("static int methodFor"):]
 body = body[:body.index("\n    }\n")]
 launcher = {}
-ids = {n: int(v) for n, v in re.findall(r"(\w+) = (\d+)", re.search(r"static final int JAFARI = [^;]*;", pm_src).group(0))}   # the launcher's names for the ids
+ids = {n: int(v) for n, v in re.findall(r"(\w+) = (\d+)", re.search(r"static final int JAFARI = [^;]*;", pm_src).group(0) + re.search(r"static final int OMAN = \d+;", pm_src).group(0))}   # the launcher's names for the ids
 for labels, const in re.findall(r"((?:case \"[A-Za-z_/]+\": )+)return ([A-Z_]+);", body):
     for z in re.findall(r'"([A-Za-z_/]+)"', labels):
         launcher[z] = ids[const]
@@ -44,7 +44,7 @@ labels = {}
 for zs, label in re.findall(r"((?:case \"[A-Za-z_/]+\": )+)return \"([^\"]+)\";", app_src):
     for z in re.findall(r'"([A-Za-z_/]+)"', zs):
         labels[z] = label
-by_id = {18: "وزارة الشؤون الدينية التونسية", 19: "وزارة الشؤون الدينية الجزائرية", 21: "وزارة الأوقاف المغربية", 9: "الكويت", 10: "قطر", 16: "الإمارات", 8: "الخليج", 5: "الهيئة المصرية للمساحة", 23: "وزارة الأوقاف الأردنية"}
+by_id = {100: "وزارة الأوقاف والشؤون الدينية العُمانية", 18: "وزارة الشؤون الدينية التونسية", 19: "وزارة الشؤون الدينية الجزائرية", 21: "وزارة الأوقاف المغربية", 9: "الكويت", 10: "قطر", 16: "الإمارات", 8: "الخليج", 5: "الهيئة المصرية للمساحة", 23: "وزارة الأوقاف الأردنية"}
 check("the app names the same zones, one label per method", {z: l for z, l in labels.items()} == {z: by_id[i] for z, i in page.items()}, f"{labels}")
 
 # the city line under the clock names the calculation in the same words on both screens: the page's CAL_LABEL by method id, the launcher's

@@ -13,7 +13,10 @@ public final class PrayerMethodRun {
         check("parse: jafari and auto, in any case and with spaces", "jafari".equals(PrayerMethod.parse(" Jafari ")) && "auto".equals(PrayerMethod.parse("AUTO")), "");
         check("parse: anything else is null", PrayerMethod.parse("shia") == null && PrayerMethod.parse("") == null && PrayerMethod.parse(null) == null && PrayerMethod.parse("4") == null, "");
         check("fragment: nothing for auto (the page is then as it was), #pm=jafari for the Ja'fari",
-                PrayerMethod.fragment("auto").isEmpty() && PrayerMethod.fragment(null).isEmpty() && "&pm=jafari".equals(PrayerMethod.fragment("jafari")), "");
+                PrayerMethod.fragment("auto").isEmpty() && PrayerMethod.fragment(null).isEmpty() && "&pm=jafari".equals(PrayerMethod.fragment("jafari")) && "&pm=gulf".equals(PrayerMethod.fragment("gulf")), "");
+        check("gulf: the Gulf method can be chosen by hand (parse, label), and Oman's own default is its ministry's",
+                "gulf".equals(PrayerMethod.parse("gulf")) && "gulf".equals(PrayerMethod.parse(" GULF ")) && PrayerMethod.label("gulf", "Asia/Muscat").equals("الخليج")
+                && PrayerMethod.label("auto", "Asia/Muscat").equals("تلقائي · وزارة الأوقاف والشؤون الدينية العُمانية") && PrayerMethod.label("auto", "Asia/Bahrain").equals("تلقائي · الخليج"), "");
         check("search: Saudi Arabia, the five other Gulf states, Egypt, Jordan, Syria, Lebanon, Morocco, Algeria, Tunisia; not Palestine (its zones are unreliable in the search) or anything else",
                 PrayerMethod.searchable("SA") && PrayerMethod.searchable("bh") && PrayerMethod.searchable("KW") && PrayerMethod.searchable("QA")
                 && PrayerMethod.searchable("AE") && PrayerMethod.searchable("OM") && PrayerMethod.searchable("EG") && PrayerMethod.searchable("jo") && PrayerMethod.searchable("SY")

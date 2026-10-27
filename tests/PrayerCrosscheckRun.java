@@ -53,7 +53,8 @@ public final class PrayerCrosscheckRun {
             // tzdata 2026c): the sun is the same, only the clock moved, so the reference is re-based by the difference, counted apart
             int shift = TimeZone.getTimeZone(tz).getOffset(noon) / 60000 - Integer.parseInt(f[7]);
             if (shift != 0) { rebased++; driftZones.add(tz); }
-            if (method != 0 && PrayerMath.methodFor(tz, null) != method) { wrongMethod++; System.out.println("FAIL method " + f[1] + " " + tz + ": app picks " + PrayerMath.methodFor(tz, null) + ", reference " + method); }
+            String pm = method == 0 ? "jafari" : method == 8 && PrayerMath.methodFor(tz, null) != 8 ? "gulf" : null;   // the rows chosen by hand (#pm=): the others are the zone's own
+            if (PrayerMath.methodFor(tz, pm) != method) { wrongMethod++; System.out.println("FAIL method " + f[1] + " " + tz + ": app picks " + PrayerMath.methodFor(tz, pm) + ", reference " + method); }
             long[] g = PrayerMath.compute(y, mo, d, Double.parseDouble(f[2]), Double.parseDouble(f[3]), tz, "1".equals(f[5]), method);
             String[] want = f[8].split(" ");
             rows++;

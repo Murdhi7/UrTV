@@ -174,6 +174,7 @@ final class PrayerTimes {
      * try in 30 minutes while it has not worked, none once today's are kept (the answer is on disk, no thread, no network).
      */
     static void refreshIfDue(Context c, Place place) {
+        if (!PrayerMath.aladhanKnows(place.method)) return;   // Oman's ministry: Aladhan has no such method, the computed times are the times
         if (!sa.urtv.home.NetGate.backgroundOk(sa.urtv.home.NetGateAndroid.displayOn(c))) return;   // a try is not counted while nothing could be asked
         Calendar day = Calendar.getInstance(TimeZone.getTimeZone(place.tz), Locale.US);
         String key = key(day, place);
@@ -189,6 +190,7 @@ final class PrayerTimes {
         final Place place = Place.get(c);
         final Calendar day = Calendar.getInstance(TimeZone.getTimeZone(place.tz), Locale.US);
         final String key = key(day, place);
+        if (!PrayerMath.aladhanKnows(place.method)) return false;   // Aladhan has no id for it: nothing to ask
         if (prefs(c).getBoolean("fetched_" + key, false)) return false;
         try {
             String url = "https://api.aladhan.com/v1/timings/" + PrayerMath.aladhanDate(day.getTimeInMillis(), place.tz)
