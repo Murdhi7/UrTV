@@ -6,6 +6,7 @@ import java.util.Map;
 /** For tests/family_dns_test.py: FamilyDns with a fake TV, one answer per line. */
 public class FamilyDnsRun {
     static final class Fake implements FamilyDns.Ports {
+        boolean breakRestore = false, failModePut = false;
         boolean grant = true, route = true, internet = true, saveOk = true, ignorePuts = false, validated = true;
         FamilyDns.Lookup.Kind lookup = FamilyDns.Lookup.Kind.NOT_FOUND;
         long lookupMs = 40;
@@ -20,8 +21,8 @@ public class FamilyDnsRun {
         public boolean canWriteSecure() { return grant; }
         public boolean probe(String h, int p, int t) { return route && h.equals(FamilyDns.HOST) && p == 853; }
         public String getGlobal(String k) { return unreadable.contains(k) ? FamilyDns.UNREADABLE : g.get(k); }
-        public boolean putGlobal(String k, String v) { writes++; if (checkingAtFirstPut < 0) checkingAtFirstPut = checking; if (!ignorePuts) g.put(k, v); return true; }
-        public boolean deleteGlobal(String k) { writes++; g.remove(k); return true; }
+        public boolean putGlobal(String k, String v) { writes++; if (failModePut && k.equals("private_dns_mode") && v.equals("hostname")) return false; if (breakRestore && !FamilyDns.HOST.equals(v) && !"hostname".equals(v)) return false; if (checkingAtFirstPut < 0) checkingAtFirstPut = checking; if (!ignorePuts) g.put(k, v); return true; }
+        public boolean deleteGlobal(String k) { writes++; if (breakRestore) return false; g.remove(k); return true; }
         public int sdkInt() { return sdk; }
         public boolean privateDnsValidated(String h, int ms) { return validated && h.equals(FamilyDns.HOST) && ms == FamilyDns.VALIDATE_MS; }
         public FamilyDns.Lookup lookupFreshName(int ms) { lookups++; return ms == FamilyDns.FRESH_MS ? new FamilyDns.Lookup(lookup, lookupMs) : new FamilyDns.Lookup(FamilyDns.Lookup.Kind.FAILED, 0); }
@@ -153,5 +154,23 @@ public class FamilyDnsRun {
             + FamilyDns.unknownHostKind(true, 2, 7, 8) + " " + FamilyDns.unknownHostKind(false, 7, 7, 8));
         // 21 validated Private DNS servers: none = not working; a TV that cannot say (null) is not refused
         System.out.println(FamilyDns.validatedServersOk(0) + " " + FamilyDns.validatedServersOk(1) + " " + FamilyDns.validatedServersOk(null));
+        // 22 the check fails and the old values cannot be put back: RESTORE_FAILED (never REVERTED), our values still on, the record and the flag kept
+        f = tv("opportunistic", "x.example"); f.validated = false; f.breakRestore = true;
+        FamilyDns.Result r22 = new FamilyDns(f).enable();
+        System.out.println(r22 + " " + f.state() + " " + (f.rec != null) + " " + (f.checking != 0));
+        // 23 the same for the partial write (the specifier went in, the mode did not): RESTORE_FAILED, record and flag kept
+        f = tv("opportunistic", "x.example"); f.failModePut = true; f.breakRestore = true;
+        FamilyDns.Result r23 = new FamilyDns(f).enable();
+        System.out.println(r23 + " " + (f.rec != null) + " " + (f.checking != 0));
+        // 24 …and once the TV lets the values back, recover() puts them back (the record and the flag were kept for it)
+        f.breakRestore = false;
+        FamilyDns.Result r24 = new FamilyDns(f).recover();
+        System.out.println(r24 + " " + f.state() + " " + (f.rec == null) + " " + f.checking);
+        // 25 the old values did go back (read back equal): still REVERTED and NOT_TAKEN, record and flag cleared
+        f = tv("opportunistic", "x.example"); f.validated = false;
+        FamilyDns.Result r25 = new FamilyDns(f).enable();
+        Fake nt = tv("opportunistic", "x.example"); nt.failModePut = true;
+        FamilyDns.Result r25b = new FamilyDns(nt).enable();
+        System.out.println(r25 + " " + (f.rec == null) + " " + f.checking + " | " + r25b + " " + nt.state() + " " + (nt.rec == null) + " " + nt.checking);
     }
 }

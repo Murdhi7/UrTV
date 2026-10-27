@@ -182,7 +182,7 @@ final class PhoneApi implements PhoneServer.Handler {
         byte[] nonceBytes = new byte[16];
         new java.security.SecureRandom().nextBytes(nonceBytes);
         StringBuilder n = new StringBuilder();
-        for (byte b : nonceBytes) n.append(String.format("%02x", b & 0xff));
+        for (byte b : nonceBytes) n.append(String.format(java.util.Locale.ROOT, "%02x", b & 0xff));
         String html = control.page().html().replace("__NONCE__", n.toString());
         PhoneServer.Response resp = new PhoneServer.Response(200, "text/html; charset=utf-8", html.getBytes(StandardCharsets.UTF_8));
         resp.headers.put("Content-Security-Policy", "default-src 'none'; script-src 'nonce-" + n + "'; style-src 'unsafe-inline'; "
