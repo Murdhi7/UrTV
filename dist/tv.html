@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- the build: UTC time (YYYYMMDDHHMMSS) of the newest commit of the page's sources, put in by src/build.py. The app loads the page with the newer stamp (its own
      copy or a downloaded one), never by file time, and does not keep a download whose stamp is older than its own (Updater, PageStamp). -->
-<meta name="urtv-build" content="20261027080106">
+<meta name="urtv-build" content="20261027101735">
 <title>شاشة تلفزيونك</title>
 <style>
   @font-face{font-family:'Thmanyah';font-weight:300;font-style:normal;font-display:block;src:url("https://raw.githubusercontent.com/tshi-dev/UrTV/master/assets/fonts/Thmanyah-Light.woff2") format("woff2")}
@@ -946,12 +946,14 @@ function clockText(v){
 // An Aladhan answer for that day (DD-MM-YYYY) whole, or null: five valid times and the day asked. An Isha before Maghrib is after midnight: «24:10»
 function checkedTimings(j, want){
   const t = j && j.data && j.data.timings, got = j && j.data && j.data.date && j.data.date.gregorian && j.data.date.gregorian.date;
-  if(!t || (got && got !== want)) return null;
+  if(!t || got !== want) return null;   // fail closed: an answer that does not say it is today's (a cached or captive page) is not used
   const out = {};
   for(const k of PRAYER_KEYS){ if(!(out[k] = clockText(t[k]))) return null; }
   out.Sunrise = clockText(t.Sunrise) || undefined;
   const mins = k => { const [h, mi] = out[k].split(':').map(Number); return h * 60 + mi; };
   if(mins('Isha') < mins('Maghrib')) out.Isha = pad(Math.floor((mins('Isha') + 1440) / 60)) + ':' + pad(mins('Isha') % 60);
+  // the times of one day come in this order; an answer that has them otherwise is not used
+  for(let i = 1; i < PRAYER_KEYS.length; i++) if(mins(PRAYER_KEYS[i]) <= mins(PRAYER_KEYS[i - 1])) return null;
   return out;
 }
 function buildPrayers(t){
@@ -1239,10 +1241,24 @@ function occasionNow(){
 
 // `raw`: the calendar's own month, without «فرق التاريخ الهجري»: prayer times never follow the offset (only what is shown does)
 function hijriMonthNow(raw){
+  const at = raw ? new Date() : hijriAt(new Date());
   try{
-    return +new Intl.DateTimeFormat('en-u-ca-islamic-umalqura',{timeZone:CONFIG.timezone,month:'numeric'})
-      .format(raw ? new Date() : hijriAt(new Date())).replace(/[^0-9]/g,'');
-  }catch(e){ return 0; }
+    const m = +new Intl.DateTimeFormat('en-u-ca-islamic-umalqura',{timeZone:CONFIG.timezone,month:'numeric'}).format(at).replace(/[^0-9]/g,'');
+    if(m >= 1 && m <= 12) return m;
+  }catch(e){}
+  return tabularHijriMonth(at);   // fail closed: no Umm al-Qura calendar here is not «not Ramadan»
+}
+// The Hijri month by the tabular (arithmetic) Islamic calendar, for a browser without Umm al-Qura's: the city's date as a Julian day,
+// then the civil Hijri date. It can be a day off Umm al-Qura at a month's turn, never a month.
+function tabularHijriMonth(d){
+  const p = riyadhParts(d), a = Math.floor((14 - p.mo) / 12), y = p.y + 4800 - a, mo = p.mo + 12 * a - 3;
+  const jd = p.d + Math.floor((153 * mo + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+  let l = jd - 1948440 + 10632;
+  const n = Math.floor((l - 1) / 10631);
+  l = l - 10631 * n + 354;
+  const j = Math.floor((10985 - l) / 5316) * Math.floor(50 * l / 17719) + Math.floor(l / 5670) * Math.floor(43 * l / 15238);
+  l = l - Math.floor((30 - j) / 15) * Math.floor(17719 * j / 50) - Math.floor(j / 16) * Math.floor(15238 * j / 43) + 29;
+  return Math.floor(24 * l / 709);
 }
 function tickOccasion(){
   const elL=document.getElementById('occ-label'),
