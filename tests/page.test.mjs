@@ -4241,6 +4241,9 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
       const d = await pixelDiff(await shot(base, 'teams=136013&panel=verse', w, h), await shot('tv.html', 'teams=136013&panel=verse&clocksize=medium', w, h));
       check(`large clock ${w}x${h}: the comparison sees a real change (the medium clock is far from it)`, d.max > 4 * NOISE && d.n > 1000, JSON.stringify(d));
     }
+  }
+}
+
 // ---- a field report: with the adhkar card and the verse card on one page, outside the adhkar windows both showed the day's hadith.
 // Now the adhkar card says when the next adhkar begins; alone it still shows the verse of the day there, as documented.
 {
