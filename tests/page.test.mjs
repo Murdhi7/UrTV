@@ -4244,19 +4244,15 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     await q.ctx.close();
   }
   // the large clock: the page of origin/next, pixel for pixel (the default, clocksize=large, a second card that large ignores)
-  const shot = async (file, hash, w, h) => {   // once the fonts and the photo are in, and the picture holds still
+  const shot = async (file, hash, w, h) => {   // once the fonts are in, the loaders done, and the picture holds still
     const o = await open(file, hash, { width: w, height: h, now: HOME_NOW });
-    await o.p.evaluate(async () => {
-      await document.fonts.ready;
-      const m = /url\("?(.*?)"?\)/.exec(getComputedStyle(document.querySelector('.photo')).backgroundImage);
-      if (m) { const i = new Image(); i.src = m[1]; await i.decode().catch(() => {}); }
-    });
-    // a loader ends with a redraw (offline, the games' «تعذّر التحديث» redraws the cards), and a redraw that moves nothing still
-    // repaints the photo's tiles a little apart: next's own page before and after one, 948 px at most 20/255 at 960x540, on the
-    // tiles' seams. On a busy machine it landed after the picture held still in one page and not in the other. So both pages wait
-    // for their loaders, then draw the cards once more, and are taken after that redraw whatever the machine's speed.
+    // what is compared is the layout, over one flat colour in place of the photo: the photo is drawn in raster tiles, and a redraw
+    // that moves nothing (offline, the games' failed load redraws the cards) now and then repaints a tile a little apart, 900-950 px
+    // at most 21/255 at 960x540 between two seams, in next's own page before and after it. It landed in one of the two pages and
+    // not the other, even after a wait for the loaders and one more redraw. The photo's placement is the same code in both pages.
+    await o.p.addStyleTag({ content: '.photo{background-image:none!important;background-color:#4a4238!important}' });
+    await o.p.evaluate(() => document.fonts.ready);
     await o.p.waitForFunction(() => typeof BUSY !== 'object' || !Object.values(BUSY).some(Boolean), null, { timeout: 8000 }).catch(() => {});
-    await o.p.evaluate(() => { if (typeof renderPanel === 'function') renderPanel(false); });
     let png = await o.p.screenshot({ animations: 'disabled' });
     for (let k = 0; k < 6; k++) {
       await o.p.waitForTimeout(250);
@@ -4281,7 +4277,7 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
   } catch (e) { base = null; why = String(e.message).split('\n')[0]; }
   check(`large clock: the page of ${BASE_REF} to compare with`, !!base, why);
   // the pixels that differ and by how much at most (0-255 a channel). Two loads of one page are not always the same to the last
-  // level: the photo's scaling and the large blurred shadows (the clock's, the year strip's today) come out up to 5 levels apart.
+  // level: the large blurred shadows (the clock's, the year strip's today) come out up to 5 levels apart.
   // A change of layout or colour is tens of levels on the text's edges, so 8 tells the two apart (and the medium clock must fail it).
   const NOISE = 8;
   const pixelDiff = async (a, b) => {
