@@ -375,6 +375,15 @@ final class Prefs {
     String updateChannel() { return "next".equals(sp.getString("updateChannel", "latest")) ? "next" : "latest"; }
     void setUpdateChannel(String v) { sp.edit().putString("updateChannel", "next".equals(v) ? "next" : "latest").apply(); }
 
+    /**
+     * The newest version Updater last read, but only one that came from the release of the CURRENT channel (an older app stored none: that was the
+     * latest's); a value read before the channel changed is not shown as the newest of this one.
+     */
+    String latestVersion() {
+        String v = sp.getString("latestVersion", null);
+        return v != null && updateChannel().equals(sp.getString("latestChannel", "latest")) ? v : null;
+    }
+
     /** The slim bar before the adhan, on the screensaver and on the home screen (default on); sent to the page as #adhanbar=. */
     boolean adhanBar() { return sp.getBoolean("adhanBar", true); }
     void setAdhanBar(boolean v) { sp.edit().putBoolean("adhanBar", v).apply(); }

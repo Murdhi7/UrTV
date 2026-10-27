@@ -63,6 +63,11 @@ for wf in sorted((ROOT / ".github/workflows").glob("*.yml")):
             if "apk-next" in "\n".join(lines[max(0, n - 6):n]):
                 check("the apk-next release uploads exactly the two APKs and version.txt", block == ["urtv-screensaver.apk", "urtv-home.apk", "version.txt"], block)
 
+check("the newest version shown is the one of the current channel: it is stored with its channel, a value from before a change is not shown, and a change reads it again",
+      'putString("latestChannel", next ? "next" : "latest")' in up and 'updateChannel().equals(sp.getString("latestChannel", "latest"))' in prefs and "p.latestVersion()" in recv
+      and "Updater.refreshLatestAsync(c);" in recv and "new Prefs(c).latestVersion()" in up)
+check("`saver.sh show` says when the newest number is the next channel's", '", on the next channel"' in recv)
+
 tmp = tempfile.mkdtemp()
 log = os.path.join(tmp, "sent")
 fake = os.path.join(tmp, "fakepy")

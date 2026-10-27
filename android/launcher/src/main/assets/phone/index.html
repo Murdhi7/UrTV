@@ -98,7 +98,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
     <input id="txt" dir="auto" maxlength="120" enterkeyhint="send" placeholder="اكتب هنا (عربي أو إنجليزي)" aria-label="نص للتلفزيون">
     <div class="row" id="modes" role="group" aria-label="طريقة الكتابة"><button data-mode="replace" class="on">استبدال</button><button data-mode="append">إضافة</button></div>
     <div class="row"><button id="txtGo" class="gold">أرسل</button><button id="txtSearch">بحث</button></div>
-    <div id="svcNote" class="note warn hidden"><div>فعّل خدمة "تلفزيونك" في إعدادات التلفزيون لتكتب في التطبيقات الأخرى</div><div>الإعدادات ← إمكانية الوصول ← تلفزيونك: إطفاء الشاشة والكتابة من الجوال</div></div>
+    <div id="svcNote" class="note warn hidden"><div>فعّل خدمة "تلفزيونك: الكتابة من الجوال" في إعدادات التلفزيون لتكتب في التطبيقات الأخرى</div><div>الإعدادات ← إمكانية الوصول ← تلفزيونك: الكتابة من الجوال</div></div>
     <p>يُكتب النص في الحقل النصي المفتوح، ويُضاف مهمةً إذا كانت شاشة «المهام» مفتوحة، وفي التطبيقات الأخرى يُكتب في حقلها بعد تفعيل خدمة إمكانية الوصول. ومن دون الخدمة: أندرويد لا يسمح لتطبيق بالكتابة داخل تطبيق آخر، فيُنسخ النص إلى حافظة التلفزيون.</p>
   </div>
 
@@ -220,7 +220,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
     conflict: 'يتعارض مع نسخة مثبّتة.', incompatible: 'لا يناسب هذا الجهاز.', record: 'تعذّر حفظ سجل التحديث.'
   };
   var TXT = {   // the words of the text box (the same codes mean other things elsewhere)
-    service_off: 'فعّل خدمة "تلفزيونك" في إعدادات التلفزيون لتكتب في التطبيقات الأخرى', locked: 'التطبيق الأمامي مقفول بالرقم السري، افتحه على التلفزيون أولاً',
+    service_off: 'فعّل خدمة "تلفزيونك: الكتابة من الجوال" في إعدادات التلفزيون لتكتب في التطبيقات الأخرى', refused: 'ما أقدر أكتب في هذا التطبيق', locked: 'التطبيق الأمامي مقفول بالرقم السري، افتحه على التلفزيون أولاً',
     password_field: 'ما أكتب في حقل كلمة المرور', failed: 'ما نجحت الكتابة.'
   };
   var TOOLS = [['tasks', 'المهام'], ['saver', 'شاشة التوقف'], ['inputs', 'المصادر'], ['settings', 'الإعدادات'], ['listen', 'تلاوة وأذان']];
@@ -287,7 +287,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
     document.body.classList.toggle('login', !app);
   }
   function leave() {
-    sess = null; state = null; apps = null; pinVal = ''; svcOff = false; famSeen = false;
+    sess = null; state = null; apps = null; pinVal = ''; icons = {}; iconQ = []; iconWait = {}; svcOff = false; famSeen = false;
     clearInterval(tick); tick = null; stopRep();
     try { sessionStorage.removeItem('urtv'); } catch (e) { }
     show(false);
@@ -379,7 +379,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
     $('left').textContent = 'بقي ' + Math.max(1, Math.round(secs / 60)) + ' دقيقة';
     var fn = $('foreNote'), fore = s.foreground === 'other';
     fn.classList.toggle('hidden', !fore); fn.classList.toggle('warn', fore && !s.keys_everywhere);
-    $('svcNote').classList.toggle('hidden', !(svcOff || (fore && s.keys_everywhere === false)));
+    $('svcNote').classList.toggle('hidden', !(svcOff || (fore && s.typing_service === false)));
     fn.textContent = s.keys_everywhere ? 'الأسهم تعمل في شاشاتنا؛ الرجوع والرئيسية في كل مكان'
       : 'يوجد تطبيق آخر أمام الشاشة: أندرويد يسمح لتطبيقنا بإرسال الأسهم والاختيار والرجوع إلى شاشاته هو فقط. الرئيسية والصوت وتشغيل/إيقاف تعمل في كل مكان.';
     var lab = live ? 'الأذان الآن' + (s.adhan_prayer ? ': ' + s.adhan_prayer : '') : playLabel(s);
@@ -474,7 +474,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
   $('aVol').oninput = function () { $('aVolN').textContent = this.value + '٪'; };
   $('aVol').onchange = function () { set({ adhan_volume: parseInt(this.value, 10) }); };
   $('saverIdle').onchange = function () { set({ saver_idle: parseInt(this.value, 10) }); };
-  $('sleepCancel').onclick = function () { api('/api/do', { op: 'sleep_cancel' }).then(function (j) { say(j); refresh(); }); };
+  $('sleepCancel').onclick = function () { gated('/api/do', { op: 'sleep_cancel' }).then(function (j) { say(j); refresh(); }); };
   $('saverGo').onclick = function () { api('/api/do', { op: 'screensaver' }).then(function (j) { say(j); }); };
   function stopAdhan() { api('/api/adhan_stop', {}).then(function (j) { say(j); setTimeout(refresh, 800); }); }
   $('adhanStop1').onclick = stopAdhan; $('adhanStop2').onclick = stopAdhan;
@@ -512,6 +512,31 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
 
   // ---- the apps
   function iconUrl(pkg) { return '/api/icon/' + encodeURIComponent(pkg); }
+  // An <img> cannot send the session header, so each icon is fetched like any call, read as a blob and shown as a data: address.
+  var icons = {}, iconQ = [], iconRun = 0, iconWait = {};
+  function iconGet(pkg, done) {
+    if (pkg in icons) { done(icons[pkg]); return; }
+    if (iconWait[pkg]) { iconWait[pkg].push(done); return; }
+    iconWait[pkg] = [done]; iconQ.push(pkg); iconPump();
+  }
+  function iconPump() {
+    while (iconRun < 4 && iconQ.length) {
+      (function (job) {
+        iconRun++;
+        var h = {}; if (sess) h['X-UrTV-Session'] = sess;
+        var fin = function (d) { var w = iconWait[job] || []; delete iconWait[job]; icons[job] = d; iconRun--; w.forEach(function (cb) { cb(d); }); iconPump(); };
+        fetch(iconUrl(job), { credentials: 'same-origin', headers: h }).then(function (r) {
+          if (!r.ok) throw 0;
+          return r.blob();
+        }).then(function (b) {
+          var fr = new FileReader();
+          fr.onload = function () { fin(typeof fr.result === 'string' && fr.result.indexOf('data:image/') === 0 ? fr.result : null); };
+          fr.onerror = function () { fin(null); };
+          fr.readAsDataURL(b);
+        }).catch(function () { fin(null); });
+      })(iconQ.shift());
+    }
+  }
   function loadApps() {
     api('/api/apps').then(function (j) {
       if (!j.ok) { apps = null; $('appsNote').textContent = 'حدّث تطبيق «تلفزيونك» على التلفزيون لتظهر التطبيقات هنا.'; drawApps(); drawTools([]); return; }
@@ -521,18 +546,25 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
   function launch(target) {
     api('/api/launch', { target: target }).then(function (j) { say(j); });
   }
+  var drawGen = 0;
   function drawApps() {
+    drawGen++;
     var g = $('grid'); g.textContent = '';
     var f = $('appQ').value.trim().toLowerCase();
     (apps || []).forEach(function (a) {
       if (f && String(a.name).toLowerCase().indexOf(f) < 0) return;
       var b = el('button', 'app'); b.setAttribute('data-pkg', a.pkg);
       var t = el('span', 'tile', String(a.name || '?').charAt(0));
-      var im = document.createElement('img'); im.alt = ''; im.loading = 'lazy';
+      var im = document.createElement('img'); im.alt = '';
       im.onload = function () { t.firstChild.textContent = ''; };
       im.onerror = function () { im.remove(); };
-      im.setAttribute('src', iconUrl(a.pkg));
       t.appendChild(im);
+      var want = a.pkg, gen = drawGen;
+      var go = function () { iconGet(want, function (d) { if (d && im.parentNode && gen === drawGen) im.setAttribute('src', d); }); };
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (es) { if (es.some(function (x) { return x.isIntersecting; })) { io.disconnect(); go(); } }, { rootMargin: '200px' });
+        io.observe(b);
+      } else go();
       b.appendChild(t); b.appendChild(el('span', '', a.name));
       if (a.locked) { var l = el('span', 'lock', '🔒'); l.setAttribute('aria-label', 'مقفل بالرقم السري'); b.appendChild(l); }
       b.onclick = function () { launch(a.pkg); };

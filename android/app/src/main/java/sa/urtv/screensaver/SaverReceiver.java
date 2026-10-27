@@ -322,7 +322,10 @@ public class SaverReceiver extends BroadcastReceiver {
         if (greeting != null) p.setGreeting("on".equals(greeting));
         if (listenPill != null) p.setListenPill("on".equals(listenPill));
         if (adhanBar != null) p.setAdhanBar("on".equals(adhanBar));
-        if (updateChannel != null) p.setUpdateChannel(updateChannel);
+        if (updateChannel != null && !updateChannel.equals(p.updateChannel())) {   // another release now: the number shown as the newest is read again
+            p.setUpdateChannel(updateChannel);
+            Updater.refreshLatestAsync(c);
+        }
         if (yearStrip != null) p.setYearStrip("on".equals(yearStrip));
         if (sunrise != null) p.setSunrise("on".equals(sunrise));
         if (prayerBar != null) p.setPrayerBar("on".equals(prayerBar));
@@ -443,8 +446,8 @@ public class SaverReceiver extends BroadcastReceiver {
 
     private static String describe(Context c, Prefs p) {
         String[] city = p.city();
-        String latest = p.raw().getString("latestVersion", null);   // what Updater last saw on the release
-        return "version: " + BuildConfig.VERSION_NAME + (latest != null ? " (newest: " + latest + ")" : "")
+        String latest = p.latestVersion();   // what Updater last saw on the release of the current channel
+        return "version: " + BuildConfig.VERSION_NAME + (latest != null ? " (newest: " + latest + ("next".equals(p.updateChannel()) ? ", on the next channel" : "") + ")" : "")
             + "\ncity: " + city[0] + " (" + city[1] + ", " + city[2] + ")"
             + "\ntimezone: " + p.cityTz()
             + "\nteams: " + Prefs.join(p.teams(), ", ")
