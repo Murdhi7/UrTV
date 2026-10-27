@@ -96,6 +96,7 @@ jobs:
           tag_name: apk-latest
           name: Latest APKs
           body: "Both apps at version 3.${{ github.run_number }}, built from ${{ github.sha }}"
+          fail_on_unmatched_files: true   # a name that matches nothing (a typo) must stop the publish, not publish without it
           files: |
             urtv-screensaver.apk
             urtv-home.apk
@@ -110,12 +111,14 @@ jobs:
           tag_name: v3.${{ github.run_number }}
           name: UrTV 3.${{ github.run_number }}
           body: "Both apps at version 3.${{ github.run_number }}, built from ${{ github.sha }}"
+          fail_on_unmatched_files: true   # a name that matches nothing (a typo) must stop the publish, not publish without it
           files: |
             urtv-screensaver.apk
             urtv-home.apk
           make_latest: false
 
       # next: one test release, replaced by each build; install with APK_TAG=apk-next optimize/install.sh all
+      # version.txt is what «تحديث تلفزيوني» reads on the test channel (optimize/saver.sh updatechannel next)
       - name: Publish to the apk-next test release
         if: github.ref_name == 'next'
         uses: softprops/action-gh-release@v2
@@ -123,8 +126,10 @@ jobs:
           tag_name: apk-next
           name: Test build from next
           body: "Both apps at version 3.${{ github.run_number }}, built from next at ${{ github.sha }}. For testing only."
+          fail_on_unmatched_files: true   # a name that matches nothing (a typo) must stop the publish, not publish without it
           files: |
             urtv-screensaver.apk
             urtv-home.apk
+            version.txt
           prerelease: true
           make_latest: false

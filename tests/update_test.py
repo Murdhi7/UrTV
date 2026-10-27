@@ -68,7 +68,7 @@ check("the next app is handed over only after the answer of the one before (STAT
       re.search(r"STATUS_SUCCESS\)\s*\{.*?new Thread\(.*?installNext\(app\)", upd, re.S) is not None, "")   # on its own thread: see the checks at the end
 check("a failure empties the queue and clears the record, so nothing more is installed", "queue.clear()" in upd.split("private static void fail")[1] and "new UpdateStore(c).clear()" in upd.split("private static void fail")[1], "")
 check("the failure words come from UpdateFlow.failure", "UpdateFlow.failure(status)" in upd, "")
-check("the files are downloaded only from the release address", "startsWith(UpdateRules.BASE)" in upd, "")
+check("the files are downloaded only from our two release addresses (latest, and the test channel's next)", upd.count("if (!UpdateRules.isReleaseUrl(url))") == 2 and "startsWith(UpdateRules.BASE)" not in upd, "")
 check("nothing is uninstalled and the apps' auto-update is not touched", not re.search(r"pm uninstall|\.uninstall\(|deletePackage|setAutoUpdate|auto_update", upd), "")
 check("the phone page and the TV's screen call the same engine", "PhoneUpdater.install(app, true)" in text(PHONE / "PhoneActions.java") and "PhoneUpdater.checkVersion(" in text(PHONE / "PhoneActions.java")
       and "PhoneUpdater.install(UpdateActivity.this, false)" in text(JAVA / "UpdateActivity.java"), "")
