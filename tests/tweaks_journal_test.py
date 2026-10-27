@@ -134,11 +134,14 @@ check("restore: a bucket the TV refuses to put back is flagged and the journal i
       "!! standby_bucket: this TV did not take the value (asked for frequent, it says restricted)" in out and tv.journal() is not None, out)
 tv = Tv(window_animation_scale="1.0", transition_animation_scale="1.0", animator_duration_scale="1.0")
 rc, out = tv.run("apply", unreadable="yes")
-check("a firmware that does not say what the Play Store had: recorded as unknown", "standby_bucket=unknown" in tv.journal() and "appop_RUN_IN_BACKGROUND=unknown" in tv.journal(), tv.journal())
+check("a firmware that does not say what the Play Store had: recorded as unknown, NOT changed (a !! line each), so there is nothing to put back",
+      "standby_bucket=unknown" in tv.journal() and "appop_RUN_IN_BACKGROUND=unknown" in tv.journal()
+      and "!! standby_bucket: could not read what this TV has for the Play Store" in out and "!! appop_RUN_IN_BACKGROUND: could not read" in out
+      and tv.get("standby_bucket") == "null" and tv.get("op_RUN_IN_BACKGROUND") == "null", f"{out} {tv.journal()}")
 rc, out = tv.run("restore")
-check("restore then keeps today's values and says so with a !! line",
-      "!! standby_bucket: the TV's own value was not recorded" in out and "!! appop_RUN_IN_BACKGROUND: the TV's own value was not recorded" in out
-      and tv.get("standby_bucket") == "10" and tv.get("op_RUN_IN_BACKGROUND") == "allow", out)
+check("restore leaves them alone and says so with a !! line (it never forces active/allow onto a value it did not change)",
+      "!! standby_bucket: the TV's own value was not recorded" in out and "left as it is" in out
+      and tv.get("standby_bucket") == "null" and tv.get("op_RUN_IN_BACKGROUND") == "null", out)
 tv.run("apply"); rc, out = tv.run("status")
 check("status lists the Play Store's values too", "- tweak standby_bucket: was" in out and "now restricted" in out, out)
 # 9. a read that failed or came back empty is "unknown", never "null": restore must not delete the TV's real value

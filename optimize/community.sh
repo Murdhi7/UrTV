@@ -34,7 +34,11 @@ printf '%s\n' "$installed" > "$tmp/installed"
 # the apps that answer HOME on this TV are never disabled here
 tv "cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2> /dev/null" | tr -d '\r' \
   | sed -n 's#^\([A-Za-z0-9_.]*\)/.*#\1#p' | sort -u > "$tmp/homes"
-kept=$("$PY" -I optimize/offlist.py kept 2> /dev/null || true)
+if [ ! -s "$tmp/homes" ]; then   # every TV has a home app: an empty answer is «the TV did not say», and the home must not be guessed by its name
+  echo "!! community list not applied: the TV did not say which app is its home screen, so nothing was turned off. Run optimize/community.sh again."
+  rm -rf "$tmp"; exit 1
+fi
+kept=$("$PY" -I optimize/offlist.py kept) || exit 1   # an unreadable kept.txt stops the step
 grep -vE '^\s*(#|$)' "$LISTS/keep.txt" | awk '{print $1}' > "$tmp/keep"
 printf '%s\n' "$kept" >> "$tmp/keep"
 "$PY" -I optimize/community.py packages "$chosen" --keep "$tmp/keep" --homes "$tmp/homes" --installed "$tmp/installed" > "$tmp/pkgs"
@@ -58,7 +62,11 @@ if [ -s "$tmp/todo" ]; then   # never what UAD-ng rates Unsafe; offline, the che
       echo "   left on, rated Unsafe: $(paste -sd' ' - <<< "$unsafe")"
       grep -vxFf <(printf '%s\n' "$unsafe") "$tmp/todo" > "$tmp/todo2" || true; mv "$tmp/todo2" "$tmp/todo"
     fi
-  else echo "   (the Unsafe check needs the internet and could not run: only the filters above were applied)"; fi
+  else
+    # the third-party list is the least vetted: without the one safety rating it is not applied at all
+    echo "!! community list not applied: the Unsafe check (UAD-ng) needs the internet and could not run. Nothing from the community list was turned off; run optimize/community.sh again when online."
+    rm -rf "$tmp"; exit 1
+  fi
 fi
 base=$(basename "$chosen" .txt)
 if [ ! -s "$tmp/todo" ]; then echo "   community list $base: nothing on this TV to turn off"; echo "$base" > "$name"; exit 0; fi

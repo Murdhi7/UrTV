@@ -60,7 +60,10 @@ fi
 # drops an uninstalled app's service from the list by itself, and the switch would be left on
 RUNDIR="${URTV_RUN_DIR:-optimize/run}"
 if [ -f "$RUNDIR/accessibility-before.txt" ]; then
-  svcs=$(tv "settings get secure enabled_accessibility_services" | tail -n 1 | tr -d '\r' || true)
+  svcs=$(tv "settings get secure enabled_accessibility_services" 2> /dev/null | tail -n 1 | tr -d '\r' || true)
+  if [ -z "$svcs" ]; then   # only the word «null» means no service is on; an empty answer is «the TV did not say»
+    echo "!! enabled_accessibility_services: the TV did not say which accessibility services are on, so our sleep service and the accessibility switch were left as they are: run optimize/reset.sh again if the sleep service must go"
+  else
   [ "$svcs" != null ] || svcs=""
   rest=$(tr ':' '\n' <<< "$svcs" | grep -v '^sa\.urtv\.home/' | grep . | paste -sd: - || true)
   if [ -n "$rest" ]; then
@@ -74,10 +77,16 @@ if [ -f "$RUNDIR/accessibility-before.txt" ]; then
       elif [[ "$before" =~ ^[0-9]+$ ]]; then echo "settings put secure accessibility_enabled $before"; fi
     } | tv --batch > /dev/null
   fi
+  fi
 fi
 # «حماية العائلة (DNS)»: the Private DNS the TV had comes back (the script's record and the home app's own, which only the app can put
 # back), and only when that is confirmed the permission is taken back and the app removed: without it the original would be lost
-if [ -f "${URTV_RUN_DIR:-optimize/run}/family-dns-journal.txt" ] || tv "pm list packages sa.urtv.home" 2> /dev/null | grep -q sa.urtv.home; then
+# a failed question is not «the app is not installed»: removing the app would lose its record of the original Private DNS
+if ! home_list=$(tv "pm list packages sa.urtv.home" 2> /dev/null); then
+  echo "!! familydns: could not ask the TV whether the home app is installed, so nothing was removed. Run optimize/reset.sh again."
+  exit 1
+fi
+if [ -f "${URTV_RUN_DIR:-optimize/run}/family-dns-journal.txt" ] || grep -q sa.urtv.home <<< "$home_list"; then
   if ! optimize/familydns.sh off; then
     echo "!! familydns: the TV's Private DNS could not be put back, so nothing more was removed (the original setting is still recorded): run optimize/dock.sh familydns off, then optimize/reset.sh again"
     exit 1
@@ -95,7 +104,9 @@ for p in sa.urtv.home sa.urtv.screensaver sa.urtv.listening sa.yourtv.home sa.yo
 done
 # TV Bro and SmartTube: only if the setup put them there (not in the TV's package list saved before it)
 for p in com.phlox.tvwebbrowser org.smarttube.stable; do
-  if [ -f "${URTV_RUN_DIR:-optimize/run}/backup.txt" ] && ! grep -qx "package:$p" "${URTV_RUN_DIR:-optimize/run}/backup.txt"; then
+  # only against a real package list: a backup saved while the TV answered nothing would make every app look «installed by the setup»
+  if [ -f "${URTV_RUN_DIR:-optimize/run}/backup.txt" ] && [ "$(grep -c '^package:' "${URTV_RUN_DIR:-optimize/run}/backup.txt" || true)" -ge 20 ] \
+     && ! grep -qx "package:$p" "${URTV_RUN_DIR:-optimize/run}/backup.txt"; then
     tv "pm uninstall $p" | grep -q Success && echo "   removed $p" || true
   fi
 done

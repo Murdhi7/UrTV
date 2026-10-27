@@ -53,9 +53,13 @@ else
   }
   put_timeout_back
   timeout=$(tv "settings get system screen_off_timeout" | tr -d '\r' | tail -n 1)
-  echo "${timeout:-null}" > "$keep"
-  tv "settings put system screen_off_timeout 1800000" > /dev/null        # 30 min: stay on the home screen
-  trap put_timeout_back EXIT
+  case "$timeout" in
+    null|[0-9]*)   # the TV said its value (null: not set): stretched, and put back exactly
+      echo "$timeout" > "$keep"
+      tv "settings put system screen_off_timeout 1800000" > /dev/null        # 30 min: stay on the home screen
+      trap put_timeout_back EXIT ;;
+    *) echo "!! screen_off_timeout: the TV did not say its value, so it was not stretched and a screensaver may spoil this reading" ;;
+  esac
   tv "input keyevent KEYCODE_HOME" > /dev/null
   if [ "$mode" != --now ]; then
     echo "letting the TV settle for 3 minutes (kept awake)…"

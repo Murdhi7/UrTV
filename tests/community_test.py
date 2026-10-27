@@ -128,7 +128,7 @@ def run(cmd):
     LOG.write(cmd + "\n")
     if cmd == "pm list packages": return "".join("package:%s\n" % p.lstrip("-") for p in S)
     if cmd == "pm list packages -d": return "".join("package:%s\n" % p[1:] for p in S if p.startswith("-"))
-    if cmd.startswith("cmd package query-activities"): return "com.acme.launcher/.Main\ncom.google.android.apps.tv.launcherx/.Home\n"
+    if cmd.startswith("cmd package query-activities"): return "" if os.environ.get("NOHOMES") else "com.acme.launcher/.Main\ncom.google.android.apps.tv.launcherx/.Home\n"
     m = re.fullmatch(r"pm disable-user --user 0 (\S+)", cmd)
     if m: S = [("-" + p if p == m.group(1) else p) for p in S]; save(); return "ok\n"
     return ""
@@ -139,10 +139,10 @@ else: sys.stdout.write(run(a[0]))
 ''')
 fake.chmod(0o755)
 (tree / "py").write_text('#!/bin/bash\nif [ "$2" = optimize/tv.py ]; then exec ' + str(fake) + ' "$@"; else exec python3 "$@"; fi\n'); (tree / "py").chmod(0o755)
-def step(props, installed, home=None):
+def step(props, installed, home=None, **extra_env):
     (tree / "optimize/run/tv.txt").write_text("".join(f"{k} = {v}\n" for k, v in props.items()))
     (tree / "state").write_text("\n".join(installed) + "\n"); (tree / "log").write_text("")
-    env = {**os.environ, "PY": str(tree / "py"), "TVSTATE": str(tree / "state"), "LOG": str(tree / "log"), "URTV_HOME": str(home or tree / "home")}
+    env = {**os.environ, "PY": str(tree / "py"), "TVSTATE": str(tree / "state"), "LOG": str(tree / "log"), "URTV_HOME": str(home or tree / "home"), **extra_env}
     for f in ("community-applied.txt", "community-name.txt"):
         (tree / "optimize/run" / f).unlink(missing_ok=True)
     r = subprocess.run(["bash", str(tree / "optimize/community.sh")], cwd=tree, env=env, capture_output=True, text=True)
@@ -156,6 +156,14 @@ state0 = state
 check("step: the model's list is applied minus keep.txt, the launcher, the Unsafe one, the kept one, the missing and the already-off",
       rc == 0 and sorted(applied) == ["com.acme.ads", "com.acme.promo"] and "-com.acme.ads" in state and "-com.acme.promo" in state
       and "com.android.vending" in state and "com.acme.risky" in state and "com.acme.launcher" in state and "com.acme.kept" in state, f"{o} {applied} {state}")
+rc2, o2, applied2, log2, state2 = step(ACME, PKGS, tree / "home", NOHOMES="1")
+check("step: the TV did not say which app is its home (empty answer): nothing is turned off, a !! line says so", rc2 == 1 and applied2 == [] and "pm disable-user" not in log2 and "!! community list not applied: the TV did not say which app is its home screen" in o2, o2)
+real_check = (tree / "optimize/check-packages.py").read_text()
+(tree / "optimize/check-packages.py").write_text("import sys\nsys.exit(1)\n")
+rc2, o2, applied2, log2, state2 = step(ACME, PKGS, tree / "home")
+(tree / "optimize/check-packages.py").write_text(real_check)
+check("step: the Unsafe check could not run (offline): the third-party list is NOT applied at all, a !! line says so", rc2 == 1 and applied2 == [] and "pm disable-user" not in log2 and "!! community list not applied: the Unsafe check (UAD-ng) needs the internet" in o2, o2)
+rc, o, applied, log, state = step(ACME, PKGS, tree / "home")   # (the real run again, for the checks below)
 asked = (tree / "optimize/run/community-ask.txt")
 check("step: an update service, voice, MiLink and a video player are left ON and offered to the person; YouTube Music is never turned off",
       sorted(asked.read_text().split()) == ["com.acme.milink.service", "com.acme.updater", "com.acme.videoplayer", "com.acme.voiceassist"] if asked.exists() else False

@@ -52,6 +52,11 @@ case "${1:-}:$#" in
     svc="sa.urtv.home/sa.urtv.home.SleepService"
     cur=$("$PY" -I optimize/tv.py "settings get secure enabled_accessibility_services; settings get secure accessibility_enabled" | tr -d '\r')
     now=$(sed -n 1p <<< "$cur")
+    # only the word «null» means no service is on; an empty answer is «the TV did not say», and the person's own list must not be overwritten
+    if [ -z "$now" ] || [ -z "$(sed -n 2p <<< "$cur")" ]; then
+      echo "!! enabled_accessibility_services: the TV did not say which accessibility services are on, so the sleep service was NOT added and nothing was changed. Run the same command again."
+      exit 1
+    fi
     # what the TV had, once (optimize/reset.sh takes our entry out again and puts the switch back as it was)
     if [ ! -f "${URTV_RUN_DIR:-optimize/run}/accessibility-before.txt" ]; then
       mkdir -p "${URTV_RUN_DIR:-optimize/run}"

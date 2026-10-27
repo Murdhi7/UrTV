@@ -22,7 +22,7 @@ for f in ("disable.sh", "restore.sh", "home-journal.sh", "settle.sh"):
 (t / "py").write_text(STUB); (t / "py").chmod(0o755)
 (lists / "first.txt").write_text("# a list\ncom.a.one\ncom.a.two  # note\n")
 (lists / "second.txt").write_text("com.b.three\ncom.keep.me\n")
-env = dict(os.environ, T=str(t), PY=str(t / "py"), URTV_RUN_DIR=str(tree / "optimize/run"), SETTLE_S="0")
+env = dict(os.environ, T=str(t), PY=str(t / "py"), URTV_RUN_DIR=str(tree / "optimize/run"), PACKAGE_SETTLE_S="0")
 def sh(script, *args):
     return subprocess.run(["bash", str(tree / "optimize" / script), *args], env=env, capture_output=True, text=True, cwd=tree)
 

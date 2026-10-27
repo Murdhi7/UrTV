@@ -98,6 +98,15 @@ with tempfile.TemporaryDirectory() as tmp:   # the TV had a screensaver with an 
     check("a screensaver name with a character they do not send: left as it is (not deleted), and said",
           "settings delete secure screensaver_components" not in cmds and not any("screensaver_components" in c for c in cmds) and any("Saver$Inner" in v for v in skipped), str(cmds))
 
+with tempfile.TemporaryDirectory() as tmp:   # the screensaver read failed when the backup was taken (an empty line): never «none»
+    run, lists = sample(tmp)
+    b = (run / "backup.txt").read_text().replace("== screensaver\ncom.tv.own/.Saver\n", "== screensaver\n\n")
+    (run / "backup.txt").write_text(b)
+    sections, skipped = rs.build(run, lists)
+    cmds = commands(sections)
+    check("an empty screensaver line in the backup (the read failed): the TV's screensaver is left as it is, not deleted",
+          not any("screensaver_components" in c for c in cmds) and any("not recorded" in v for v in skipped), str(cmds))
+
 with tempfile.TemporaryDirectory() as tmp:   # nothing recorded
     run = Path(tmp) / "run"; run.mkdir()
     sections, skipped = rs.build(run, Path(tmp) / "nolists")

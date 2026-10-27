@@ -33,7 +33,7 @@ rc, out = run_py("check", batch(PHONE, "samsung"))
 check("a phone (no leanback): stops with exit 3 and an Arabic message", rc == 3 and "Tizen" in out and "webOS" in out and "مو تلفزيون" in out
       and "nothing was changed" in out, out)
 rc, out = run_py("check", batch("", "LG"))
-check("no features at all: stops too", rc == 3, out)
+check("no features at all (the TV did not answer): stops, but says so (exit 5), not «this is a phone»", rc == 5 and "did not say what it is" in out and "Tizen" not in out and "nothing was changed" in out, out)
 rc, out = run_py("check", batch(TV_FEATS + "feature:amazon.hardware.fire_tv\n", "Amazon", UPD.format("com.amazon.webview.chromium", "92.0.4515.1")))
 check("Fire TV: goes on, says it may work partly and the home switch may be refused", rc == 0 and "Fire TV" in out and "may work partly" in out and "refused" in out, out)
 rc, out = run_py("check", batch(TV_FEATS, webviewupdate=UPD.format("com.google.android.webview", "66.0.3359.158")))

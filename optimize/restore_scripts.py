@@ -136,7 +136,10 @@ def build(run, lists):
     if len(vals) >= 3:
         comps, enabled, timeout = vals[0].strip(), vals[1].strip(), vals[2].strip()
         ss.append("settings delete secure screensaver_default_component")
-        if comps in ("", "null") or OURS in comps:   # none before, or ours from an earlier setup: the TV picks its own
+        if comps == "":   # the read failed when the backup was taken: unknown, never «none»
+            skipped.append("the screensaver the TV had was not recorded")
+            ss.append("# the screensaver the TV had was not recorded; it is left as it is")
+        elif comps == "null" or OURS in comps:   # none before, or ours from an earlier setup: the TV picks its own
             ss.append("settings delete secure screensaver_components")
         elif re.match(r"^[A-Za-z0-9_.]+/[A-Za-z0-9_.]+(,[A-Za-z0-9_.]+/[A-Za-z0-9_.]+)*$", comps) and ok(comps):
             ss.append(f"settings put secure screensaver_components {comps}")
