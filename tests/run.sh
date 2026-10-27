@@ -103,6 +103,9 @@ python3 tests/clock_zone_test.py
 python3 tests/phone_test.py
 python3 tests/phone_qr_test.py
 python3 tests/update_test.py
+python3 tests/update_channel_test.py
+python3 tests/android_compile_test.py
+bash tests/android_compile.sh   # both apps against android-all API 34; SKIP (not a failure) when offline or the jar is not cached
 python3 tests/countdown_text_test.py
 python3 tests/month_names_test.py
 python3 tests/focus_key_test.py

@@ -21,6 +21,7 @@ final class Updater {
     private static final String RECENT = "تم الفحص مؤخراً";
     private static final String LATEST_URL = "https://github.com/tshi-dev/UrTV/releases/latest";
     private static final String VERSION_URL = "https://github.com/tshi-dev/UrTV/releases/download/apk-latest/version.txt";
+    private static final String NEXT_VERSION_URL = "https://github.com/tshi-dev/UrTV/releases/download/apk-next/version.txt";
 
     private Updater() {}
 
@@ -115,16 +116,17 @@ final class Updater {
      * so its tag is not a version), else the numbered tag /releases/latest points to. Keeps the old value on any failure.
      */
     private static void checkLatest(Context c) {
-        String v = latestFromAsset();
-        if (v == null) v = latestFromRedirect();
+        boolean next = "next".equals(new Prefs(c).updateChannel());   // the test channel (agents only): apk-next's version.txt, never the latest's redirect
+        String v = latestFromAsset(next ? NEXT_VERSION_URL : VERSION_URL);
+        if (v == null && !next) v = latestFromRedirect();
         if (v == null) return;
         new Prefs(c).raw().edit().putString("latestVersion", v).putLong("latestCheck", System.currentTimeMillis()).apply();
     }
 
-    private static String latestFromAsset() {
+    private static String latestFromAsset(String url) {
         HttpURLConnection con = null;
         try {
-            con = (HttpURLConnection) new URL(VERSION_URL).openConnection();   // GitHub redirects to its CDN: followed
+            con = (HttpURLConnection) new URL(url).openConnection();   // GitHub redirects to its CDN: followed
             con.setConnectTimeout(10000);
             con.setReadTimeout(10000);
             if (con.getResponseCode() != HttpURLConnection.HTTP_OK) return null;

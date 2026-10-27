@@ -10,13 +10,30 @@ import java.util.Set;
  */
 public final class UpdateRules {
     /** The same release optimize/install.sh downloads from (APK_TAG defaults to apk-latest there too). */
-    public static final String BASE = "https://github.com/tshi-dev/UrTV/releases/download/apk-latest/";
-    public static final String VERSION_URL = BASE + "version.txt";
+    public static final String RELEASES = "https://github.com/tshi-dev/UrTV/releases/download/";
+    public static final String BASE = RELEASES + "apk-latest/";
+    /** The test channel (agents only, `saver.sh updatechannel next`): the same files from the apk-next release, with the same checks. */
+    public static final String NEXT_BASE = RELEASES + "apk-next/";
     /** package, file: the screensaver first, the home screen last (installing it restarts this app). */
     public static final String[][] APKS = {{"sa.urtv.screensaver", "urtv-screensaver.apk"}, {"sa.urtv.home", "urtv-home.apk"}};
     public static final long MAX_APK_BYTES = 80_000_000L;
 
     private UpdateRules() { }
+
+    /** Where the files are for a channel: "next" is the test release, anything else (nothing, an unknown word) the latest. */
+    public static String baseFor(String channel) { return "next".equals(channel) ? NEXT_BASE : BASE; }
+
+    /** Exactly version.txt or one of our two APKs, in one of our two releases, nothing else (the check every download goes through). */
+    public static boolean isReleaseUrl(String url) {
+        if (url == null) return false;
+        for (String base : new String[] {BASE, NEXT_BASE}) {
+            if (!url.startsWith(base)) continue;
+            String name = url.substring(base.length());
+            if (name.equals("version.txt")) return true;
+            for (String[] apk : APKS) if (name.equals(apk[1])) return true;
+        }
+        return false;
+    }
 
     /** The build number in version.txt ("3.51" gives 51), or -1 for anything else. */
     public static int buildOf(String versionText) {
