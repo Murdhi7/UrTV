@@ -40,6 +40,15 @@ printf '%s\n' "$kept" >> "$tmp/keep"
 "$PY" -I optimize/community.py packages "$chosen" --keep "$tmp/keep" --homes "$tmp/homes" --installed "$tmp/installed" > "$tmp/pkgs"
 # never Android's own core, whatever the list says (optimize/lists/core.txt; disable.sh would refuse the whole list)
 grep -vEf <(grep -vE '^\s*(#|$)' "$LISTS/core.txt" | sed 's/.*/^(&)$/') "$tmp/pkgs" > "$tmp/pkgs2" || true; mv "$tmp/pkgs2" "$tmp/pkgs"
+# what owners often want (an update service, voice, MiLink, a video player): left on, and offered to the person instead
+rm -f "$RUN/community-ask.txt"
+if grep -qE '^[^#[:space:]]' "$LISTS/community-ask.txt" 2> /dev/null; then
+  grep -E -f <(grep -E '^[^#[:space:]]' "$LISTS/community-ask.txt") "$tmp/pkgs" > "$RUN/community-ask.txt" || true
+  if [ -s "$RUN/community-ask.txt" ]; then
+    grep -vxFf "$RUN/community-ask.txt" "$tmp/pkgs" > "$tmp/pkgs2" || true; mv "$tmp/pkgs2" "$tmp/pkgs"
+    echo "   left on until the person says (ask in one Arabic line; on a yes add them to optimize/lists/mine.txt): $(paste -sd' ' "$RUN/community-ask.txt")"
+  else rm -f "$RUN/community-ask.txt"; fi
+fi
 # already off before we came: not ours (reset.sh would turn it on)
 grep -vxFf <(sed 's/^package://' <<< "$disabled") "$tmp/pkgs" > "$tmp/todo" || true
 if [ -s "$tmp/todo" ]; then   # never what UAD-ng rates Unsafe; offline, the check is skipped and the lists' own filters stay

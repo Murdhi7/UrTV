@@ -200,12 +200,20 @@ fi
 
 if [ "$what" = launcher ] || [ "$what" = all ]; then
   # Which stock home does this TV have? Google TV sets: launcherx. Older Android TV: tvlauncher.
-  if "$PY" -I optimize/tv.py "pm list packages com.google.android.apps.tv.launcherx" | grep -q launcherx; then
+  # Only a package that is really installed is ever named (a guessed one would be "restored" to nothing): another maker's own home is
+  # taken from the app that answers Home now, if there is exactly one besides ours and the setup wizard; else the switch is not made.
+  have_pkg() { "$PY" -I optimize/tv.py "pm list packages $1" 2> /dev/null | tr -d '\r' | grep -qx "package:$1"; }
+  STOCK=
+  if have_pkg com.google.android.apps.tv.launcherx; then
     STOCK=com.google.android.apps.tv.launcherx/com.google.android.apps.tv.launcherx.home.HomeActivity
-  else
+  elif have_pkg com.google.android.tvlauncher; then
     STOCK=com.google.android.tvlauncher/.MainActivity
+  else
+    cand=$("$PY" -I optimize/tv.py "cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2> /dev/null" 2> /dev/null \
+           | tr -d '\r' | grep -E '^[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+$' | grep -vE '^(sa\.urtv\.|com\.google\.android\.tungsten\.setupwraith)' | sort -u || true)
+    if [ "$(grep -c . <<< "$cand")" = 1 ] && have_pkg "${cand%%/*}"; then STOCK=$cand; fi
   fi
-  echo "Stock home: $STOCK"
+  echo "Stock home: ${STOCK:-not found}"
 
   # 1. The new home must be installed and working BEFORE anything is disabled.
   push_install urtv-home.apk sa.urtv.home
@@ -383,7 +391,7 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
   }
 
 
-  rc=0; switch_home || rc=$?
+  rc=0; if [ -z "$STOCK" ]; then rc=7; else switch_home || rc=$?; fi
   if [ "$rc" = 1 ]; then   # ADB dropped: wait for the TV, see what Home is now, and go on or start the switch again
     back=no
     for _ in $(seq 36); do   # every 10 s, about 6 minutes
@@ -412,6 +420,10 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
        echo "Home switch skipped: this TV refuses to turn its own home screen off («This command is illegal», seen on a Nokia Streaming Box 8000). It keeps its own home; the stock home is back as it was. The screensaver and the rest of the setup work without it."
        mkdir -p "${URTV_RUN_DIR:-optimize/run}"
        echo "Home switch: skipped, this TV refuses to turn its own home screen off" > "${URTV_RUN_DIR:-optimize/run}/home-skipped.txt" ;;
+    7) home_skipped=1
+       echo "!! Could not tell which app is this TV's own home screen (the Google TV and Android TV launchers are not installed, and no single other app answers Home), so the home switch was not made and nothing was changed: the stock home could not be put back if the switch failed. UrTV works as an app and as the screensaver."
+       mkdir -p "${URTV_RUN_DIR:-optimize/run}"
+       echo "Home switch: skipped, could not tell which app is this TV's own home screen" > "${URTV_RUN_DIR:-optimize/run}/home-skipped.txt" ;;
     6) home_skipped=1
        echo "Home switch skipped: this TV keeps its own home screen. Its setup wizard must stay on to keep the saved Wi-Fi password, and Home still goes to the stock home ($DIAG). UrTV works as an app and as the screensaver; the stock home is back as it was. This is not an error, and trying again will not change it."
        mkdir -p "${URTV_RUN_DIR:-optimize/run}"

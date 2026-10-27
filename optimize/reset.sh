@@ -6,6 +6,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PY:-optimize/venv/bin/python}"
+. optimize/home-journal.sh
+stock_re='launcherx|tvlauncher'; stockpkg=$(jget stock | cut -d/ -f1); [[ "$stockpkg" =~ ^[A-Za-z0-9_.]+$ ]] && stock_re="$stock_re|$stockpkg"   # a TV with its own home app
 tv() { "$PY" -I optimize/tv.py "$@"; }
 
 echo "1/4 Stock home first (never leave the TV without one)…"
@@ -19,9 +21,9 @@ stock=no
 for _ in 1 2 3 4; do   # a cold stock home can take a while to come up
   tv "input keyevent KEYCODE_HOME" > /dev/null
   sleep 6
-  home=$(tv "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN" | grep -E 'launcherx|tvlauncher' | tail -n 1 || true)
+  home=$(tv "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN" | grep -E "$stock_re" | tail -n 1 || true)
   here=$(tv "dumpsys activity activities | grep -E 'mResumedActivity|topResumedActivity'" | head -n 1 || true)
-  if [ -n "$home" ] && grep -qE 'launcherx|tvlauncher' <<< "$here"; then
+  if [ -n "$home" ] && grep -qE "$stock_re" <<< "$here"; then
     stock=yes; break
   fi
 done
