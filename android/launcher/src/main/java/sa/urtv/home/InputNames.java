@@ -14,14 +14,27 @@ final class InputNames {
     private InputNames() {}
 
     /**
-     * The name to keep, or null when it can't be: trimmed, at most MAX_LEN characters, one line, no control characters.
-     * Empty (or only spaces) is "": it brings the TV's own name back.
+     * The name to keep, or null when it can't be: trimmed, at most MAX_LEN characters, one line, none of the invisible characters (control, format
+     * such as the right-to-left override and the byte order mark, private use, unpaired surrogates, unassigned, line and paragraph separators;
+     * the joiners U+200C and U+200D that Arabic and Persian names need are fine; the same rule as the settings export), and no bar (it separates
+     * the columns of «input-names»). Empty (or only spaces) is "": it brings the TV's own name back.
      */
     static String clean(String raw) {
         if (raw == null) return null;
         String s = raw.trim();
         if (s.codePointCount(0, s.length()) > MAX_LEN) return null;
-        for (int i = 0; i < s.length(); i++) if (Character.isISOControl(s.charAt(i))) return null;
+        for (int i = 0; i < s.length(); ) {
+            int cp = s.codePointAt(i);
+            i += Character.charCount(cp);
+            if (cp == '|') return null;
+            if (cp == 0x200C || cp == 0x200D) continue;
+            switch (Character.getType(cp)) {
+                case Character.CONTROL: case Character.FORMAT: case Character.PRIVATE_USE: case Character.SURROGATE: case Character.UNASSIGNED:
+                case Character.LINE_SEPARATOR: case Character.PARAGRAPH_SEPARATOR:
+                    return null;
+                default: break;
+            }
+        }
         return s;
     }
 

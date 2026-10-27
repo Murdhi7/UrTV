@@ -1300,6 +1300,9 @@ public class MainActivity extends Activity {
     private TextView inputRow(String label, Runnable action) {
         TextView r = text(13, "sans-serif", Color.WHITE);
         r.setText(label);
+        r.setSingleLine(true);   // a name the owner gave may be long: one line, cut at the end
+        r.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        r.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
         r.setTag(action);
         r.setId(View.generateViewId());
         r.setGravity(Gravity.CENTER_VERTICAL);

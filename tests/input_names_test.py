@@ -36,7 +36,9 @@ check("popup: the inputs come from InputLabels.reported, sorted by the TV's own 
       "InputLabels.reported(this)" in popup and "Collections.sort(inputs, (x, y) -> own(c, x).compareToIgnoreCase(own(c, y)))" in labels)
 check("popup: the input is still opened by its id, not by its name", "openPassthroughInput(t)" in popup)
 check("MainActivity: one place produces input labels (the old inputLabel is gone)", "inputLabel(" not in main)
-check("the saved names are keyed by TvInputInfo.getId() in the launcher's preferences", "given.get(t.getId())" in labels and "Dock.prefs(c)" in labels)
+check("the saved names are keyed by the HDMI port (getParentId) when the input has one, else getId(), in the launcher's preferences",
+      "given.get(key(t))" in labels and "t.getParentId()" in labels and "return parent != null && !parent.isEmpty() ? parent : t.getId();" in labels and "Dock.prefs(c)" in labels)
+check("the screen, the sources popup and ADB all use that key", "InputLabels.key(" in act and "InputLabels.key(t)" in recv and "t.getId()" not in act and "t.getId()" not in recv.split("INPUT_NAMES")[1].split("SLEEP_TV")[0])
 
 # the screen
 check("screen: asks for the PIN itself, with «قفل الإعدادات» (the same target as «ترتيب المفضلة»)",
@@ -56,6 +58,9 @@ check("screensaver settings: a row «أسماء المصادر» in the home-scr
       'row("أسماء المصادر"' in saver and 'sa.urtv.home.InputNamesActivity' in saver
       and saver.index('header("الشاشة الرئيسية (تلفزيونك)")') < saver.index('row("أسماء المصادر"') < saver.index('header("جديد المسلسلات")'))
 
+check("the sources popup row stays one line, ellipsized at the end, direction by its first letter (a long name cannot push the list out)",
+      all(x in main.split("private TextView inputRow(String label, Runnable action) {")[1].split("return r;")[0] for x in ("setSingleLine(true)", "TruncateAt.END", "TEXT_DIRECTION_FIRST_STRONG")))
+check("the name box asks the keyboard for no suggestions (the owner's names stay out of its dictionary)", "TYPE_TEXT_FLAG_NO_SUGGESTIONS" in act)
 # the receiver
 check("receiver: INPUT_NAMES lists id | shown | the TV's name | ours, only the reported inputs",
       '"sa.urtv.home.INPUT_NAMES"' in recv and "InputLabels.reported(c)" in recv)

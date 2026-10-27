@@ -33,8 +33,17 @@ final class InputLabels {
         return String.valueOf(s);
     }
 
+    /**
+     * What a name is kept under: the HDMI port (the parent) when the input has one, else its own id. The id of a device the TV found over CEC changes
+     * and goes away with the device; the port stays, so the name belongs to the port.
+     */
+    static String key(TvInputInfo t) {
+        String parent = t.getParentId();
+        return parent != null && !parent.isEmpty() ? parent : t.getId();
+    }
+
     static String label(Context c, TvInputInfo t, Map<String, String> given) {
-        return InputNames.label(given.get(t.getId()), own(c, t));
+        return InputNames.label(given.get(key(t)), own(c, t));
     }
 
     static Map<String, String> given(Context c) {

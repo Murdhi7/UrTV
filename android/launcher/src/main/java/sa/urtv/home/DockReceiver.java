@@ -95,8 +95,8 @@ public class DockReceiver extends BroadcastReceiver {
                 Map<String, String> given = InputLabels.given(c);
                 StringBuilder b = new StringBuilder();
                 for (android.media.tv.TvInputInfo t : InputLabels.reported(c)) {
-                    String ours = given.get(t.getId());
-                    b.append(t.getId()).append(" | ").append(InputLabels.label(c, t, given)).append(" | ").append(InputLabels.own(c, t))
+                    String ours = given.get(InputLabels.key(t));
+                    b.append(InputLabels.key(t)).append(" | ").append(InputLabels.label(c, t, given)).append(" | ").append(InputLabels.own(c, t))
                      .append(" | ").append(ours == null ? "" : ours).append('\n');
                 }
                 setResultData(b.length() == 0 ? "no inputs reported" : b.toString().trim());
@@ -110,7 +110,7 @@ public class DockReceiver extends BroadcastReceiver {
                 if (name == null) { setResultData("error: one line, up to " + InputNames.MAX_LEN + " characters"); return; }
                 if (!name.isEmpty()) {   // a typo in the id is refused; clearing a name of an input that is gone is always allowed
                     boolean known = false;
-                    for (android.media.tv.TvInputInfo t : InputLabels.reported(c)) known |= id.equals(t.getId());
+                    for (android.media.tv.TvInputInfo t : InputLabels.reported(c)) known |= id.equals(InputLabels.key(t));
                     if (!known) { setResultData("error: this TV does not report that input (optimize/dock.sh input-names)"); return; }
                 }
                 InputLabels.set(c, id, name);

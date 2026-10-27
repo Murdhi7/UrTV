@@ -45,9 +45,15 @@ rc, out, sent = run("input-name", "com.x/.S/HDMI1", "ابتثجحخدذرزسش�
 check("input-name: 20 Arabic letters pass (letters, not bytes), even in the C locale", rc == 0 and sent, out)
 rc, out, sent = run("input-name", "com.x/.S/HDMI1", "ابتثجحخدذرزسشصضطظعغفق", env={"LC_ALL": "C"})
 check("input-name: 21 Arabic letters are refused", rc != 0 and not sent, out + sent)
+rc, out, sent = run("input-name", "com.x/.S/HDMI1", "it's")
+check("input-name: an apostrophe in a name is escaped for the TV's shell, not refused (the app judges the name)", rc == 0 and sent == A + "SET_INPUT_NAME --es id 'com.x/.S/HDMI1' --es name 'it'\\''s'", sent)
+rc, out, sent = run("input-name", "com.x/.S/HDMI1", "123456789012345678901")
+check("input-name: an error line never repeats the name", rc != 0 and "1234567890" not in out, out)
+rc, out, sent = run("input-name", "com.x/.S/HDMI1", "a\nb")
+check("input-name: the line-break error does not repeat the name either", rc != 0 and "a" + "\n" + "b" not in out and "b" not in out.replace("by", "").replace("be", ""), out)
 for bad, why in [(("com.x/.S/HDMI1",), "an id without a name"), (("a b", "PS5"), "a space in the id"),
                  (("a'b", "PS5"), "a quote in the id"), (("a;reboot", "PS5"), "a semicolon in the id"), (("a`id`", "PS5"), "a backtick in the id"),
-                 (("com.x/.S/HDMI1", "it's"), "an apostrophe in the name"), (("com.x/.S/HDMI1", "a\nb"), "a line break in the name"),
+                 (("com.x/.S/HDMI1", "a\nb"), "a line break in the name"),
                  (("com.x/.S/HDMI1", "a\tb"), "a tab in the name"), (("com.x/.S/HDMI1", "123456789012345678901"), "21 characters"),
                  (("", "PS5"), "an empty id"), (("a", "b", "c"), "a third argument")]:
     rc, out, sent = run("input-name", *bad)

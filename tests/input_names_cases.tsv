@@ -29,3 +29,13 @@ roundtrip	x/.S/HDMI1|PS5\n	x/.S/HDMI2	PC	x/.S/HDMI1|PS5;x/.S/HDMI2|PC;	a second 
 roundtrip	x/.S/HDMI1|PS5\ny/.S/HDMI9|Old\n	x/.S/HDMI1		y/.S/HDMI9|Old;	clearing one keeps the name of an input that is not shown
 roundtrip	x/.S/HDMI1|a|b\n	x/.S/HDMI2	PC	x/.S/HDMI1|a|b;x/.S/HDMI2|PC;	a bar inside a name is kept (only the first splits)
 roundtrip	junk\n|no id\nx|\n	x/.S/HDMI1	PS5	x/.S/HDMI1|PS5;	lines with no bar, no id or no name are ignored
+clean	a\u202eb			NULL	the right-to-left override is refused
+clean	a\u2028b			NULL	a line separator is refused
+clean	a\u2029b			NULL	a paragraph separator is refused
+clean	a\u200fb			NULL	the right-to-left mark is refused
+clean	\u200f			NULL	the mark alone is refused, not trimmed to nothing
+clean	\ufeffPS5			NULL	the byte order mark is refused
+clean	PS5\ue000			NULL	a private use character is refused
+clean	PS|5			NULL	a bar is refused (it separates the columns of input-names)
+clean	مي\u200cخواهم			مي‌خواهم	the zero-width non-joiner Persian names need is kept
+clean	PS5 🎮			PS5 🎮	an emoji (a surrogate pair, one character) is fine

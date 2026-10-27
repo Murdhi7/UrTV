@@ -97,7 +97,7 @@ public class InputNamesActivity extends Activity {
         Map<String, String> given = InputLabels.given(this);
         List<View> cards = new ArrayList<>();
         for (TvInputInfo t : inputs) {
-            View c = card(InputLabels.own(this, t), given.get(t.getId()), v -> edit(t));
+            View c = card(InputLabels.own(this, t), given.get(InputLabels.key(t)), v -> edit(t));
             cards.add(c);
             list.addView(c, rowParams());
         }
@@ -145,11 +145,11 @@ public class InputNamesActivity extends Activity {
 
     /** The editor: the TV's keyboard in a small box; «حفظ» keeps it, empty brings the TV's own name back. */
     private void edit(TvInputInfo t) {
-        final String id = t.getId(), own = InputLabels.own(this, t);
+        final String id = InputLabels.key(t), own = InputLabels.own(this, t);
         String saved = InputLabels.given(this).get(id);
         final EditText in = new EditText(this);
         in.setSingleLine(true);
-        in.setInputType(InputType.TYPE_CLASS_TEXT);
+        in.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);   // the owner's own names are not for the keyboard's dictionary
         in.setHint(own);
         in.setText(saved == null ? "" : saved);
         in.setSelection(in.getText().length());
@@ -176,7 +176,7 @@ public class InputNamesActivity extends Activity {
 
     private int indexOf(String id) {
         List<TvInputInfo> inputs = InputLabels.reported(this);
-        for (int i = 0; i < inputs.size(); i++) if (id.equals(inputs.get(i).getId())) return i;
+        for (int i = 0; i < inputs.size(); i++) if (id.equals(InputLabels.key(inputs.get(i)))) return i;
         return 0;
     }
 

@@ -117,14 +117,15 @@ case "${1:-}:$#" in
   input-names:1) send INPUT_NAMES ;;
   input-name:3)
     # the id goes to the TV's shell in single quotes, so a $ in it (com.x/.Svc$Inner/HDMI1) is not expanded there
-    [[ "$2" =~ ^[A-Za-z0-9._/%:\$-]+$ ]] || { echo "not an input id (use one from: optimize/dock.sh input-names): $2"; exit 1; }
-    case "$3" in *"'"*) echo "no ' in a name: $3"; exit 1 ;; esac
+    id_ok='^[A-Za-z0-9._/%:\$-]+$'
+    [[ "$2" =~ $id_ok ]] || { echo "not an input id (use one from: optimize/dock.sh input-names)"; exit 1; }
     bytes=$(printf '%s' "$3" | LC_ALL=C wc -c)
     plain=$(printf '%s' "$3" | LC_ALL=C tr -d '\000-\037\177' | LC_ALL=C wc -c)
-    [ "$bytes" -eq "$plain" ] || { echo "a name is one line with no control characters"; exit 1; }
+    [ "$bytes" -eq "$plain" ] || { echo "a name is one line with no control characters"; exit 1; }   # (the names are the owner's: no error line repeats one)
     chars=$(printf '%s' "$3" | LC_ALL=C tr -d '\200-\277' | LC_ALL=C wc -c)   # letters, not bytes (an Arabic letter is two bytes)
-    [ "$chars" -le 20 ] || { echo "a name is up to 20 characters: $3"; exit 1; }
-    send SET_INPUT_NAME "--es id '$2' --es name '$3'" ;;
+    [ "$chars" -le 20 ] || { echo "a name is up to 20 characters"; exit 1; }
+    esc=$(printf '%s' "$3" | sed "s/'/'\\\\''/g")   # an apostrophe inside the quotes, as optimize/type.sh does; the app decides whether the name is kept
+    send SET_INPUT_NAME "--es id '$2' --es name '$esc'" ;;
   input-name:*) echo "usage: optimize/dock.sh input-name ID 'الاسم'   (ID from: optimize/dock.sh input-names; '' = the TV's own name)"; exit 1 ;;
   *) sed -n '2,24p' "$0"; exit 1 ;;
 esac
