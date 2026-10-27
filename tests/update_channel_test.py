@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""The hidden update channel (`saver.sh updatechannel next|latest`, testing only): off by default, in `show`, never in the settings export,
+sent quoted, validated by the receiver, and the updaters read the channel's release with the checks unchanged."""
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+failed = 0
+
+
+def check(name, ok, detail=""):
+    global failed
+    print(("PASS " if ok else "FAIL ") + name + ("" if ok else "  -> " + str(detail)))
+    failed += not ok
+
+
+def text(p):
+    return (ROOT / p).read_text(encoding="utf-8")
+
+
+APP = "android/app/src/main/java/sa/urtv/screensaver/"
+HOME = "android/launcher/src/main/java/sa/urtv/home/phone/"
+prefs, recv, prov = text(APP + "Prefs.java"), text(APP + "SaverReceiver.java"), text(APP + "ConfigProvider.java")
+check("off by default: anything but next is latest", 'sp.getString("updateChannel", "latest")) ? "next" : "latest"' in prefs and 'setUpdateChannel(String v)' in prefs and '"next".equals(v) ? "next" : "latest"' in prefs)
+check("the receiver takes latest or next only and refuses another word", 'error: updatechannel is one of latest next' in recv and 'p.setUpdateChannel(updateChannel)' in recv)
+check("`saver.sh show` says it", '"\\nupdatechannel: " + p.updateChannel()' in recv)
+check("the provider tells the home app in its own column, at the end", '"adhan_bar", "update_channel"}' in prov and 'p.updateChannel()});' in prov)
+check("the home app asks the provider and treats anything but next as latest", '"next".equals(cur.getString(i))' in text(HOME + "UpdateChannel.java") and 'return "latest"' in text(HOME + "UpdateChannel.java"))
+pu = text(HOME + "PhoneUpdater.java")
+check("version.txt and every APK (size, download) come from the channel's release", 'readVersion(base(c) + "version.txt")' in pu and pu.count("base(c) + ") >= 3 and "UpdateRules.BASE +" not in pu and "UpdateRules.VERSION_URL" not in pu)
+check("the signature, newer-version and permission checks are untouched (verify still runs on every file, the install permission is still asked)", "verify(c, pkg, f)" in pu and "canInstall(c)" in pu)
+up = text(APP + "Updater.java")
+check("the newest-version line follows the channel, and the next channel never falls back to the latest's redirect", 'latestFromAsset(next ? NEXT_VERSION_URL : VERSION_URL)' in up and 'if (v == null && !next)' in up)
+sm = text("optimize/settings_move.py")
+check("never in export/import (the allow-list does not name it)", "updatechannel" not in sm and "update_channel" not in sm and "updateChannel" not in sm)
+check("no screen row for it", "updatechannel" not in text(APP + "SettingsActivity.java").lower() and "update_channel" not in text(APP + "SettingsActivity.java"))
+docs = text("docs/SETTINGS.md")
+check("SETTINGS.md documents it as testing only", "updatechannel" in docs and "testing only" in docs)
+check("the apk-next release carries version.txt (CI), or the channel could not read a version", re.search(r"apk-next.*?version\.txt", text(".github/workflows/android.yml"), re.S) is not None)
+
+tmp = tempfile.mkdtemp()
+log = os.path.join(tmp, "sent")
+fake = os.path.join(tmp, "fakepy")
+Path(fake).write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$3" >> "$SENT"\necho \'Broadcast completed: result=0, data="saved"\'\n')
+os.chmod(fake, 0o755)
+
+
+def run(*args):
+    open(log, "w").close()
+    r = subprocess.run(["bash", str(ROOT / "optimize/saver.sh"), *args], capture_output=True, text=True, env={**os.environ, "PY": fake, "SENT": log})
+    return r.returncode, r.stdout + r.stderr, open(log, encoding="utf-8").read().strip()
+
+
+for v in ("next", "latest"):
+    rc, out, sent = run("updatechannel", v)
+    check(f"saver.sh updatechannel {v}: one SET with the value quoted", rc == 0 and sent.endswith(f"screensaver.SET --es updatechannel '{v}'"), (rc, sent))
+rc, out, sent = run("updatechannel", "it's")
+check("an apostrophe: refused in the shell, nothing sent", rc != 0 and not sent, (rc, out, sent))
+rc, out, sent = run("updatechannel")
+check("no value: usage, nothing sent", rc != 0 and not sent, (rc, out, sent))
+sys.exit(1 if failed else 0)

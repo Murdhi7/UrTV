@@ -62,7 +62,7 @@ upd = text(PHONE / "PhoneUpdater.java")
 check("an APK is verified (package, version, signer) before it is handed to the installer", upd.index("UpdateRules.verify") < re.search(r"installNext\((c|app)\);", upd).start(), "")
 check("the update's URLs are the ones optimize/install.sh uses",
       all(f in text(ROOT / "optimize/install.sh") for f in ("urtv-screensaver.apk", "urtv-home.apk")) and "releases/download/${APK_TAG:-apk-latest}" in text(ROOT / "optimize/install.sh")
-      and "releases/download/apk-latest/" in text(PHONE / "UpdateRules.java"), "")
+      and "releases/download/\"" in text(PHONE / "UpdateRules.java") and 'BASE = RELEASES + "apk-latest/"' in text(PHONE / "UpdateRules.java"), "")
 check("the PIN hook is there for the parental branch (PinGate, PhoneControl.setPinGate)", "setPinGate" in text(PHONE / "PhoneControl.java") and "interface PinGate" in text(PHONE / "PinGate.java"), "")
 check("the screen the owner answers on is out of the phone's reach (PrivateScreen)", "implements Activity" not in act and "PrivateScreen" in act and "instanceof PrivateScreen" in text(PHONE / "PhoneActions.java"), "")
 

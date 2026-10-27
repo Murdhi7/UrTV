@@ -126,9 +126,12 @@ public final class PhoneUpdater {
         return status();
     }
 
+    /** The release the files come from: the latest, unless an agent set the test channel on the screensaver (UpdateChannel). */
+    private static String base(Context c) { return UpdateRules.baseFor(UpdateChannel.read(c)); }
+
     private static void prepare(Context c, boolean download) throws Exception {
         clearReady();
-        Version ver = readVersion(UpdateRules.VERSION_URL);
+        Version ver = readVersion(base(c) + "version.txt");
         int newest = UpdateRules.buildOf(ver.text);
         synchronized (PhoneUpdater.class) { if (newest > 0) build = newest; }
         UpdateFlow.Verdict v = UpdateFlow.versionRead(ver.reached, ver.code, newest);
@@ -156,7 +159,7 @@ public final class PhoneUpdater {
         List<String> order = UpdateOrder.order(have);
         long[] sizes = new long[order.size()];
         for (int i = 0; i < sizes.length; i++) {
-            long n = sizeOf(UpdateRules.BASE + fileOf(order.get(i)));
+            long n = sizeOf(base(c) + fileOf(order.get(i)));
             sizes[i] = n > 0 ? n : UpdateRules.MAX_APK_BYTES;   // unknown: the most a file may be
         }
         File dir = new File(c.getFilesDir(), "phone-update");
@@ -173,7 +176,7 @@ public final class PhoneUpdater {
             File f = new File(dir, fileOf(pkg));
             boolean got;
             try {
-                got = fetch(UpdateRules.BASE + fileOf(pkg), f);
+                got = fetch(base(c) + fileOf(pkg), f);
             } catch (java.io.IOException e) {
                 Log.w(TAG, "download failed: " + e);
                 got = false;
@@ -252,7 +255,7 @@ public final class PhoneUpdater {
 
     /** The size of a file without downloading it: the first byte only, and the total from Content-Range. -1 when the server doesn't say. */
     private static long sizeOf(String url) {
-        if (!url.startsWith(UpdateRules.BASE)) return -1;
+        if (!UpdateRules.isReleaseUrl(url)) return -1;
         try {
             HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
             con.setConnectTimeout(10000);
@@ -359,7 +362,7 @@ public final class PhoneUpdater {
     }
 
     private static boolean fetch(String url, File out) throws Exception {
-        if (!url.startsWith(UpdateRules.BASE)) return false;
+        if (!UpdateRules.isReleaseUrl(url)) return false;
         HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
         con.setConnectTimeout(10000);
         con.setReadTimeout(30000);

@@ -35,6 +35,9 @@ import java.util.Locale;
  *   am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.PHOTOS
  *       --es op list | add --ei size BYTES | add --ei size BYTES --es path /data/local/tmp/urtv-own/in.jpg | del --ei n 1 | clear | mode --es mode mix|only
  *
+ * updatechannel = latest (the default) or next: where «تحديث تلفزيوني» (the TV's screen and the phone page) and the newest-version line read the
+ * version and the APKs, the apk-latest or the apk-next release. For TESTING an update only, set by agents; no screen shows it, the settings export leaves
+ * it out, and every signature, newer-version and permission check is the same.
  * leagues = whole leagues (Prefs.LEAGUES, up to Prefs.MAX_LEAGUES; the English or the Arabic name; "" = none): every game of every
  * club in them joins the followed teams' games.
  * PHOTOS = «صوري», the owner's own photos (Own, up to 10; optimize/photos.sh): "add" keeps the photo the shell just wrote
@@ -184,6 +187,9 @@ public class SaverReceiver extends BroadcastReceiver {
         String adhanBar = i.getStringExtra("adhanbar");
         if (adhanBar != null && !"on".equals(adhanBar) && !"off".equals(adhanBar))
             return "error: adhanbar is one of on off";
+        String updateChannel = i.getStringExtra("updatechannel");
+        if (updateChannel != null && !"latest".equals(updateChannel) && !"next".equals(updateChannel))
+            return "error: updatechannel is one of latest next";
         String prayerAdj = i.getStringExtra("prayeradj");
         if (prayerAdj != null && !"on".equals(prayerAdj) && !"off".equals(prayerAdj))
             return "error: prayeradj is one of on off";
@@ -311,6 +317,7 @@ public class SaverReceiver extends BroadcastReceiver {
         if (homeCards != null) p.setHomePanels(homeCards);
         if (greeting != null) p.setGreeting("on".equals(greeting));
         if (adhanBar != null) p.setAdhanBar("on".equals(adhanBar));
+        if (updateChannel != null) p.setUpdateChannel(updateChannel);
         if (yearStrip != null) p.setYearStrip("on".equals(yearStrip));
         if (sunrise != null) p.setSunrise("on".equals(sunrise));
         if (prayerBar != null) p.setPrayerBar("on".equals(prayerBar));
@@ -440,6 +447,7 @@ public class SaverReceiver extends BroadcastReceiver {
             + "\nhome_panel: " + p.homePanel()
             + "\ngreeting: " + (p.greeting() ? "on" : "off")
             + "\nadhanbar: " + (p.adhanBar() ? "on" : "off")
+            + "\nupdatechannel: " + p.updateChannel()
             + "\nyearstrip: " + (p.yearStrip() ? "on" : "off")
             + "\nsunrise: " + (p.sunrise() ? "on" : "off") + "\nprayerbar: " + (p.prayerBar() ? "on" : "off")
             + "\nwxmore: " + (p.wxMore() ? "on" : "off") + "\nmonths: " + p.months()

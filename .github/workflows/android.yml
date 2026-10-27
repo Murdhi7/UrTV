@@ -126,5 +126,6 @@ jobs:
           files: |
             urtv-screensaver.apk
             urtv-home.apk
+            version.txt   # what «تحديث تلفزيوني» reads on the test channel (optimize/saver.sh updatechannel next)
           prerelease: true
           make_latest: false

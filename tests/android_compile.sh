@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Compiles both Android modules (the screensaver `app` and the home `launcher`) with javac against Robolectric's android-all (Android 14, API 34),
+# with a generated stub R and BuildConfig: no Gradle, no SDK. Catches what the pure-Java tests cannot, a call that does not exist or a type that
+# does not fit in the Android-facing code.
+# usage: tests/android_compile.sh [checkout]      (default: this one)
+#   PASS ...  both compile        FAIL ...  javac's errors follow (exit 1)
+#   SKIP ...  no javac, or the jar is not cached and cannot be fetched (offline): not a failure (exit 0)
+# The jar (about 130 MB) is fetched once from Maven Central's Google mirror, checked against the sha1 below, and kept OUTSIDE the repo in
+# ${URTV_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/urtv}. URTV_ANDROID_JAR=/path/to.jar uses a jar you already have (the sha1 is still checked).
+set -uo pipefail
+ROOT=$(cd "${1:-$(dirname "$0")/..}" && pwd)
+VER=14-robolectric-10818077
+SHA1=94b1490a891e9be559aa35c87cd8a0c163f32d83
+URL=https://maven-central.storage-download.googleapis.com/maven2/org/robolectric/android-all/$VER/android-all-$VER.jar
+CACHE=${URTV_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/urtv}
+JAR=${URTV_ANDROID_JAR:-$CACHE/android-all-$VER.jar}
+
+sha1_of() { if command -v sha1sum >/dev/null 2>&1; then sha1sum "$1" | cut -d' ' -f1; else shasum -a 1 "$1" | cut -d' ' -f1; fi; }
+
+command -v javac >/dev/null 2>&1 || { echo "SKIP android compile: no javac on this machine"; exit 0; }
+if [ ! -f "$JAR" ] || [ "$(sha1_of "$JAR")" != "$SHA1" ]; then
+  [ -z "${URTV_ANDROID_JAR:-}" ] || { echo "SKIP android compile: URTV_ANDROID_JAR is not the expected android-all $VER (sha1 differs)"; exit 0; }
+  mkdir -p "$CACHE" 2>/dev/null || { echo "SKIP android compile: cannot make the cache folder"; exit 0; }
+  TMPJ=$(mktemp -p "$CACHE" jar.XXXXXX 2>/dev/null) || { echo "SKIP android compile: cannot write to the cache folder"; exit 0; }
+  if ! curl -fsSL --retry 2 --connect-timeout 15 --max-time 600 -o "$TMPJ" "$URL" 2>/dev/null; then
+    rm -f "$TMPJ"; echo "SKIP android compile: android-all $VER is not cached and could not be downloaded (offline?)"; exit 0
+  fi
+  if [ "$(sha1_of "$TMPJ")" != "$SHA1" ]; then
+    rm -f "$TMPJ"; echo "SKIP android compile: the downloaded jar does not match the expected sha1 (not used)"; exit 0
+  fi
+  mv "$TMPJ" "$JAR"
+fi
+
+W=$(mktemp -d)
+trap 'rm -rf "$W"' EXIT
+python3 -I - "$ROOT" "$W" <<'PY'
+import glob, os, re, sys
+root, w = sys.argv[1:3]
+for mod, pkg, srcdir in (('launcher', 'sa.urtv.home', 'android/launcher/src/main/java'), ('app', 'sa.urtv.screensaver', 'android/app/src/main/java')):
+    names = {}
+    for f in glob.glob(f'{root}/{srcdir}/**/*.java', recursive=True):
+        for t, n in re.findall(r'\bR\.(\w+)\.(\w+)', open(f, encoding='utf-8').read()):
+            names.setdefault(t, set()).add(n)
+    out = [f'package {pkg};\npublic final class R {{']
+    for t, ns in sorted(names.items()):
+        out.append(f'  public static final class {t} {{')
+        for i, n in enumerate(sorted(ns)):
+            out.append(f'    public static final int {n} = {0x7f000000 + i};')
+        out.append('  }')
+    out.append('}')
+    d = f'{w}/stub_{mod}/' + pkg.replace('.', '/')
+    os.makedirs(d, exist_ok=True)
+    open(d + '/R.java', 'w').write('\n'.join(out))
+    open(d + '/BuildConfig.java', 'w').write(f'package {pkg};\npublic final class BuildConfig {{ public static final String VERSION_NAME="x"; public static final int VERSION_CODE=1; public static final boolean DEBUG=false; public static final String BRANCH="master"; public static final String APPLICATION_ID="{pkg}"; }}')
+PY
+bad=0
+for m in launcher app; do
+  mkdir -p "$W/out_$m"
+  err=$(javac -encoding UTF-8 -proc:none -cp "$JAR" -d "$W/out_$m" $(find "$ROOT/android/$m/src/main/java" -name '*.java') $(find "$W/stub_$m" -name '*.java') 2>&1 | grep -v '^Picked up\|^Note:')
+  if [ -n "$err" ] && echo "$err" | grep -q 'error'; then
+    echo "FAIL android compile: the $m module does not compile against API 34"; echo "$err"; bad=1
+  else
+    echo "PASS android compile: the $m module compiles against API 34"
+  fi
+done
+exit $bad
