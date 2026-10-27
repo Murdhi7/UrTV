@@ -113,7 +113,7 @@ check("SETTINGS.md and FEATURES.md and SETUP-PROMPT.md say it", all("listenpill"
 # restore / re-show fixes found in review
 home = text(ROOT / "android/launcher/src/main/java/sa/urtv/home/MainActivity.java")
 check("open=adhan is handled at creation only on a fresh start (not after a restore or from history)",
-      "b == null && (getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) openRequested(getIntent())" in home)
+      "b == null && (getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) {\n            openRequested(getIntent());\n            phoneRequested(getIntent());" in home)
 check("onNewIntent keeps the new intent", "super.onNewIntent(intent);\n        setIntent(intent);" in home)
 check("a pill shown or hidden again re-wires up/down", re.search(r"requestFocus\(\);\n        \}\n        wireFocus\(\);", home) is not None)
 tw = text(ROOT / "android/launcher/src/main/java/sa/urtv/home/tilawah/MainActivity.java")
