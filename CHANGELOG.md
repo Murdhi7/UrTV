@@ -20,6 +20,7 @@ Newest first. `next` is where changes land first; a release is what was tested t
 - «يُتلى الآن» card while تلاوة plays; the screen is now «تلاوة وأذان».
 - A year strip under the clock, the date beside the clubs, club crests when fetch is refused, fixes to the league card.
 - The screensaver starts from its pill; the page survives a WebView renderer that dies.
+- «مركز التحكم»: one round pill opens a panel of tiles (sleep timer, turn off now, free memory, network, speed test, sound output, screensaver, settings); the sleep, screensaver, Wi-Fi and settings pills moved into it, locked by the same names, plus a new lock `@center`.
 - The weather and the dust are told apart; forecast and weather show only as old as they are; the last price is kept and marked.
 - The medium and small clocks lay the screen out again (the large one is unchanged); «بطاقة ثانية»: a second card beside the small clock.
 

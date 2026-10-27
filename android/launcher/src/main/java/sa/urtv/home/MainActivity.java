@@ -117,7 +117,6 @@ public class MainActivity extends Activity {
     private final UpdatesBell updatesBell = new UpdatesBell(new PlayStoreUpdates());
     private boolean bellForce = true;   // the home came to the front: ask again
     // [/updates bell]
-    private Pill wifiPill;   // the network's name shows while it has the focus
     private Greeting greetingLine;
     private int glowColor = 0xFF3A3A3A;
     private ValueAnimator glowAnim;
@@ -127,7 +126,8 @@ public class MainActivity extends Activity {
     private PopupWindow inputsPopup;
     private HomeCard homeCard;
     private NowCard nowCard;   // «يُتلى الآن»: at the right end of the pills row while a surah or a station is on
-    private Pill sleepPill;   // «مؤقت النوم», with the minutes left while it runs (shown while it has the focus)
+    private Pill centerPill;   // «مركز التحكم»: gold while the sleep timer runs; in the row except in kids mode (applyCenterPill)
+    private ControlCenter control;   // the panel it opens
     private TextView adhanBar;   // «أذان المغرب بعد ٨ دقائق», over the top edge; while the adhan plays «أذان المغرب · أي زر يوقف الأذان»
     private final AdhanKeys adhanKeys = new AdhanKeys();
     private View clockBlock, bottomBlock;   // the greeting, clock and date; the app title and the dock under it
@@ -135,8 +135,7 @@ public class MainActivity extends Activity {
     private final BroadcastReceiver tick = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
             updateClock();
-            updateWifi();
-            updateNowPlaying();   // the minutes left of its sleep timer
+                updateNowPlaying();   // the minutes left of its sleep timer
         }
     };
     // «تلاوة» started, paused, changed or stopped a surah or a station (MusicService says so; nothing polls): the «يُتلى الآن» card follows
@@ -201,7 +200,6 @@ public class MainActivity extends Activity {
         tf.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         registerReceiver(tick, tf);
         updateClock();
-        updateWifi();
         updateNowPlaying();
         homeCard.refresh();
         showUpdateResult();
@@ -233,6 +231,7 @@ public class MainActivity extends Activity {
         handler.removeCallbacks(rotateWallpaper);
         unregisterReceiver(tick);
         if (inputsPopup != null) inputsPopup.dismiss();
+        if (control != null) control.dismiss();   // its speed test stops with it
         homeCard.pause();
     }
 
@@ -261,6 +260,7 @@ public class MainActivity extends Activity {
         openRequested(intent);   // the screensaver's «الأذان» row (open=adhan)
         // Home pressed while already home: jump back to the first dock app.
         if (inputsPopup != null) inputsPopup.dismiss();
+        if (control != null) control.dismiss();
         if (!dockCards.isEmpty()) dockCards.get(0).requestFocus();
         scroll.smoothScrollTo(0, 0);
     }
@@ -449,24 +449,21 @@ public class MainActivity extends Activity {
         LinearLayout right = new LinearLayout(this);
         right.setGravity(Gravity.CENTER_VERTICAL);
         right.setClipChildren(false);
-        Pill saver = pill(PillText.SAVER, R.drawable.ic_screensaver);
-        saver.setOnClickListener(v -> guarded(ParentalPolicy.PILL_SAVER, SAVER_PKG, "شاشة التوقف", this::startSaver));   // OK starts it, as optimize/start-saver.sh --preview does
-        saver.setOnLongClickListener(v -> { guarded(ParentalPolicy.PILL_SAVER_SETTINGS, SAVER_PKG, "شاشة التوقف", () -> openPackage(SAVER_PKG)); return true; });   // a long OK: its settings, where OK used to go
         Pill inputs = pill("المصادر", R.drawable.ic_input);
         inputs.setOnClickListener(v -> showInputs(v, ParentalPolicy.PILL_INPUTS));
-        wifiPill = pill("واي فاي", R.drawable.ic_wifi);
-        wifiPill.setOnClickListener(v -> launchGuarded(ParentalPolicy.PILL_WIFI, new Intent(Settings.ACTION_WIFI_SETTINGS), "واي فاي"));
         Pill tasks = pill("المهام", R.drawable.ic_mic);   // the list lives in the screensaver app
         tasks.setOnClickListener(v -> launchGuarded(ParentalPolicy.PILL_TASKS, new Intent(this, TasksActivity.class), "المهام"));
-        Pill settings = pill("الإعدادات", R.drawable.ic_settings);
-        settings.setOnClickListener(v -> launchGuarded(ParentalPolicy.PILL_TV_SETTINGS, new Intent(Settings.ACTION_SETTINGS), "إعدادات التلفزيون"));
         // the «تلاوة وأذان» pill: the Quran, the radio and the adhan are part of this app, so it opens them right here
         Pill tilawah = pill("تلاوة وأذان", R.drawable.ic_listen);
         tilawah.setOnClickListener(v -> launchGuarded(ParentalPolicy.PILL_LISTEN, new Intent(this, sa.urtv.home.tilawah.MainActivity.class), "تلاوة وأذان"));
-        sleepPill = pill("مؤقت النوم", R.drawable.ic_sleep);
-        sleepPill.setOnClickListener(v -> guarded(ParentalPolicy.PILL_SLEEP, null, "مؤقت النوم", () -> showSleep(v)));
-        List<Pill> row = new ArrayList<>(Arrays.asList(inputs, wifiPill, settings, sleepPill));
-        if (isInstalled(SAVER_PKG)) { row.add(tasks); row.add(saver); }
+        // ---- «مركز التحكم» (ControlCenter): the sleep timer, the screensaver, the network and the TV's settings pills went into its panel
+        control = new ControlCenter(this, controlHost());
+        centerPill = pill(ControlText.NAME, R.drawable.ic_center);
+        centerPill.setOnClickListener(v -> guarded(ParentalPolicy.PILL_CENTER, null, ControlText.NAME, () -> control.open(v)));
+        // ---- end «مركز التحكم»
+        List<Pill> row = new ArrayList<>(Arrays.asList(inputs));
+        if (isInstalled(SAVER_PKG)) row.add(tasks);
+        if (centerWanted()) row.add(centerPill);
         tilawahPill = tilawah;
         pillRow = right;
         // [updates bell] built here, put in the row by applyUpdateBell only while it has a reason to be there
@@ -567,6 +564,34 @@ public class MainActivity extends Activity {
         wireFocus();
     }
 
+    // ---- «مركز التحكم»: the pill's row membership and what the panel may ask of this screen
+
+    /** Kids mode has no «مركز التحكم»: neither its pill nor its panel (the other pills' functions stay behind their locks, outside kids mode). */
+    private boolean centerWanted() { return !Parental.state(this).kids; }
+
+    /**
+     * The pill comes into the row or leaves it as kids mode changes (the minute tick and a return to the home): it goes out of the row and out
+     * of `pills` like the «تلاوة وأذان» one (a hidden view would stop the walk), before the «تلاوة وأذان» pill when that is in the row.
+     */
+    private void applyCenterPill() {
+        if (centerPill == null || pillRow == null) return;
+        boolean want = centerWanted(), has = centerPill.getParent() == pillRow;
+        if (want == has) return;
+        if (want) {
+            int at = pills.contains(tilawahPill) ? pills.indexOf(tilawahPill) : pills.size();
+            pills.add(at, centerPill);
+            pillRow.addView(centerPill, at + 1, llp(-2, dp(Pill.HEIGHT), dp(10), 0, 0, 0));   // child 0 is «يُتلى الآن»
+        } else {
+            control.dismiss();
+            boolean hadFocus = centerPill.hasFocus();
+            int at = pills.indexOf(centerPill);
+            pills.remove(centerPill);
+            pillRow.removeView(centerPill);
+            if (hadFocus && !pills.isEmpty()) pills.get(Math.max(0, Math.min(at, pills.size()) - 1)).requestFocus();
+        }
+        wireFocus();
+    }
+
     /** OK on the bell: the Play Store's updates screen (its own «my apps» link), else the store itself. */
     private void openUpdates() {
         for (String uri : UpdatesBell.OPEN_URIS) {
@@ -577,6 +602,18 @@ public class MainActivity extends Activity {
         }
     }
     // [/updates bell]
+
+    private ControlCenter.Host controlHost() {
+        return new ControlCenter.Host() {
+            @Override public void launchGuarded(int path, Intent i, String name) { MainActivity.this.launchGuarded(path, i, name); }
+            @Override public void openSaver() { guarded(ParentalPolicy.PILL_SAVER, SAVER_PKG, "شاشة التوقف", MainActivity.this::startSaver); }   // OK starts it, as optimize/start-saver.sh --preview does
+            @Override public void openSaverSettings() { guarded(ParentalPolicy.PILL_SAVER_SETTINGS, SAVER_PKG, "شاشة التوقف", () -> openPackage(SAVER_PKG)); }   // a long OK: its settings
+            @Override public void openSleep(View anchor) { guarded(ParentalPolicy.PILL_SLEEP, null, "مؤقت النوم", () -> showSleep(anchor)); }
+            @Override public boolean saverInstalled() { return isInstalled(SAVER_PKG); }
+            @Override public Typeface font(String family) { return MainActivity.this.font(family); }
+        };
+    }
+    // ---- end «مركز التحكم»
 
     /** Shows or hides the «يُتلى الآن» card by what «تلاوة» is doing: a surah or a station (playing or paused), else nothing. */
     private void updateNowPlaying() {
@@ -1362,16 +1399,14 @@ public class MainActivity extends Activity {
         pw.setOutsideTouchable(true);
         pw.setElevation(dp(16));
         pw.setOnDismissListener(() -> anchor.requestFocus());
-        pw.showAsDropDown(anchor, 0, dp(8), Gravity.START);
+        pw.showAsDropDown(anchor, 0, dp(8), Gravity.END);   // from the pill's left edge towards the right: the pill (the «مركز التحكم» one) is near the left edge of the screen
         rows.get(0).requestFocus();
     }
 
-    /** The pill says how long is left while the timer runs: «مؤقت النوم ٢٣ د». */
+    /** «مركز التحكم»'s pill is gold while the timer runs (its tile says how long is left). */
     private void updateSleepPill() {
-        if (sleepPill == null) return;
-        int left = SleepTimer.minutesLeft(this);
-        sleepPill.setLabel(Digits.of(PillText.sleep(left)));
-        sleepPill.setAccent(left > 0);   // gold while it runs: the minutes show when the pill has the focus
+        if (centerPill == null) return;
+        centerPill.setAccent(SleepTimer.minutesLeft(this) > 0);   // gold while the timer runs; the minutes are in the panel's tile
     }
 
     private TextView inputRow(String label, Runnable action) {
@@ -1450,6 +1485,7 @@ public class MainActivity extends Activity {
         updateAdhanBar(cfg);
         applyListenPill(cfg.listenPillOn);
         applyUpdateBell(cfg.updateBellOn);   // [updates bell]
+        applyCenterPill();   // kids mode may have been turned on or off
         sa.urtv.home.tilawah.AdhanSync.onConfig(this, cfg.fragment);   // «تعديل وقت الصلاة» changed on the TV: the alarm follows
         updateSleepPill();
     }
@@ -1464,24 +1500,6 @@ public class MainActivity extends Activity {
     }
 
     private static String arabicDigits(String s) { return Digits.of(s); }   // the setting's digits (hindi or latin)
-
-    /** Connected or not comes from ConnectivityManager: WifiManager hides the network (id -1, "<unknown ssid>")
-     *  from apps without location access, which looked like "not connected". The name only when readable. */
-    private void updateWifi() {
-        boolean wired = false, wifi = false;
-        String ssid = null;
-        try {
-            android.net.ConnectivityManager cm = getSystemService(android.net.ConnectivityManager.class);
-            android.net.NetworkCapabilities nc = cm == null ? null : cm.getNetworkCapabilities(cm.getActiveNetwork());
-            wired = nc != null && nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET);
-            wifi = nc != null && !wired && nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI);
-            if (wifi) {
-                WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
-                ssid = wm == null || wm.getConnectionInfo() == null ? null : wm.getConnectionInfo().getSSID();
-            }
-        } catch (SecurityException ignored) { }
-        wifiPill.setLabel(PillText.network(wired, wifi, ssid));   // shown only while the pill has the focus
-    }
 
     // ---------------------------------------------------------------- glow
 
