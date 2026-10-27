@@ -80,6 +80,10 @@ push_install() {   # $1 apk name, $2 package
   if [ "$2" = sa.urtv.home ]; then   # the home app targets an older SDK than Play Protect likes (seen on Android 12-14)
     echo "للشخص: بعد لحظات ممكن تطلع على التلفزيون رسالة من Play Protect؛ إذا طلعت اضغط «تثبيت على أي حال» (Install anyway)."
   fi
+  # TCL: reinstalling the home app can switch the TV to an input; its TV app is stopped first (idea from Gathin23/cleanyourtv 11993bb0)
+  if [ "$2" = sa.urtv.home ] && "$PY" -I optimize/tv.py "pm list packages com.tcl.tv" 2> /dev/null | tr -d '\r' | grep -qx "package:com.tcl.tv"; then
+    "$PY" -I optimize/tv.py "am force-stop com.tcl.tv" > /dev/null 2>&1 || true
+  fi
   if ! curl_get -fsSL -o "optimize/$1" "$REL/$1"; then
     echo "!! Could not download $REL/$1 (tag ${APK_TAG:-apk-latest}): no such build, or no internet"; exit 1
   fi
@@ -228,7 +232,7 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
   }
   wraith_off() {   # 0: turned off; 1: left on (owns the Wi-Fi, or it could not be told)
     case "$(wifi_owner)" in
-      other) "$PY" -I optimize/tv.py "pm disable-user --user 0 $WRAITH" > /dev/null || true; return 0 ;;
+      other) "$PY" -I optimize/tv.py "pm disable-user --user 0 $WRAITH" > /dev/null || true; optimize/settle.sh mark 2> /dev/null || true; return 0 ;;
       owned) echo "The setup wizard of this TV owns its saved Wi-Fi network: left on, so the network is not lost." ;;
       *)     echo "Could not tell who owns the saved Wi-Fi network: the setup wizard is left on." ;;
     esac
@@ -301,6 +305,7 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
              "am force-stop com.android.tv.settings"
              "input keyevent KEYCODE_HOME")
       stepout=$(printf '%s\n' "${cmds[@]}" | "$PY" -I optimize/tv.py --batch) || return 1
+      optimize/settle.sh mark 2> /dev/null || true   # packages were disabled: Android writes the state ~10 s later
       printf '%s\n' "$stepout"
       # Nokia Streaming Box 8000 answers «This command is illegal» to pm disable-user for its own launcher: no switch there.
       # Put the stock home back as it was and stop the switch (4); nothing else of the setup depends on it.
@@ -381,6 +386,7 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
     # 5. Only now: the stock home's helpers are dead weight (restore.sh brings them back).
     grep -vE '^\s*(#|$)' optimize/lists/home-replaced.txt | awk '{print "pm disable-user --user 0 " $1}' \
       | "$PY" -I optimize/tv.py --batch > /dev/null || true
+    optimize/settle.sh mark 2> /dev/null || true
     rm -f "${URTV_RUN_DIR:-optimize/run}/home-skipped.txt"
     echo "Launcher is home. Press Home from inside an app to double-check."
   fi

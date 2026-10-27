@@ -139,6 +139,7 @@ report() {
   echo
   echo "Packages from our lists (off: disabled, on: still on, absent: not on this TV):"
   local disabled installed l pkg state
+  optimize/settle.sh wait 2> /dev/null || true   # the disabled state is read back after Android has written it
   disabled=$(tv "pm list packages -d" | tr -d '\r')
   installed=$(tv "pm list packages" | tr -d '\r')
   for l in tcl-safe tcl-optional keep home-replaced; do

@@ -123,4 +123,5 @@ fi
 
 "$PY" -I optimize/offlist.py clear 2> /dev/null || true   # the apps kept on by request: a reset starts like new
 echo "Done. Still disabled on this TV (made so by the manufacturer, or by something else):"
+optimize/settle.sh wait 2> /dev/null || true
 tv "pm list packages -d" | sed 's/^package:/   /'

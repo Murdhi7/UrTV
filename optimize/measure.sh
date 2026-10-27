@@ -38,6 +38,7 @@ if [ "$mode" = --screensaver ]; then
   sleep "${SAVER_S:-60}"
 else
   if [ "$mode" != --now ]; then
+    optimize/settle.sh wait 2> /dev/null || true   # a restart before Android has written the package state can lose what was disabled
     tv --reboot
   fi
   # the TV's own value is kept in a file while it is stretched, and put back exactly (null: deleted, not guessed); if this run

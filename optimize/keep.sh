@@ -45,6 +45,7 @@ case "${1:-}" in
       if [ "$mode" = restore ]; then "$PY" -I optimize/offlist.py remember "${done_pkgs[@]}"
       else "$PY" -I optimize/offlist.py forget "${done_pkgs[@]}"; fi
     fi
+    [ "${#done_pkgs[@]}" = 0 ] || optimize/settle.sh mark 2> /dev/null || true   # Android writes the package state ~10 s later: nothing restarts the TV before that
     [ "$mode" = unkeep ] || [ "${#done_pkgs[@]}" = 0 ] || echo "Remembered: a later optimize/run.sh again leaves ${#done_pkgs[@]} of them on."
     exit 0 ;;
   "") ;;

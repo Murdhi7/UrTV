@@ -56,6 +56,8 @@ case "$1" in
   "pm list packages sa.urtv."*)
     pkg=${1##* }
     if [ -n "$VANISH" ] && { [ "$VANISH" = always ] || [ ! -f "$T/stays" ]; }; then log gone; else echo "package:$pkg"; fi ;;
+  "pm list packages com.tcl.tv") [ "$TCLTV" = yes ] && { log tcl-listed; echo "package:com.tcl.tv"; echo "package:com.tcl.tvinput"; } ;;
+  "am force-stop com.tcl.tv") log force-stop ;;
   "pm uninstall"*) log uninstall ;;
   "pm install"*)
     [ "$INSTALL_MODE" = silent ] && { log silent; exit 1; }   # tv.py --bg gave up: no output at all
@@ -97,7 +99,7 @@ while [ $# -gt 0 ]; do [ "$1" = -o ] && : > "$2"; shift; done
 
 
 def run(name, fail_switches, first_drop, down_polls=0, verify="", verifier=None, curl_mode="", vanish="", illegal="", wraith_home="", wifi="", nohome="", install_mode="",
-        watchdog="", restore_fail="", seed=None, seed_home="", seed_marker=False, role="", script="install.sh", args=("launcher",)):
+        watchdog="", restore_fail="", tcltv="", seed=None, seed_home="", seed_marker=False, role="", script="install.sh", args=("launcher",)):
     t = Path(tempfile.mkdtemp())
     tree, bin_ = t / "tree", t / "bin"
     (tree / "optimize" / "lists").mkdir(parents=True); bin_.mkdir()
@@ -121,7 +123,7 @@ def run(name, fail_switches, first_drop, down_polls=0, verify="", verifier=None,
         (bin_ / f).write_text(body); (bin_ / f).chmod(0o755)
     if verifier is not None:
         (t / "verifier").write_text(verifier + "\n")
-    env = dict(os.environ, RESTORE_FAIL=restore_fail, WATCHDOG=watchdog, ROLE=role, INSTALL_MODE=install_mode, NOHOME=nohome, WRAITH_HOME=wraith_home, WIFI=wifi, ILLEGAL=illegal, VERIFY=verify, VANISH=vanish, CURL_MODE=curl_mode, PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), T=str(t),
+    env = dict(os.environ, TCLTV=tcltv, RESTORE_FAIL=restore_fail, WATCHDOG=watchdog, ROLE=role, INSTALL_MODE=install_mode, NOHOME=nohome, WRAITH_HOME=wraith_home, WIFI=wifi, ILLEGAL=illegal, VERIFY=verify, VANISH=vanish, CURL_MODE=curl_mode, PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), T=str(t),
                FAIL_SWITCHES=str(fail_switches), FIRST_DROP=first_drop, DOWN_POLLS=str(down_polls))
     r = subprocess.run(["bash", str(tree / "optimize" / script), *args], env=env, capture_output=True, text=True)
     log = (t / "log").read_text().split() if (t / "log").exists() else []
@@ -189,6 +191,10 @@ cases = [
      lambda c, o, l: c == 0 and "put-0" not in l and "Play Protect refused" not in o),
 ]
 cases += [
+    ("a TCL (com.tcl.tv is there): its TV app is stopped BEFORE the home app is installed over, once",
+     run("tc", 0, "", tcltv="yes"),
+     lambda c, o, l: c == 0 and l.count("force-stop") == 1 and l.index("force-stop") < l.index("installed")),
+    ("not a TCL: nothing is force-stopped (com.tcl.tvinput alone does not count)", run("tn", 0, ""), lambda c, o, l: c == 0 and "force-stop" not in l),
     ("normal switch: the journal is written, the safety switch is checked alive, then the marker with ITS nonce disarms it",
      run("w", 0, ""),
      lambda c, o, l: c == 0 and l.count("hb-check") == 1 and l.index("hb-check") < l.index("switch") and l.count("disarm") == 1

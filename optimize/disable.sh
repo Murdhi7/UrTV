@@ -30,3 +30,10 @@ if [ -n "$keptpkgs" ]; then
 fi
 [ -n "$pkgs" ] || exit 0
 printf '%s\n' "$pkgs" | awk '{print "pm disable-user --user 0 " $1}' | "$PY" -I optimize/tv.py --batch
+# what this run disabled is remembered (also when a list changes later, or a second run disables another list): optimize/restore.sh
+# re-enables every package in it. And the time, so nothing restarts the TV before Android has written the state (optimize/settle.sh).
+RUN="${URTV_RUN_DIR:-optimize/run}"
+mkdir -p "$RUN"
+{ [ ! -f "$RUN/disabled-by-us.txt" ] || cat "$RUN/disabled-by-us.txt"; printf '%s\n' "$pkgs"; } | grep -E '^[A-Za-z0-9_.]+$' | sort -u > "$RUN/disabled-by-us.txt.tmp" \
+  && mv "$RUN/disabled-by-us.txt.tmp" "$RUN/disabled-by-us.txt"
+optimize/settle.sh mark 2> /dev/null || true
