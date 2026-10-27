@@ -52,6 +52,7 @@ for bad in st.get("refuse", []):          # a value the TV refuses (answers erro
         out("error: refused by the fake TV: " + bad)
 ENUM = {"digits": ["hindi", "latin"], "clocksize": ["large", "medium", "small"], "mkstyle": ["arrows", "prices"],
         "cardstyle": ["current", "dark1", "glass1", "dark3", "glass3"], "prayermethod": ["auto", "jafari"],
+        "sunrise": ["on", "off"], "prayerbar": ["on", "off"], "wxmore": ["on", "off"], "months": ["default", "levant"],
         "greeting": ["on", "off"], "adhanbar": ["on", "off"], "clock24": ["on", "off"], "mkbar": ["on", "off"], "prayeradj": ["on", "off"]}
 if "SaverReceiver" in cmd and cmd.endswith(".GET"):
     s = st["saver"]
@@ -64,7 +65,9 @@ if "SaverReceiver" in cmd and cmd.endswith(".GET"):
         f"clock24: {s['clock24']}", "national: auto", f"cardstyle: {s['cardstyle']}",
         "markets: " + ("" if s["mkbar"] == "on" else "off ") + ",".join(s["markets"]), f"clocksize: {s['clocksize']}",
         f"mkstyle: {s['mkstyle']}", "stocks: 2222", "slot: matches", "countdown: none", "idle: 10", "genres: ", "langs: ", "events: ",
-        "leagues: ", "autoupdate: on", "pin: 4321", "wifi: HomeNet", "tasks: buy milk"]))
+        "leagues: ", "autoupdate: on", "pin: 4321", "wifi: HomeNet", "tasks: buy milk", "updatechannel: " + s.get("updatechannel", "stable")]
+        + ([] if st.get("old_app") else [f"panel2: {s['panel2']}", f"sunrise: {s['sunrise']}", f"prayerbar: {s['prayerbar']}",
+                                          f"wxmore: {s['wxmore']}", f"months: {s['months']}"])))
 if "SaverReceiver" in cmd and re.search(r"screensaver\.SET( |$)", cmd):
     s, extras = st["saver"], dict(re.findall(r"--es (\w+) '([^']*)'", cmd))
     assert cmd.count("--es ") == len(extras), "an unquoted value was sent: " + cmd
@@ -80,6 +83,7 @@ if "SaverReceiver" in cmd and re.search(r"screensaver\.SET( |$)", cmd):
         elif k == "teams": s["teams"] = [f"{p.split(':')[0]}|{p.split(':', 1)[1] or '#' + p.split(':')[0]}" for p in v.split(",") if p]
         elif k == "home_panel": s["home_panel"] = v
         elif k == "panel": s["panel"] = v
+        elif k == "panel2" and (v == s["panel"] or v == extras.get("panel")) and v != "none": out("error: panel2 is " + v + ", the first card already")
         elif k == "hijrioffset": s["hijri"] = ("+" if int(v) > 0 else "") + str(int(v))
         elif k.startswith("adj_"): s["adj"][k[4:]] = int(v)
         elif k == "markets": s["markets"] = v.split(",")
@@ -124,14 +128,16 @@ BASE = {
     "saver": {"city": ["الرياض", "24.6877", "46.7219"], "tz": "Asia/Riyadh", "teams": ["136013|الهلال", "136137|المنتخب السعودي"],
               "panel": "verse", "home_panel": "none", "greeting": "on", "adhanbar": "on", "prayermethod": "auto", "prayeradj": "off",
               "adj": {"fajr": 0, "dhuhr": 0, "asr": 0, "maghrib": 0, "isha": 0}, "hijri": "0", "digits": "hindi", "clock24": "off",
-              "cardstyle": "current", "markets": ["tasi", "spx", "btc"], "mkbar": "on", "clocksize": "large", "mkstyle": "arrows"},
+              "cardstyle": "current", "markets": ["tasi", "spx", "btc"], "mkbar": "on", "clocksize": "large", "mkstyle": "arrows",
+              "panel2": "none", "sunrise": "off", "prayerbar": "off", "wxmore": "off", "months": "default", "updatechannel": "stable"},
     "adhan": {"on": "on", "voice": 1, "fajr_voice": 10, "short": "off", "stopkey": "on", "volume": 70},
 }
 CONFIGURED = copy.deepcopy(BASE)
 CONFIGURED["saver"].update({"city": ["الدوحة", "25.2854", "51.531"], "tz": "Asia/Qatar", "teams": ["136022|النصر", "133738|ريال مدريد"],
                             "panel": "prayers", "home_panel": "verse,hourly", "greeting": "off", "adhanbar": "off",
                             "prayermethod": "jafari", "prayeradj": "on", "hijri": "-1", "digits": "latin", "clock24": "on",
-                            "cardstyle": "glass1", "markets": ["gold", "btc"], "mkbar": "off", "clocksize": "medium", "mkstyle": "prices"})
+                            "cardstyle": "glass1", "markets": ["gold", "btc"], "mkbar": "off", "clocksize": "medium", "mkstyle": "prices",
+                            "panel2": "hourly", "sunrise": "on", "prayerbar": "on", "wxmore": "on", "months": "levant"})
 CONFIGURED["saver"]["adj"] = {"fajr": 2, "dhuhr": 0, "asr": -3, "maghrib": 1, "isha": 0}
 CONFIGURED["adhan"] = {"on": "off", "voice": 3, "fajr_voice": 13, "short": "on", "stopkey": "off", "volume": 40}
 
@@ -504,6 +510,27 @@ deep = write("deep.json", "[" * 20000 + "]" * 20000)
 rd = Tv("deep", BASE)
 rc, out, err = rd.run("import", deep)
 check("a file nested too deeply is refused, not a traceback", rc != 0 and "nested too deeply" in err and "Traceback" not in err and not rd.sent(), (rc, err[-200:]))
+
+# ---- today's settings: the second card, the sunrise, the prayer bar, the humidity and wind, the month names (and never the update channel)
+check("export carries cards.panel2, sunrise, prayerbar, wxmore and months as the TV reports them",
+      exp["cards"]["panel2"] == "hourly" and exp["sunrise"] is True and exp["prayerbar"] is True and exp["wxmore"] is True and exp["months"] == "levant", exp)
+check("the hidden update-channel switch is never exported, never allow-listed, and never sent",
+      "updatechannel" not in json.dumps(exp) and "updatechannel" not in sm.ALLOWED_TOP and "channel" not in json.dumps(sm.ops({"months": "levant"}, {})) , "")
+old = Tv("old", BASE); old.edit(old_app=True)
+rc, out, err = old.run("export")
+oe = json.loads(out)
+check("a TV whose app does not report them: absent from the export (drift-safe), not guessed", rc == 0 and "sunrise" not in oe and "months" not in oe and "panel2" not in oe.get("cards", {}), oe)
+rc, out, err = old.run("import", write("new-on-old.json", {"schema": 1, "sunrise": True}), "--yes")
+check("importing sunrise onto a TV that does not report it: refused, nothing sent", rc != 0 and "does not report sunrise" in err + out and not old.writes(), (rc, out, err))
+refused("panel2 is the first card again", lambda d: d["cards"].update(panel="verse", panel2="verse"), "cards.panel2 must be another card")
+refused("panel2 with no first card", lambda d: d["cards"].update(panel="none", panel2="verse"), "cards.panel2 must be another card")
+refused("panel2 is a home-only card", lambda d: d["cards"].update(panel2="nextprayer"), "cards.panel2 must be one of")
+refused("months unknown", lambda d: d.update(months="roman"), "months must be one of default levant")
+refused("sunrise not a boolean", lambda d: d.update(sunrise="on"), "sunrise must be true or false")
+b2 = Tv("b2", BASE)
+b2.run("import", write("today.json", {"schema": 1, "sunrise": True, "months": "levant", "cards": {"panel": "prayers", "panel2": "hourly"}}), "--yes")
+check("import sends them in the one SET with the TV's own names", sum(".SET " in l for l in b2.writes()) == 1
+      and all(x in b2.writes()[0] for x in ("--es sunrise 'on'", "--es months 'levant'", "--es panel2 'hourly'", "--es panel 'prayers'")), b2.writes())
 
 # ---- the choice lists are the apps' own (they cannot drift)
 prefs = (ROOT / "android/app/src/main/java/sa/urtv/screensaver/Prefs.java").read_text(encoding="utf-8")
