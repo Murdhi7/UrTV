@@ -44,7 +44,8 @@ MIGRATIONS = {}
 # into the file.
 # TODO(parental PIN, branch work/parental): the PIN must NEVER be added here, and must never be exported by any other way.
 ALLOWED_TOP = ("schema", "city", "digits", "prayer", "hijri_offset", "clock24", "clock_size", "card_style", "cards",
-               "greeting", "markets", "teams", "adhan")
+               "greeting", "markets", "teams", "adhan", "sunrise", "prayerbar", "wxmore", "months")
+# NEVER here: the hidden update-channel switch (updatechannel) and the parental PIN. tests/settings_move_test.py checks both.
 
 # The same lists the apps validate (android/app/src/main/java/sa/urtv/screensaver/Prefs.java; tests/settings_move_test.py
 # reads that file and fails if these drift from it).
@@ -53,6 +54,8 @@ PRAYER_METHODS = ("auto", "jafari")
 CARD_STYLES = ("current", "dark1", "glass1", "dark3", "glass3")
 CLOCK_SIZES = ("large", "medium", "small")
 MK_STYLES = ("arrows", "prices")
+MONTHS = ("default", "levant")
+SWITCHES = ("greeting", "sunrise", "prayerbar", "wxmore")   # on/off switches the TV reports as «on» / «off»
 MARKETS = ("tasi", "aramco", "spx", "btc", "gold", "silver", "oil", "xrp")
 MAX_MARKETS = 4
 PANELS = ("shows", "prayers", "forecast", "hourly", "prayerrow", "nextprayer", "matches", "verse", "wisdom", "adhkar",
@@ -149,8 +152,11 @@ def read_tv(keep_own=False):
             s[key] = g[name]
     if "clock24" in g:
         s["clock24"] = g["clock24"] == "on"
-    if "greeting" in g:
-        s["greeting"] = g["greeting"] == "on"
+    for k in SWITCHES:   # only what the TV reports (an older app has no sunrise, prayerbar or wxmore: absent, never guessed)
+        if g.get(k) in ("on", "off"):
+            s[k] = g[k] == "on"
+    if g.get("months") in MONTHS:
+        s["months"] = g["months"]
     prayer = {}
     if "prayermethod" in g:
         prayer["method"] = g["prayermethod"]
@@ -171,6 +177,8 @@ def read_tv(keep_own=False):
     cards = {}
     if "panel" in g:
         cards["panel"] = g["panel"]
+    if "panel2" in g:
+        cards["panel2"] = g["panel2"]
     if "home_panel" in g:
         cards["home"] = [] if g["home_panel"] in ("none", "") else g["home_panel"].split(",")
     if cards:
@@ -233,7 +241,7 @@ def flat(s):
     if "city" in s:
         c = s["city"]
         out["city"] = (c["name"], float(c["lat"]), float(c["lon"]), c["tz"])
-    for k in ("digits", "clock24", "clock_size", "card_style", "greeting", "hijri_offset"):
+    for k in ("digits", "clock24", "clock_size", "card_style", "greeting", "hijri_offset", "sunrise", "prayerbar", "wxmore", "months"):
         if k in s:
             out[k] = s[k]
     for k, v in s.get("prayer", {}).items():
@@ -245,6 +253,8 @@ def flat(s):
     c = s.get("cards", {})
     if "panel" in c:
         out["cards.panel"] = c["panel"]
+    if "panel2" in c:
+        out["cards.panel2"] = c["panel2"]
     if "home" in c:
         out["cards.home"] = tuple(c["home"])
     for k, v in s.get("markets", {}).items():
@@ -401,7 +411,9 @@ def validate(d):
     for key, allowed in (("digits", DIGITS), ("clock_size", CLOCK_SIZES), ("card_style", CARD_STYLES)):
         if key in d and choice(d[key], allowed, key, errs):
             out[key] = d[key]
-    for key in ("clock24", "greeting"):
+    if "months" in d and choice(d["months"], MONTHS, "months", errs):
+        out["months"] = d["months"]
+    for key in ("clock24", "greeting", "sunrise", "prayerbar", "wxmore"):
         if key in d:
             n = len(errs)
             boolean(d[key], key, errs)
@@ -427,11 +439,17 @@ def validate(d):
                                    and ranged(v, -PRAYER_ADJ_MAX, PRAYER_ADJ_MAX, f"prayer.adjust.{k}", errs)}
             out["prayer"] = o
     if "cards" in d:
-        c = obj(d["cards"], "cards", ("panel", "home"), errs, notes)
+        c = obj(d["cards"], "cards", ("panel", "panel2", "home"), errs, notes)
         if c is not None:
             o = {}
             if "panel" in c and choice(c["panel"], tuple(x for x in PANELS if x not in HOME_ONLY), "cards.panel", errs):
                 o["panel"] = c["panel"]
+            if "panel2" in c and choice(c["panel2"], tuple(x for x in PANELS if x not in HOME_ONLY), "cards.panel2", errs):
+                o["panel2"] = c["panel2"]
+                # the same rules the app applies (SecondCard.refuse): never the first card again, and none without a first card
+                if "panel" in o and o["panel2"] != "none" and (o["panel2"] == o["panel"] or o["panel"] == "none"):
+                    errs.append("cards.panel2 must be another card than cards.panel (and cards.panel must not be none), or none")
+                    del o["panel2"]
             if "home" in c:
                 h = c["home"]
                 if not isinstance(h, list) or len(h) > HOME_CARDS or len(set(map(str, h))) != len(h) \
@@ -600,8 +618,12 @@ def ops(values, names):
             es("clocksize", v)
         elif p == "card_style":
             es("cardstyle", v)
-        elif p == "greeting":
-            es("greeting", flag(v))
+        elif p in ("greeting", "sunrise", "prayerbar", "wxmore"):
+            es(p, flag(v))
+        elif p == "months":
+            es("months", v)
+        elif p == "cards.panel2":
+            es("panel2", v)
         elif p == "hijri_offset":
             es("hijrioffset", signed(v))
         elif p == "prayer.method":

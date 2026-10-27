@@ -80,7 +80,8 @@ fi
 echo "$3" >> "$SENT"
 case "$3" in
   "pm list packages sa.urtv.screensaver") [ "${INSTALLED:-1}" = 1 ] && echo "package:sa.urtv.screensaver" ;;
-  *query-services*) printf '%s' "$STOCK" ;;
+  *query-services*) [ -n "$STOCK" ] && { echo "2 services found:"; echo "  Service #0:"; printf '%s' "$STOCK" | sed 's/^/    /'; } ;;   # the real output is indented
+  "am broadcast"*) [ "$SILENT" = 1 ] && { echo "Broadcast completed: result=0"; exit 0; }; echo 'Broadcast completed: result=0, data="UrTV 1"' ;;
 esac
 exit 0
 ''')
@@ -91,11 +92,11 @@ def backup(comp="com.google.android.apps.tv.dreamx/.service.Dream", enabled="1")
     open(p, "w").write(f"== model\nTCL\n11\n== screensaver\n{comp}\n{enabled}\n300000\n== animation\n1.0\n")
     return p
 
-def run(cmd, bk=None, comp="null", enabled="1", stock="", installed="1"):
+def run(cmd, bk=None, comp="null", enabled="1", stock="", installed="1", silent=""):
     open(log, "w").close()
     r = subprocess.run(["bash", saver, cmd], capture_output=True, text=True,
                        env={**os.environ, "PY": fake, "SENT": log, "COMP": comp, "ENABLED": enabled, "STOCK": stock,
-                            "INSTALLED": installed, "SAVER_BACKUP": bk or os.path.join(tmp, "no-backup.txt")})
+                            "INSTALLED": installed, "SILENT": silent, "SAVER_BACKUP": bk or os.path.join(tmp, "no-backup.txt")})
     return r.returncode, r.stdout + r.stderr, open(log, encoding="utf-8").read().splitlines()
 
 OURS = "sa.urtv.screensaver/.ScreenDream"
@@ -133,6 +134,19 @@ check("off, nothing else listed: screensavers off",
       puts(sent) == ["settings put secure screensaver_enabled 0", "settings delete secure screensaver_components",
                      "settings delete secure screensaver_default_component"] and "off" in out, str(sent))
 
+rc, out, sent = run("off", stock="")
+check("off, the TV listed no screensavers at all (not even ours): it did not say, so nothing is changed and a !! line says so",
+      rc == 1 and puts(sent) == [] and "!! saver.sh off: the TV did not list its screensavers" in out, out + str(sent))
+rc, out, sent = run("off", bk=backup(enabled=""))
+check("off: a backup whose enabled line is empty leaves the switch as it is (the component still comes back)",
+      puts(sent) == ["settings put secure screensaver_components 'com.google.android.apps.tv.dreamx/.service.Dream'", "settings delete secure screensaver_default_component"], str(sent))
+
+rc, out, sent = run("show", silent="1")
+check("a receiver that never ran (no data= in the broadcast's answer) is a failure with a !! line, not a blank success", rc == 1 and "!! saver.sh: no answer from the TV's screensaver app" in out, out)
+rc, out, sent = run("show")
+check("a receiver that answers: exit 0", rc == 0 and "UrTV 1" in out, out)
+rc, out, sent = run("update", silent="1")
+check("update with no answer: it may still be downloading (not «not installed»)", rc == 1 and "may still be downloading" in out and "not installed" not in out, out)
 rc, out, sent = run("on")
 check("on: ours selected, as install.sh does",
       rc == 0 and puts(sent) == ["settings put secure screensaver_enabled 1", f"settings put secure screensaver_components {OURS}",

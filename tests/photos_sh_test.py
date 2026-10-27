@@ -36,6 +36,7 @@ if [ "$3" = --push-b64 ]; then
   echo "PUSH $4 $5" >> "$SENT"; cp "$4" "$KEPT/$(ls "$KEPT" | wc -l).jpg"; echo "pushed $4 -> $5 (1 bytes, md5 ok)"; exit 0
 fi
 echo "$3" >> "$SENT"
+case "$3" in *PHOTOS*) [ -n "${FAKE_SILENT:-}" ] && { echo "Broadcast completed: result=0"; exit 0; } ;; esac
 case "$3" in
   "wm size") echo "Physical size: ${FAKE_SCREEN:-1920x1080}" ;;
   *PHOTOS*"op list"*) printf 'Broadcast completed: result=0, data="photos: %s of 10\nmode: %s (x)"\n' "${FAKE_N:-0}" "${FAKE_MODE:-mix}" ;;
@@ -51,7 +52,7 @@ esac
 os.chmod(fake, 0o755)
 
 failed = 0
-def run(*args, n=0, mode="mix", fail=None, screen=None):
+def run(*args, n=0, mode="mix", fail=None, screen=None, silent=False):
     open(log, "w").close()
     open(slept, "w").close()
     for f in os.listdir(kept):
@@ -59,6 +60,8 @@ def run(*args, n=0, mode="mix", fail=None, screen=None):
     env = {**os.environ, "PY": fake, "SENT": log, "SLEPT": slept, "KEPT": kept, "FAKE_N": str(n), "FAKE_MODE": mode,
            "PATH": nobin + os.pathsep + os.environ["PATH"]}
     env.pop("FAKE_ADD_FAIL", None)
+    if silent:
+        env["FAKE_SILENT"] = "1"
     if fail:
         env["FAKE_ADD_FAIL"] = fail
     if screen:
@@ -72,6 +75,8 @@ def check(name, ok, detail=""):
     failed += not ok
 
 A = "am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.PHOTOS "
+rc, out, sent = run("list", silent=True)
+check("a receiver that never ran (no data=): a failure with a !! line, not a blank success", rc != 0 and "!! photos.sh: no answer from the TV's screensaver app" in out, out)
 def photo(name, size=(3000, 2000)):
     p = os.path.join(tmp, name)
     im = Image.new("RGB", size, (30, 120, 60))

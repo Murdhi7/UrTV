@@ -36,8 +36,11 @@ case "${1:-}" in
       fi
       if [ "$mode" = restore ]; then
         "$PY" -I optimize/tv.py "pm enable $p" > /dev/null || true
-        if grep -qx "$p" <<< "$(disabled_list)"; then "$PY" -I optimize/tv.py "pm enable --user 0 $p" > /dev/null || true; fi
-        if grep -qx "$p" <<< "$(disabled_list)"; then echo "!! $p is still off: this TV would not turn it on"; continue; fi
+        # a list that cannot be read is not «now on»: the app is not called on, and not remembered
+        now=$(disabled_list) || { echo "!! Could not ask the TV which packages are off, so «$p on again» was not confirmed. Run the same command again."; continue; }
+        if grep -qx "$p" <<< "$now"; then "$PY" -I optimize/tv.py "pm enable --user 0 $p" > /dev/null || true; fi
+        now=$(disabled_list) || { echo "!! Could not ask the TV which packages are off, so «$p on again» was not confirmed. Run the same command again."; continue; }
+        if grep -qx "$p" <<< "$now"; then echo "!! $p is still off: this TV would not turn it on"; continue; fi
         echo "   on again: $("$PY" -I optimize/offlist.py name "$p") ($p)"
       else
         "$PY" -I optimize/tv.py "pm disable-user --user 0 $p" > /dev/null || true
@@ -80,7 +83,10 @@ if [ -n "$still" ]; then
   before=$(awk '/^== disabled packages/{s=1; next} /^== /{s=0} s' optimize/run/backup.txt 2> /dev/null \
            | sed -n 's/^package://p' | tr -d '\r' || true)
   ours=$(grep -Fxvf <(printf '%s\n' "$before") <<< "$still" || true)
-  [ -f optimize/run/backup.txt ] || ours=
+  if [ ! -f optimize/run/backup.txt ]; then   # nothing shows whether the TV had them off before: they are not assumed to be «the TV's own»
+    echo "!! still off, and there is no optimize/run/backup.txt to show whether the TV had them off before UrTV: tell the person: $(paste -sd' ' - <<< "$still")"
+    exit 1
+  fi
   kept=$(grep -Fxvf <(printf '%s\n' "${ours:-}") <<< "$still" || true)
   [ -z "$kept" ] || echo "   left off by the TV itself (off before UrTV, and pm enable can't turn it on): $(paste -sd' ' - <<< "$kept")"
   if [ -n "$ours" ]; then echo "!! still off, tell the person: $(paste -sd' ' - <<< "$ours")"; exit 1; fi
