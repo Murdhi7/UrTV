@@ -153,7 +153,7 @@ def build(run, lists):
     out.append(("The screensaver the TV had", ss))
 
     # 5. Private DNS
-    dns = ["# if «حماية العائلة» was switched on from the TV's settings, the home app puts the old setting back (harmless if it was not)",
+    dns = ["# the home app holds the record of «حماية العائلة» and puts the old setting back when asked (harmless if it was never switched on; the lines after are for an older record kept here)",
            f"am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.FAMILY_DNS --es mode off"]
     d = read(run / "family-dns-journal.txt")
     if d is None:

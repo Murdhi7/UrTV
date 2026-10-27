@@ -53,6 +53,15 @@ check("off after someone else changed the value: CHANGED_BY_SOMEONE_ELSE, no wri
       out[18] == "CHANGED_BY_SOMEONE_ELSE 0 hostname/mine.example true", out[18])
 check("Arabic copy for unsupported and changed-elsewhere",
       out[19] == "غير مدعومة في هذا التلفزيون (أندرويد قديم) | الإعداد تغيّر من مكان آخر، تركناه كما هو", out[19])
+parts = out[20].split(" | ")
+check("fresh name: fast NXDOMAIN or an address continues; timeout, slow NXDOMAIN, other failure -> REVERTED, originals back; not asked before Private DNS is active",
+      parts[0] == parts[1] == "ENABLED hostname/family.adguard-dns.com false0"
+      and all(x == "REVERTED opportunistic/x.example true0" for x in parts[2:5]) and parts[5] == "0", out[20])
+android = (ROOT / "android/launcher/src/main/java/sa/urtv/home/FamilyDnsAndroid.java").read_text(encoding="utf-8")
+check("last=RUNNING is written before the worker thread starts",
+      0 <= android.find('putString(K_LAST, "RUNNING")') < android.find('worker.start()'))
+check("the fresh name is a random label under connectivitycheck.gstatic.com resolved with InetAddress.getByName",
+      '".connectivitycheck.gstatic.com"' in android and "InetAddress.getByName(name)" in android and "SecureRandom" in android)
 src = (ROOT / "android/launcher/src/main/java/sa/urtv/home/FamilyDns.java").read_text(encoding="utf-8")
 check("FamilyDns has no Android imports", "import android" not in src)
 import re
