@@ -8,14 +8,14 @@ cd "$(dirname "$0")/.."
 LIST="${1:?usage: optimize/disable.sh <debloat list>}"
 PY="${PY:-optimize/venv/bin/python}"
 KEEP=optimize/lists/keep.txt
-pkgs=$(grep -vE '^\s*(#|$)' "$LIST" | awk '{print $1}')
-blocked=$(printf '%s\n' "$pkgs" | grep -Fxf <(grep -vE '^\s*(#|$)' "$KEEP" | awk '{print $1}') || true)
+pkgs=$(grep -vE '^[[:space:]]*(#|$)' "$LIST" | awk '{print $1}')
+blocked=$(printf '%s\n' "$pkgs" | grep -Fxf <(grep -vE '^[[:space:]]*(#|$)' "$KEEP" | awk '{print $1}') || true)
 if [ -n "$blocked" ]; then
   echo "Refusing: these are in $KEEP (features people use, or the TV needs them):"
   printf '%s\n' "$blocked" | sed 's/^/  /'
   exit 1
 fi
-core=$(printf '%s\n' "$pkgs" | grep -Ef <(grep -vE '^\s*(#|$)' optimize/lists/core.txt | sed 's/.*/^(&)$/') || true)
+core=$(printf '%s\n' "$pkgs" | grep -Ef <(grep -vE '^[[:space:]]*(#|$)' optimize/lists/core.txt | sed 's/.*/^(&)$/') || true)
 if [ -n "$core" ]; then
   echo "Refusing: these are Android's own core, and a TV may not start again without them (optimize/lists/core.txt):"
   printf '%s\n' "$core" | sed 's/^/  /'

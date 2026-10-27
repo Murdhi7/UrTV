@@ -24,7 +24,7 @@ jrestore() {
   { [ -n "$holder" ] && [ "$holder" != sa.urtv.home ]; } || holder=$pkg
   cmds=("pm enable $pkg" "pm enable com.google.android.tungsten.setupwraith")
   if [ "${1:-}" = full ]; then
-    while read -r l; do cmds+=("pm enable $l"); done < <(grep -vE '^\s*(#|$)' optimize/lists/home-replaced.txt | awk '{print $1}')
+    while read -r l; do cmds+=("pm enable $l"); done < <(grep -vE '^[[:space:]]*(#|$)' optimize/lists/home-replaced.txt | awk '{print $1}')
   fi
   [ "$holder" = "$pkg" ] || cmds+=("pm enable $holder")   # another launcher that was home before
   cmds+=("cmd role add-role-holder --user 0 android.app.role.HOME $holder")

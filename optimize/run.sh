@@ -134,7 +134,7 @@ report() {
   echo "Versions: screensaver $(tv "dumpsys package sa.urtv.screensaver 2> /dev/null | grep versionName | sed -n 1p" | sed 's/.*=//'), home $(tv "dumpsys package sa.urtv.home 2> /dev/null | grep versionName | sed -n 1p" | sed 's/.*=//')"
   echo "Extras: TV Bro $([ -n "$(tv "pm list packages com.phlox.tvwebbrowser")" ] && echo yes || echo no), SmartTube $([ -n "$(tv "pm list packages org.smarttube.stable")" ] && echo yes || echo no)"
   local picks
-  picks=$(grep -cvE '^\s*(#|$)' optimize/lists/mine.txt 2>/dev/null || true)
+  picks=$(grep -cvE '^[[:space:]]*(#|$)' optimize/lists/mine.txt 2>/dev/null || true)
   echo "Optional picks (lists/mine.txt): ${picks:-0}"
   echo
   echo "Packages from our lists (off: disabled, on: still on, absent: not on this TV):"
@@ -143,7 +143,7 @@ report() {
   disabled=$(tv "pm list packages -d" | tr -d '\r')
   installed=$(tv "pm list packages" | tr -d '\r')
   for l in tcl-safe tcl-optional keep home-replaced; do
-    for pkg in $(grep -vE '^\s*(#|$)' "optimize/lists/$l.txt" | awk '{print $1}'); do
+    for pkg in $(grep -vE '^[[:space:]]*(#|$)' "optimize/lists/$l.txt" | awk '{print $1}'); do
       if grep -qx "package:$pkg" <<< "$disabled"; then state=off
       elif grep -qx "package:$pkg" <<< "$installed"; then state=on
       else state=absent; fi
@@ -154,7 +154,7 @@ report() {
   optimize/keep.sh off 2> /dev/null | sed 's/^/- off-name: /' || true
   if [ -s "$RUN/community-applied.txt" ]; then   # the community list (CleanYourTV, MIT) for this model, if one was used
     echo "Community list: $(cat "$RUN/community-name.txt" 2> /dev/null) (CleanYourTV, MIT)"
-    for pkg in $(grep -vE '^\s*(#|$)' "$RUN/community-applied.txt" | awk '{print $1}'); do
+    for pkg in $(grep -vE '^[[:space:]]*(#|$)' "$RUN/community-applied.txt" | awk '{print $1}'); do
       if grep -qx "package:$pkg" <<< "$disabled"; then state=off
       elif grep -qx "package:$pkg" <<< "$installed"; then state=on
       else state=absent; fi

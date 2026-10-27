@@ -82,11 +82,13 @@ fi
 # «حماية العائلة (DNS)»: the Private DNS the TV had comes back (the script's record and the home app's own, which only the app can put
 # back), and only when that is confirmed the permission is taken back and the app removed: without it the original would be lost
 # a failed question is not «the app is not installed»: removing the app would lose its record of the original Private DNS
-if ! home_list=$(tv "pm list packages sa.urtv.home" 2> /dev/null); then
+home_list=$(tv "pm list packages; echo END_OF_LIST" 2> /dev/null | tr -d '\r') || home_list=""
+# the answer counts only when it is read to its end marker and holds android itself (an empty reply is «the TV did not say», not «not installed»)
+if [ "$(tail -n 1 <<< "$home_list")" != END_OF_LIST ] || ! grep -qx "package:android" <<< "$home_list"; then
   echo "!! familydns: could not ask the TV whether the home app is installed, so nothing was removed. Run optimize/reset.sh again."
   exit 1
 fi
-if [ -f "${URTV_RUN_DIR:-optimize/run}/family-dns-journal.txt" ] || grep -q sa.urtv.home <<< "$home_list"; then
+if [ -f "${URTV_RUN_DIR:-optimize/run}/family-dns-journal.txt" ] || grep -qx "package:sa.urtv.home" <<< "$home_list"; then
   if ! optimize/familydns.sh off; then
     echo "!! familydns: the TV's Private DNS could not be put back, so nothing more was removed (the original setting is still recorded): run optimize/dock.sh familydns off, then optimize/reset.sh again"
     exit 1

@@ -19,7 +19,7 @@ def run(backup):
     os.makedirs(os.path.join(tmp, "optimize", "run"), exist_ok=True)
     open(os.path.join(tmp, "optimize", "run", "backup.txt"), "w", encoding="utf-8", newline="").write(backup)
     out = os.path.join(tmp, "sent.txt"); open(out, "w").close()
-    script = f'tv() {{ cat >> "{out}"; }}\ncd "{tmp}"\n' + step
+    script = f'tv() {{ case "$1" in "pm list packages; echo END_OF_LIST") echo package:android; echo END_OF_LIST ;; *) cat >> "{out}" ;; esac; }}\ncd "{tmp}"\n' + step
     r = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
     return r.returncode, open(out, encoding="utf-8").read().splitlines(), r.stderr
 

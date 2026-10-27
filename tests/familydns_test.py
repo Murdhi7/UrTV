@@ -143,6 +143,18 @@ check("the app could not put it back: a !! line and a failing exit (reset.sh mus
 tv = Tv()
 rc, out = tv.run("on", app="yes", grant="yes", sdk="26")
 
+# reset: an empty rc-0 package list is «the TV did not say»: stop before familydns off and before the uninstall
+def reset_silent(reply):
+    src = (ROOT / "optimize/reset.sh").read_text(encoding="utf-8")
+    block = src[src.index("# «حماية العائلة (DNS)»: the Private DNS the TV had comes back"):src.index('echo "3/4 Removing our apps')]
+    t = Path(tempfile.mkdtemp()); (t / "optimize").mkdir(); (t / "optimize/familydns.sh").write_text('#!/usr/bin/env bash\necho OFF-CALLED >> "$0.log"\n'); (t / "optimize/familydns.sh").chmod(0o755)
+    script = f'tv() {{ echo "$*" >> "{t}/log"; case "$1" in "pm list packages; echo END_OF_LIST") printf "{reply}" ;; esac; true; }}\ncd "{t}"\n' + block + '\necho CONTINUED >> "' + str(t) + '/log"\n'
+    r = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    return r.returncode, r.stdout, (t / "log").read_text()
+for label, reply in (("empty", ""), ("cut (no end marker)", "package:android\\npackage:sa.urtv.home\\n"), ("no android in it", "package:x\\nEND_OF_LIST\\n")):
+    rc, out, log = reset_silent(reply)
+    check(f"reset: a {label} package list is «the TV did not say»: a !! line, exit 1, no familydns off, nothing uninstalled", rc == 1 and "!! familydns: could not ask" in out and "CONTINUED" not in log and "pm uninstall" not in log, f"{rc} {out} {log}")
+
 # ---- reset.sh stops before it removes anything when the original cannot be put back
 src = (ROOT / "optimize/reset.sh").read_text(encoding="utf-8")
 block = src[src.index("# «حماية العائلة (DNS)»: the Private DNS the TV had comes back"):src.index('echo "3/4 Removing our apps')]
@@ -151,7 +163,7 @@ def reset_block(familydns_exit):
     (t / "optimize" / "familydns.sh").write_text(f"#!/usr/bin/env bash\nexit {familydns_exit}\n"); (t / "optimize" / "familydns.sh").chmod(0o755)
     (t / "optimize" / "run").mkdir(); (t / "optimize/run/grants-journal.txt").write_text("android.permission.WRITE_SECURE_SETTINGS\n")
     log = t / "log"
-    script = f'tv() {{ echo "$*" >> "{log}"; [ "$1" = "pm list packages sa.urtv.home" ] && echo package:sa.urtv.home; true; }}\ncd "{t}"\n' + block + '\necho CONTINUED >> "' + str(log) + '"\n'
+    script = f'tv() {{ echo "$*" >> "{log}"; case "$1" in "pm list packages; echo END_OF_LIST") echo package:android; echo package:sa.urtv.home; echo END_OF_LIST ;; esac; true; }}\ncd "{t}"\n' + block + '\necho CONTINUED >> "' + str(log) + '"\n'
     r = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
     return r.returncode, r.stdout + r.stderr, log.read_text() if log.exists() else ""
 def reset_real(**env):

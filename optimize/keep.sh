@@ -56,7 +56,7 @@ case "${1:-}" in
   *) echo "usage: optimize/keep.sh [off | restore <package> … | unkeep <package> …]"; exit 2 ;;
 esac
 listed=$(disabled_list) || { echo "!! Could not ask the TV which packages are off, so the protected features were NOT checked." >&2; exit 1; }
-off=$(printf '%s\n' "$listed" | grep -Fxf <(grep -vE '^\s*(#|$)' optimize/lists/keep.txt | awk '{print $1}') || true)
+off=$(printf '%s\n' "$listed" | grep -Fxf <(grep -vE '^[[:space:]]*(#|$)' optimize/lists/keep.txt | awk '{print $1}') || true)
 # the stock home and setup app are in keep.txt but belong to install.sh launcher: leave them to it
 off=$(printf '%s\n' "$off" | grep -vxE 'com.google.android.apps.tv.launcherx|com.google.android.tvlauncher|com.google.android.tungsten.setupwraith|com.tcl.keycustomfunctionservice' || true)
 if [ -z "$off" ]; then echo "Protected features: all on."; exit 0; fi

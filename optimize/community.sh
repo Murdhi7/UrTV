@@ -19,7 +19,7 @@ installed=$(tv "pm list packages" | tr -d '\r')
 disabled=$(tv "pm list packages -d" | tr -d '\r')
 # our lists know a TV when several of their TCL packages are on it (they are TCL lists; the Google ones are on every Android TV)
 mine=0
-for p in $(grep -vE '^\s*(#|$)' "$LISTS/tcl-safe.txt" "$LISTS/tcl-optional.txt" | awk '{print $1}' | sed 's/^[^:]*://' | grep '^com\.tcl\.' | sort -u); do
+for p in $(grep -vE '^[[:space:]]*(#|$)' "$LISTS/tcl-safe.txt" "$LISTS/tcl-optional.txt" | awk '{print $1}' | sed 's/^[^:]*://' | grep '^com\.tcl\.' | sort -u); do
   ! grep -qx "package:$p" <<< "$installed" || mine=$((mine + 1))
 done
 if [ "$mine" -ge 3 ]; then echo "   (our own lists know this TV: no community list)"; exit 0; fi
@@ -39,11 +39,11 @@ if [ ! -s "$tmp/homes" ]; then   # every TV has a home app: an empty answer is Â
   rm -rf "$tmp"; exit 1
 fi
 kept=$("$PY" -I optimize/offlist.py kept) || exit 1   # an unreadable kept.txt stops the step
-grep -vE '^\s*(#|$)' "$LISTS/keep.txt" | awk '{print $1}' > "$tmp/keep"
+grep -vE '^[[:space:]]*(#|$)' "$LISTS/keep.txt" | awk '{print $1}' > "$tmp/keep"
 printf '%s\n' "$kept" >> "$tmp/keep"
 "$PY" -I optimize/community.py packages "$chosen" --keep "$tmp/keep" --homes "$tmp/homes" --installed "$tmp/installed" > "$tmp/pkgs"
 # never Android's own core, whatever the list says (optimize/lists/core.txt; disable.sh would refuse the whole list)
-grep -vEf <(grep -vE '^\s*(#|$)' "$LISTS/core.txt" | sed 's/.*/^(&)$/') "$tmp/pkgs" > "$tmp/pkgs2" || true; mv "$tmp/pkgs2" "$tmp/pkgs"
+grep -vEf <(grep -vE '^[[:space:]]*(#|$)' "$LISTS/core.txt" | sed 's/.*/^(&)$/') "$tmp/pkgs" > "$tmp/pkgs2" || true; mv "$tmp/pkgs2" "$tmp/pkgs"
 # what owners often want (an update service, voice, MiLink, a video player): left on, and offered to the person instead
 rm -f "$RUN/community-ask.txt"
 if grep -qE '^[^#[:space:]]' "$LISTS/community-ask.txt" 2> /dev/null; then

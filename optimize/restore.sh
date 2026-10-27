@@ -20,7 +20,7 @@ fi
 nonce=$(jget nonce)
 LEDGER="${URTV_RUN_DIR:-optimize/run}/disabled-by-us.txt"
 {
-  for LIST in "$@" optimize/lists/home-replaced.txt; do grep -vE '^\s*(#|$)' "$LIST" | awk '{print "pm enable " $1}'; done
+  for LIST in "$@" optimize/lists/home-replaced.txt; do grep -vE '^[[:space:]]*(#|$)' "$LIST" | awk '{print "pm enable " $1}'; done
   # every package any of our disable runs turned off (a second run, the community list, a list that has changed since). The ledger holds
   # only packages that were installed and not already off (we never uninstall, so there is nothing to install again).
   if [ -f "$LEDGER" ]; then grep -E '^[A-Za-z0-9_.]+$' "$LEDGER" | awk '{print "pm enable " $1}'; fi

@@ -492,7 +492,7 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
   esac
   if [ "$home_skipped" = 0 ]; then
     # 5. Only now: the stock home's helpers are dead weight (restore.sh brings them back).
-    grep -vE '^\s*(#|$)' optimize/lists/home-replaced.txt | awk '{print "pm disable-user --user 0 " $1}' \
+    grep -vE '^[[:space:]]*(#|$)' optimize/lists/home-replaced.txt | awk '{print "pm disable-user --user 0 " $1}' \
       | "$PY" -I optimize/tv.py --batch > /dev/null || true
     optimize/settle.sh mark 2> /dev/null || true
     rm -f "${URTV_RUN_DIR:-optimize/run}/home-skipped.txt"
