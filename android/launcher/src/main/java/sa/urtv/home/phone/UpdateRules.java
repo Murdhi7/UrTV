@@ -42,7 +42,7 @@ public final class UpdateRules {
 
     public static String hex(byte[] bytes) {
         StringBuilder h = new StringBuilder();
-        for (byte b : bytes) h.append(String.format("%02x", b & 0xff));
+        for (byte b : bytes) h.append(String.format(java.util.Locale.ROOT, "%02x", b & 0xff));
         return h.toString();
     }
 }

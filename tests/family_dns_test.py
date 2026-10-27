@@ -59,6 +59,7 @@ check("fresh name: fast NXDOMAIN or an address continues; timeout, slow NXDOMAIN
       and all(x == "REVERTED opportunistic/x.example true0" for x in parts[2:5]) and parts[5] == "0", out[20])
 check("UnknownHostException: only a GaiException EAI_NODATA/EAI_NONAME cause is «no such name»; any other cause is a failure",
       out[21] == "NOT_FOUND NOT_FOUND FAILED FAILED", out[21])
+check("validated Private DNS servers: none validated is not working; a TV that cannot say is not refused", out[22] == "false true true", out[22])
 android = (ROOT / "android/launcher/src/main/java/sa/urtv/home/FamilyDnsAndroid.java").read_text(encoding="utf-8")
 check("last=RUNNING is written before the worker thread starts",
       0 <= android.find('putString(K_LAST, "RUNNING")') < android.find('worker.start()'))
@@ -78,4 +79,10 @@ check("DockReceiver answers: off at once, on 'started (on)', status ends with su
 check("manifest: the permission is declared and DockReceiver takes FAMILY_DNS",
       "android.permission.WRITE_SECURE_SETTINGS" in (ROOT / "android/launcher/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
       and 'sa.urtv.home.FAMILY_DNS' in (ROOT / "android/launcher/src/main/AndroidManifest.xml").read_text(encoding="utf-8"))
+check("the check fails and the old values cannot go back: RESTORE_FAILED (not REVERTED), our values still on, record and flag kept",
+      out[23] == "RESTORE_FAILED hostname/family.adguard-dns.com true true", out[23])
+check("the partial write that cannot be undone: RESTORE_FAILED, record and flag kept", out[24] == "RESTORE_FAILED true true", out[24])
+check("then recover() puts the old values back and clears the record and the flag", out[25] == "RESTORED opportunistic/x.example true 0", out[25])
+check("when the old values did go back (read back) it is still REVERTED / NOT_TAKEN, with the record and the flag cleared",
+      out[26] == "REVERTED true 0 | NOT_TAKEN opportunistic/x.example true 0", out[26])
 sys.exit(1 if failed else 0)

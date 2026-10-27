@@ -6,6 +6,8 @@ cd "$(dirname "$0")/.."
 python3 tests/check.py
 python3 tests/tilawah_test.py
 python3 tests/prayer_math_test.py
+python3 tests/prayer_crosscheck_test.py
+python3 tests/hijri_crosscheck_test.py
 python3 tests/prayer_method_test.py
 python3 tests/prayer_adj_test.py
 python3 tests/hijri_offset_test.py
@@ -17,6 +19,9 @@ python3 tests/install_versions_test.py
 python3 tests/install_retry_test.py
 python3 tests/deadman_test.py
 python3 tests/run_lock_test.py
+python3 tests/run_identity_test.py
+python3 tests/run_report_test.py
+python3 tests/type_test.py
 python3 tests/reboot_test.py
 python3 tests/tv_identity_test.py
 python3 tests/tv_read_only_test.py
@@ -27,10 +32,12 @@ python3 tests/settings_audit_test.py
 python3 tests/power_test.py
 python3 tests/familydns_test.py
 python3 tests/family_dns_test.py
+python3 tests/receiver_flags_test.py
 python3 tests/restore_scripts_test.py
 python3 tests/power_fixes_test.py
 python3 tests/settle_test.py
 python3 tests/restore_complete_test.py
+python3 tests/reset_restore_rc_test.py
 python3 tests/failclosed_test.py
 python3 tests/key_home_test.py
 python3 tests/dock_names_test.py
@@ -55,6 +62,7 @@ python3 tests/saver_quote_test.py
 python3 tests/settings_move_test.py
 python3 tests/saver_off_test.py
 python3 tests/saver_reload_test.py
+python3 tests/listen_pill_test.py
 python3 tests/versions_test.py
 python3 tests/channel_test.py
 python3 tests/app_fixes_test.py
@@ -105,4 +113,6 @@ python3 tests/pin_store_test.py
 python3 tests/parental_policy_test.py
 python3 tests/parental_wiring_test.py
 python3 tests/dock_pin_test.py
+node tests/prayer_crosscheck_page.mjs
+node tests/hijri_crosscheck_page.mjs
 node tests/page.test.mjs

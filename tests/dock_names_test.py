@@ -27,6 +27,16 @@ def check(name, ok, detail=""):
     print(("PASS " if ok else "FAIL ") + name + ("" if ok else "  -> " + detail))
     failed += not ok
 
+# a receiver that never ran: «Broadcast completed: result=0» with no data= is not «done»
+silent_fake = os.path.join(tmp, "silentpy")
+with open(silent_fake, "w") as f:
+    f.write('#!/usr/bin/env bash\necho "Broadcast completed: result=0"\n')
+os.chmod(silent_fake, 0o755)
+r = subprocess.run(["bash", dock, "pin", "status"], capture_output=True, text=True, env={**os.environ, "PY": silent_fake})
+check("dock.sh: no answer from the app is a failure with a !! line (not a blank success, so «the PIN is set» cannot be said)", r.returncode == 1 and "!! dock.sh: no answer from the TV's home app" in r.stdout + r.stderr, r.stdout + r.stderr)
+r = subprocess.run(["bash", dock, "names"], capture_output=True, text=True, env={**os.environ, "PY": silent_fake})
+check("dock.sh: the same for names", r.returncode == 1, r.stdout + r.stderr)
+
 A = "am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home."
 rc, out, sent = run("names")
 check("names: lists them", rc == 0 and sent == A + "NAMES", sent)

@@ -33,7 +33,7 @@ public class ScreenDream extends DreamService {
         setScreenBright(true);
         attached = true;
         show(true);
-        registerReceiver(changed, new IntentFilter(Prefs.CHANGED));
+        InternalReceivers.register(this, changed, new IntentFilter(Prefs.CHANGED));
     }
 
     /**

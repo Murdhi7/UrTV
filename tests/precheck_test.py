@@ -61,7 +61,7 @@ check("held: an old WebView exits 4, silently", rc == 4 and out == "", f"{rc} {o
 rc, out = run_py("held", batch(TV_FEATS, webviewupdate=UPD.format("com.google.android.webview", "120.0.1")))
 check("held: a new WebView exits 0", rc == 0 and out == "", f"{rc} {out}")
 rc, out = run_py("held", batch(TV_FEATS))
-check("held: an unreadable WebView exits 0 (nothing says it cannot run)", rc == 0, f"{rc} {out}")
+check("held: an unreadable WebView exits 5 (unknown holds the screensaver back)", rc == 5 and out == "", f"{rc} {out}")
 
 # ---- the shell script, with a fake tv.py
 t = Path(tempfile.mkdtemp())

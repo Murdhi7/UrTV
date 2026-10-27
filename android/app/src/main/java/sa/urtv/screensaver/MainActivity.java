@@ -35,7 +35,7 @@ public class MainActivity extends Activity {
         if (!getIntent().getBooleanExtra("sleeping", false)) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         alive = true;
         show();
-        registerReceiver(changed, new IntentFilter(Prefs.CHANGED));
+        InternalReceivers.register(this, changed, new IntentFilter(Prefs.CHANGED));
     }
 
     private void show() {

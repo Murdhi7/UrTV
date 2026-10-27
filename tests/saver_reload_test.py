@@ -30,7 +30,7 @@ check("and never on a refusal: every `return \"error:` comes before the saves, s
       setter.rindex('return "error:') < setter.index("if (city != null) p.setCity("), "")
 for name, src, flag in (("the dream", dream, "attached"), ("the preview", preview, "alive")):
     check(f"{name} listens for it while it is on the screen (registered when it starts, unregistered when it ends)",
-          "registerReceiver(changed, new IntentFilter(Prefs.CHANGED))" in src and "unregisterReceiver(changed)" in src, "")
+          "InternalReceivers.register(this, changed, new IntentFilter(Prefs.CHANGED))" in src and "unregisterReceiver(changed)" in src, "")
     handler = src.split("onReceive(Context c, Intent i) {")[1].split("\n        }\n")[0]
     check(f"{name} throws the old page away and builds a new one, only while it is up",
           f"if (!{flag} || web == null) return;" in handler and "ScreenView.release(old)" in handler and "show(" in handler

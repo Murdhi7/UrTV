@@ -88,6 +88,15 @@ public final class FamilyDns {
     }
 
     /**
+     * The validated Private DNS servers of the active network, when the TV can say how many (LinkProperties.getValidatedPrivateDnsServers, hidden
+     * API on some versions, reached by reflection): none validated means the strict setting is not working, even if the setting propagated.
+     * null = this TV cannot say, which is not a reason to refuse.
+     */
+    public static boolean validatedServersOk(Integer count) {
+        return count == null || count > 0;
+    }
+
+    /**
      * What an UnknownHostException means. Only the resolver's own «no such name / no data» (a GaiException with EAI_NODATA or EAI_NONAME as the
      * cause) is a real answer; any other cause (a failed or refused connection, a bad certificate, a system error) is a broken resolver.
      */
@@ -139,11 +148,13 @@ public final class FamilyDns {
         }
         boolean wrote = p.putGlobal(KEY_SPEC, HOST) && p.putGlobal(KEY_MODE, MODE_ON);
         if (!wrote || !MODE_ON.equals(p.getGlobal(KEY_MODE)) || !HOST.equals(p.getGlobal(KEY_SPEC))) {
-            if (restore(rec)) { p.clearRecord(); p.clearChecking(); }
+            if (!restore(rec)) return Result.RESTORE_FAILED;   // the old values are not back: the record and the flag stay (recover() and «off» try again)
+            p.clearRecord(); p.clearChecking();
             return Result.NOT_TAKEN;
         }
         if (!p.privateDnsValidated(HOST, VALIDATE_MS) || !resolverAnswers(p.lookupFreshName(FRESH_MS)) || !p.internetWorks(HTTP_MS)) {
-            if (restore(rec)) { p.clearRecord(); p.clearChecking(); }
+            if (!restore(rec)) return Result.RESTORE_FAILED;   // REVERTED only once the old values were read back
+            p.clearRecord(); p.clearChecking();
             return Result.REVERTED;
         }
         p.clearChecking();

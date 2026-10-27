@@ -3135,15 +3135,19 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'nex
 
   // those countries' cities offline: the page's own formula against the independent reference (tests/prayer_gold_countries.tsv), one minute of slack
   {
-    const ref = readFileSync(path.join(ROOT, 'tests/prayer_gold_countries.tsv'), 'utf8').split('\n').filter(l => l && !l.startsWith('#')).map(l => l.split('\t'));
+    const ref = readFileSync(path.join(ROOT, 'tests/prayer_gold_countries.tsv'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#')).map(l => l.split('\t'));
     const mins = t => t.split(' ').map(x => +x.slice(0, 2) * 60 + +x.slice(3));
     const bad = [];
     for (const tz of Object.keys(zones)) {
       const { p, ctx, errors } = await open('tv.html', 'tz=' + encodeURIComponent(tz), { now: new Date('2026-10-23T09:00:00Z') });
-      for (const [name, date, lat, lon, z, want] of ref.filter(r => r[4] === tz)) {
+      for (const [name, date, lat, lon, z, want, written] of ref.filter(r => r[4] === tz)) {
         await p.clock.setFixedTime(new Date(date + 'T09:00:00Z'));
-        const t = await p.evaluate(([la, lo]) => { CONFIG.latitude = +la; CONFIG.longitude = +lo; const r = computePrayers(); return [r.Fajr, r.Sunrise, r.Dhuhr, r.Asr, r.Maghrib, r.Isha].join(' '); }, [lat, lon]);
-        if (mins(t).some((m, i) => Math.abs(m - mins(want)[i]) > 1)) bad.push(`${name} ${date}: ${t} vs ${want}`);
+        const [t, off] = await p.evaluate(([la, lo]) => { CONFIG.latitude = +la; CONFIG.longitude = +lo; const r = computePrayers(), d = riyadhParts(), n = Date.UTC(d.y, d.mo - 1, d.d, 12);
+          return [[r.Fajr, r.Sunrise, r.Dhuhr, r.Asr, r.Maghrib, r.Isha].join(' '), Math.round(tzOffsetMs(n - tzOffsetMs(n)) / 60000)]; }, [lat, lon]);
+        // written at `written` minutes from UTC: this browser's time-zone data may say another (Morocco left UTC+1 in tzdata 2026c); the
+        // sun is the same, so the reference is re-based by the difference, not failed
+        const shift = off - +written;
+        if (mins(t).some((m, i) => Math.abs(m - (mins(want)[i] + shift)) > 1)) bad.push(`${name} ${date}: ${t} vs ${want} (+${shift} min for this browser's zone data)`);
       }
       if (errors.length) bad.push(errors.join('; '));
       await ctx.close();
@@ -3152,7 +3156,7 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'nex
   }
 
   // a Saudi city keeps exactly the times it had (tests/prayer_gold.tsv is what the page computed before the Gulf methods)
-  const gold = readFileSync(path.join(ROOT, 'tests/prayer_gold.tsv'), 'utf8').split('\n').filter(l => l && !l.startsWith('#')).map(l => l.split('\t'));
+  const gold = readFileSync(path.join(ROOT, 'tests/prayer_gold.tsv'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#')).map(l => l.split('\t'));   // a Windows checkout may bring CRLF
   const { p, ctx, errors } = await open('tv.html', 'tz=Asia%2FRiyadh', { now: new Date('2026-10-23T09:00:00Z') });
   const bad = [];
   for (const [name, date, lat, lon, , want] of gold) {
@@ -3207,7 +3211,9 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'nex
   const midnight = await run(answer({ ...good, Maghrib: '23:50', Isha: '00:20' }));
   check('Aladhan answer: an Isha after midnight («00:20») is kept as the absolute 24:20', midnight.list.endsWith('24:20') && midnight.finite, JSON.stringify(midnight));
   for (const [label, body] of [['a missing Isha', answer({ ...good, Isha: undefined })], ['a non-time', answer({ ...good, Asr: 'n/a' })], ['25:00', answer({ ...good, Dhuhr: '25:00' })],
-      ['12:7', answer({ ...good, Maghrib: '12:7' })], ['the wrong day', answer(good, '22-10-2026')], ['no timings', JSON.stringify({ code: 200, data: {} })], ['not JSON', 'oops']]) {
+      ['12:7', answer({ ...good, Maghrib: '12:7' })], ['the wrong day', answer(good, '22-10-2026')], ['no timings', JSON.stringify({ code: 200, data: {} })], ['not JSON', 'oops'],
+      ['no date at all (a cached or captive page)', JSON.stringify({ code: 200, data: { timings: good } })],
+      ['the times out of order', answer({ ...good, Asr: '11:00' })]]) {
     const r = await run(body);
     check(`Aladhan answer with ${label}: none of it is used, the computed times stand (all finite, five of them)`, r.day === '23-10-2026|calc' && r.n === 5 && r.finite && !r.errors.length, JSON.stringify(r));
   }
@@ -3220,6 +3226,31 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'nex
   check("Aladhan answer: a bad answer does not replace today's good times", kept === '4:30 11:35 14:50 17:18 18:48 23-10-2026|api', kept);
   const thrown = await p.evaluate(() => { try { buildPrayers({ Fajr: '04:30', Dhuhr: 'x:y', Asr: '14:50', Maghrib: '17:18', Isha: '18:48' }); return 'accepted'; } catch (e) { return PRAYERS.map(x => x.h).join(','); } });
   check('buildPrayers: a field that is not a time throws and publishes nothing (the old times stay)', thrown === '4,11,14,17,18', thrown);
+  await ctx.close();
+}
+
+// ---- a browser without the Umm al-Qura calendar is not «not Ramadan»: the month comes from the tabular Islamic calendar (fail closed)
+for (const [now, want, why] of [['2026-02-25T09:00:00Z', 9, 'Ramadan 1447'], ['2026-10-22T09:00:00Z', 5, 'Jumada al-Ula 1448'], ['2026-03-25T09:00:00Z', 10, 'Shawwal 1447']]) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  await ctx.route(/^https?:/, r => r.abort());
+  await ctx.addInitScript(() => {   // as on a stripped WebView: no Islamic calendar
+    const DTF = Intl.DateTimeFormat;
+    Intl.DateTimeFormat = function(loc, opt){ if(String(loc).includes('islamic')) throw new RangeError('no calendar'); return new DTF(loc, opt); };
+    Intl.DateTimeFormat.prototype = DTF.prototype; Intl.DateTimeFormat.supportedLocalesOf = DTF.supportedLocalesOf;
+  });
+  const pg = await ctx.newPage(), errors = [];
+  pg.on('pageerror', e => errors.push(e.message));
+  await pg.clock.setFixedTime(new Date(now));
+  await pg.goto(page('tv.html') + '#gap=0');
+  await pg.waitForTimeout(400);
+  const r = await pg.evaluate(() => ({ raw: hijriMonthNow(true), shown: hijriMonthNow(), tab: tabularHijriMonth(new Date()) }));
+  check(`Hijri month with no Umm al-Qura calendar, ${now.slice(0, 10)}: ${want} (${why}), not 0`, r.raw === want && r.shown === want, JSON.stringify(r) + errors.join('; '));
+  await ctx.close();
+}
+{   // and where the calendar is there, the tabular one agrees with it on those days (it is only the fallback)
+  const { p, ctx } = await open('tv.html', '', { now: new Date('2026-02-25T09:00:00Z') });
+  const r = await p.evaluate(() => [hijriMonthNow(true), tabularHijriMonth(new Date())]);
+  check('Hijri month: the tabular fallback agrees with Umm al-Qura in mid-month', r[0] === 9 && r[1] === 9, JSON.stringify(r));
   await ctx.close();
 }
 

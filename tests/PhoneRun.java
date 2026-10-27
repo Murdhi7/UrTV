@@ -178,6 +178,7 @@ public final class PhoneRun {
 
     public static void main(String[] args) throws Exception {
         pairing();
+        pairingLocales();
         sessions();
         guards();
         json();
@@ -189,6 +190,28 @@ public final class PhoneRun {
         controller();
         System.out.println(failed == 0 ? "ALL PASS" : failed + " FAILED");
         System.exit(failed == 0 ? 0 : 1);
+    }
+
+    /** The code the TV shows and the one the phone sends are both ASCII digits, whatever language the TV is set to (ar-SA and fa-IR format %d with their own digits). */
+    static void pairingLocales() {
+        java.util.Locale was = java.util.Locale.getDefault();
+        try {
+            for (String tag : new String[] {"ar-SA", "fa-IR", "hi-IN", "en-US"}) {
+                java.util.Locale.setDefault(java.util.Locale.forLanguageTag(tag));
+                for (final int n : new int[] {7, 42, 123456, 999999, 0}) {
+                    SecureRandom fixed = new SecureRandom() {
+                        @Override public int nextInt(int bound) { return n; }
+                    };
+                    Pairing p = new Pairing(fixed);
+                    Pairing.Offer o = p.offer(1000);
+                    String want = String.format(java.util.Locale.ROOT, "%06d", n);
+                    check("pairing code " + want + " under " + tag + ": six ASCII digits", o.code.equals(want) && o.code.matches("[0-9]{6}") && o.token.matches("[0-9a-f]{32}"), o.code);
+                    check("pairing code " + want + " under " + tag + ": the phone's ASCII code is accepted", p.redeem(want, true, 1001) == Pairing.Result.OK && p.wrongTries() == 0, "");
+                }
+            }
+        } finally {
+            java.util.Locale.setDefault(was);
+        }
     }
 
     static void pairing() {

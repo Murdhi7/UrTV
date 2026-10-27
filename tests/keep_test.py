@@ -39,4 +39,7 @@ keep_pkg = next(l.split()[0] for l in open(os.path.join(here, "..", "optimize", 
                 and l.split()[0] not in ("com.google.android.apps.tv.launcherx", "com.google.android.tvlauncher", "com.google.android.tungsten.setupwraith", "com.tcl.keycustomfunctionservice"))
 rc, out, batch = run(f"package:{keep_pkg}\r\n")
 check("a protected package is off: it is enabled", f"pm enable {keep_pkg}" in batch, batch)
+if not os.path.exists(os.path.join(here, "..", "optimize", "run", "backup.txt")):
+    check("still off and no backup to show whether the TV had it off before: not «left off by the TV itself», a !! line and exit 1",
+          rc == 1 and "there is no optimize/run/backup.txt" in out and "left off by the TV itself" not in out, f"rc={rc} {out}")
 sys.exit(1 if failed else 0)

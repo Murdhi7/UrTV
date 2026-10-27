@@ -36,9 +36,9 @@ public final class Pairing {
         byte[] b = new byte[16];
         rnd.nextBytes(b);
         StringBuilder h = new StringBuilder();
-        for (byte x : b) h.append(String.format("%02x", x & 0xff));
+        for (byte x : b) h.append(String.format(java.util.Locale.ROOT, "%02x", x & 0xff));
         token = h.toString();
-        code = String.format("%06d", rnd.nextInt(1_000_000));
+        code = String.format(java.util.Locale.ROOT, "%06d", rnd.nextInt(1_000_000));
         expiresAt = now + TTL_MS;
         return new Offer(token, code, expiresAt);
     }

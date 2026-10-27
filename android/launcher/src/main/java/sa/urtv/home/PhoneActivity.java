@@ -203,7 +203,7 @@ public class PhoneActivity extends Activity implements PrivateScreen {
         if (!shownToken.isEmpty() && !o.token.equals(shownToken) && control.pending() == null) { render(); return; }
         if (countdown != null) {
             long left = Math.max(0, (o.expiresAt - System.currentTimeMillis()) / 1000);
-            countdown.setText("ينتهي هذا الرمز بعد " + Digits.of(String.format("%d:%02d", left / 60, left % 60)) + " ويتجدد وحده، ويصلح لجوال واحد مرة واحدة.");
+            countdown.setText("ينتهي هذا الرمز بعد " + Digits.of(String.format(java.util.Locale.ROOT, "%d:%02d", left / 60, left % 60)) + " ويتجدد وحده، ويصلح لجوال واحد مرة واحدة.");
         }
     }
 

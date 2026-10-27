@@ -26,6 +26,14 @@ public final class PrayerMathRun {
 
     static int minutes(String hhmm) { return Integer.parseInt(hhmm.substring(0, 2)) * 60 + Integer.parseInt(hhmm.substring(3)); }
 
+    /** the clock row moved by that many minutes */
+    static String shifted(String times, int shift) {
+        if (shift == 0) return times;
+        StringBuilder b = new StringBuilder();
+        for (String t : times.split(" ")) { int m = Math.floorMod(minutes(t) + shift, 1440); b.append(b.length() > 0 ? " " : "").append(String.format("%02d:%02d", m / 60, m % 60)); }
+        return b.toString();
+    }
+
     /** the two clock rows differ by at most that many minutes in every field */
     static boolean within(String a, String b, int tolerance) {
         String[] x = a.split(" "), y = b.split(" ");
@@ -91,16 +99,22 @@ public final class PrayerMathRun {
 
         // the other countries' cities (tests/prayer_gold_countries.tsv): times from an independent solar calculation (NOAA/Meeus series, not this
         // code's formula) with each country's published parameters; the method comes from the zone as the TV would pick it. One minute of slack.
-        int countries = 0;
+        int countries = 0, rebased = 0;
         for (String line : Files.readAllLines(Paths.get(args[1]), StandardCharsets.UTF_8)) {
             if (line.isEmpty() || line.startsWith("#")) continue;
             String[] f = line.split("\t");
             String[] ymd = f[1].split("-");
-            long[] g = PrayerMath.compute(Integer.parseInt(ymd[0]), Integer.parseInt(ymd[1]), Integer.parseInt(ymd[2]),
-                    Double.parseDouble(f[2]), Double.parseDouble(f[3]), f[4], false, PrayerMath.methodFor(f[4], null));
+            int y = Integer.parseInt(ymd[0]), mo = Integer.parseInt(ymd[1]), d = Integer.parseInt(ymd[2]);
+            long[] g = PrayerMath.compute(y, mo, d, Double.parseDouble(f[2]), Double.parseDouble(f[3]), f[4], false, PrayerMath.methodFor(f[4], null));
             countries++;
-            check("reference " + f[0] + " " + f[1] + " (" + f[4] + "): every time within a minute of the independent calculation", within(row(g, f[4]), f[5], 1), row(g, f[4]) + " vs " + f[5]);
+            // the row is written at f[6] minutes from UTC; this machine's time-zone data may give the zone another offset that day (Morocco
+            // left UTC+1 in tzdata 2026c): the sun is the same, so the reference is re-based by the difference and counted, not failed
+            int shift = java.util.TimeZone.getTimeZone(f[4]).getOffset(PrayerMath.midnight(y, mo, d, f[4]) + 12 * 3600_000L) / 60000 - Integer.parseInt(f[6].trim());
+            if (shift != 0) rebased++;
+            String want = shifted(f[5], shift);
+            check("reference " + f[0] + " " + f[1] + " (" + f[4] + "): every time within a minute of the independent calculation", within(row(g, f[4]), want, 1), row(g, f[4]) + " vs " + want);
         }
+        System.out.println("NOTE reference: " + (rebased == 0 ? "every row at the offset it was written at" : rebased + " rows re-based for this machine's time-zone data, not formula errors"));
         check("reference: the file was read", countries >= 1, String.valueOf(countries));
 
         // which method a place gets: its country's by the zone, the Ja'fari when asked, Umm al-Qura for anything else

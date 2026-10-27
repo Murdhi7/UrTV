@@ -252,7 +252,7 @@ public final class PhoneControl {
         StringBuilder id = new StringBuilder();
         byte[] b = new byte[16];
         rnd.nextBytes(b);
-        for (byte x : b) id.append(String.format("%02x", x & 0xff));
+        for (byte x : b) id.append(String.format(java.util.Locale.ROOT, "%02x", x & 0xff));
         pending = new Pending(id.toString(), clientIp, now);
         return new Object[] {Pair.OK, pending.id};
     }
