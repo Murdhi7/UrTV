@@ -31,7 +31,8 @@ check("the focus (1.12 in the dock, 1.1 in the grid) and the lifted card (1.25) 
       "scaleTo(v, s);" in main and "scaleTo(card, 1.25f);" in main and "scaleTo(card, s);" in main)
 drv = main[main.index("private void doMotion(long now)"):].split("\n    }\n")[0]
 check("one frame callback steps every spring, a slow frame capped at 50 ms, and stops once all have settled",
-      "Math.min(0.05f, (now - motionNanos) / 1e9f)" in drv and "if (moving) android.view.Choreographer.getInstance().postFrameCallback(this::doMotion);" in drv
+      "Math.min(0.05f, (now - motionNanos) / 1e9f)" in drv and "if (moving) android.view.Choreographer.getInstance().postFrameCallback(motionFrame);" in drv
+      and "private final android.view.Choreographer.FrameCallback motionFrame = this::doMotion;" in main and main.count("this::doMotion") == 1
       and "else motionPosted = false;" in drv and "if (isDestroyed())" in drv)
 check("a card at rest at its own size is let go (no spring kept for it)", "else if (sp.target == 1f) it.remove();" in drv)
 glide = main[main.index("private void glideTo(int y)"):].split("\n    }\n")[0]
@@ -40,7 +41,8 @@ check("a glide starts from where the page is when nothing was gliding it, and ke
 check("the page's spring has no bounce, the card's a little (as the focus had)",
       "new Spring(0.34f, 1f, 0, 0.25f);" in main and "new Spring(0.34f, 0.74f, v.getScaleX())" in main)
 check("with the TV's animations off (animator scale 0) the size and the scroll go straight there",
-      "Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f" in main and "if (!motionOn()) { scaleSprings.remove(v); v.setScaleX(scale); v.setScaleY(scale); return; }" in main
+      "Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f" in main.split("private void readAnimationScale()")[1].split("\n    }\n")[0]
+      and "readAnimationScale();" in main.split("protected void onResume()")[1].split("\n    }\n")[0] and "if (!motionOn()) { scaleSprings.remove(v); v.setScaleX(scale); v.setScaleY(scale); return; }" in main
       and "if (!motionOn()) { scrollSpring.snap(y); scroll.scrollTo(0, y); return; }" in main)
 
 # ---- the spring, for real

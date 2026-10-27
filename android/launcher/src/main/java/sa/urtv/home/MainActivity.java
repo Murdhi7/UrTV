@@ -202,6 +202,7 @@ public class MainActivity extends Activity {
         updateWifi();
         updateNowPlaying();
         homeCard.refresh();
+        readAnimationScale();
         loadTvRows();   // what one watched since: «أكمل المشاهدة» moves on
         showUpdateResult();
         wireFocus();   // the «المهام» card may have come or gone with the settings
@@ -242,6 +243,7 @@ public class MainActivity extends Activity {
         unregisterReceiver(sleepChanged);
         unregisterReceiver(nowPlayingChanged);
         loader.shutdownNow();
+        tvLoader.shutdownNow();
         homeCard.destroy();
         super.onDestroy();
     }
@@ -908,15 +910,20 @@ public class MainActivity extends Activity {
         startMotion();
     }
 
-    private boolean motionOn() {
-        return Settings.Global.getFloat(getContentResolver(), Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f;
+    private boolean animationsOn = true;   // the TV's animator scale, read on each return to the front (not on every key)
+    private final android.view.Choreographer.FrameCallback motionFrame = this::doMotion;   // one callback, posted again and again
+
+    private boolean motionOn() { return animationsOn; }
+
+    private void readAnimationScale() {
+        animationsOn = Settings.Global.getFloat(getContentResolver(), Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f;
     }
 
     private void startMotion() {
         if (motionPosted) return;
         motionPosted = true;
         motionNanos = 0;
-        android.view.Choreographer.getInstance().postFrameCallback(this::doMotion);
+        android.view.Choreographer.getInstance().postFrameCallback(motionFrame);
     }
 
     /** One frame: every spring a step, applied; posts itself again while any still moves. */
@@ -936,7 +943,7 @@ public class MainActivity extends Activity {
             if (m) moving = true;
             else if (sp.target == 1f) it.remove();   // at rest at its own size: nothing to keep
         }
-        if (moving) android.view.Choreographer.getInstance().postFrameCallback(this::doMotion);
+        if (moving) android.view.Choreographer.getInstance().postFrameCallback(motionFrame);
         else motionPosted = false;
     }
 
@@ -947,20 +954,85 @@ public class MainActivity extends Activity {
     private final List<TextView> tvNames = new ArrayList<>(), tvLabels = new ArrayList<>();   // «المظهر» recolours them as the grid's
 
     /** Reads the rows off the main thread (TvRows) and shows them; nothing to read without the owner's permission. */
+    // their own thread: a slow provider or picture never holds up the apps' loader (the dock, the grid)
+    private final java.util.concurrent.ExecutorService tvLoader = java.util.concurrent.Executors.newSingleThreadExecutor();
+    private static final long TV_PICTURES_MS = 8000;   // the pictures of one visit; what is not there by then keeps its title
+    private String tvShownSig = "";
+    private List<TvRows.Row> tvShown = new ArrayList<>();
+    private final java.util.Map<TvRows.Item, ImageView> tvPics = new java.util.HashMap<>();
+    private final java.util.Map<TvRows.Item, TextView> tvPlain = new java.util.HashMap<>();
+    private final java.util.Set<TvRows.Item> tvPictured = new java.util.HashSet<>();
+
+    /** The rows' words first (quick), shown; then their pictures as they come, within TV_PICTURES_MS. */
     private void loadTvRows() {
         if (tvRowsBox == null) return;
         if (!TvRows.allowed(this)) { if (tvRowsBox.getChildCount() > 0) showTvRows(new ArrayList<>()); return; }
         final int gen = ++tvRowsGen;
-        if (loader.isShutdown()) return;
-        loader.execute(() -> {
+        if (tvLoader.isShutdown()) return;
+        tvLoader.execute(() -> {
             List<TvRows.Row> rows = TvRows.load(this);
-            runOnUiThread(() -> { if (gen == tvRowsGen && !isDestroyed()) showTvRows(rows); });
+            String sig = tvSignature(rows);
+            final List<TvRows.Row>[] on = new List[1];
+            try {
+                java.util.concurrent.CountDownLatch shown = new java.util.concurrent.CountDownLatch(1);
+                runOnUiThread(() -> {
+                    if (gen == tvRowsGen && !isDestroyed()) {
+                        if (!sig.equals(tvShownSig)) { tvShownSig = sig; showTvRows(rows); }   // the same rows: nothing is built again
+                        on[0] = tvShown;
+                    }
+                    shown.countDown();
+                });
+                shown.await();
+            } catch (InterruptedException e) {
+                return;
+            }
+            if (on[0] == null) return;
+            List<TvRows.Row> missing = new ArrayList<>();   // only the cards still without their picture
+            for (TvRows.Row r : on[0]) {
+                TvRows.Row m = new TvRows.Row();
+                for (TvRows.Item it : r.items) if (!tvPictured.contains(it)) m.items.add(it);
+                missing.add(m);
+            }
+            TvRows.pictures(this, missing, TV_PICTURES_MS, (it, b) -> runOnUiThread(() -> {
+                if (gen != tvRowsGen || isDestroyed()) { b.recycle(); return; }
+                ImageView img = tvPics.get(it);
+                if (img == null) { b.recycle(); return; }
+                img.setImageBitmap(b);
+                img.setVisibility(View.VISIBLE);
+                TextView plain = tvPlain.get(it);
+                if (plain != null) plain.setVisibility(View.GONE);
+                tvPictured.add(it);
+            }));
         });
+    }
+
+    /** What the rows say: a row's key, its cards' titles, lines, links, pictures and progress. */
+    private static String tvSignature(List<TvRows.Row> rows) {
+        List<String[]> parts = new ArrayList<>();
+        for (TvRows.Row r : rows) {
+            List<String> p = new ArrayList<>();
+            p.add(r.key);
+            p.add(r.title);
+            for (TvRows.Item it : r.items) p.add(it.title + "\n" + it.meta + "\n" + it.link + "\n" + it.artUri + "\n" + it.progress);
+            parts.add(p.toArray(new String[0]));
+        }
+        return TvRowsPick.signature(parts);
     }
 
     /** Each row: its name over a line of cards the width of the grid's, read from the right, scrolled by the focus. */
     private void showTvRows(List<TvRows.Row> rows) {
         boolean had = getCurrentFocus() != null && isInTvRows(getCurrentFocus());
+        String hadRow = null;
+        int hadAt = 0;
+        if (had) for (int r = 0; r < tvCards.size(); r++) {   // the card that has the focus, by its row's key and its place
+            int i = tvCards.get(r).indexOf(getCurrentFocus());
+            if (i >= 0 && r < tvShown.size()) { hadRow = tvShown.get(r).key; hadAt = i; }
+        }
+        tvShown = rows;
+        tvShownSig = tvSignature(rows);
+        tvPics.clear();
+        tvPlain.clear();
+        tvPictured.clear();
         tvRowsBox.removeAllViews();
         tvCards.clear();
         tvNames.clear();
@@ -969,6 +1041,7 @@ public class MainActivity extends Activity {
         int cardW = (screenW - 2 * dp(68) - (cols - 1) * dp(20)) / cols;   // one grid tile wide
         for (TvRows.Row r : rows) {
             TextView name = text(11, "sans-serif-medium", lightNow ? Look.LIGHT_LOOK.gold : GOLD);
+            name.setShadowLayer(dp(3), 0, dp(1), Look.of(lightNow).shadow);   // a halo in the light look, as the clock's lines
             name.setText(r.title);
             tvNames.add(name);
             tvRowsBox.addView(name, llp(-2, -2, dp(68), dp(8), dp(68), dp(18)));
@@ -994,7 +1067,10 @@ public class MainActivity extends Activity {
             tvCards.add(cards);
         }
         wireFocus();
-        if (had && !tvCards.isEmpty()) tvCards.get(0).get(0).requestFocus();
+        int back = -1;   // the focus back on the same card (the same row by its key, the same place), else the first
+        for (int r = 0; hadRow != null && r < rows.size(); r++) if (rows.get(r).key.equals(hadRow)) back = r;
+        if (had && back >= 0) tvCards.get(back).get(Math.min(hadAt, tvCards.get(back).size() - 1)).requestFocus();
+        else if (had && !tvCards.isEmpty()) tvCards.get(0).get(0).requestFocus();
         else if (had && !dockCards.isEmpty()) dockCards.get(0).requestFocus();   // the rows went: back to the favourites
     }
 
@@ -1020,18 +1096,17 @@ public class MainActivity extends Activity {
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(0xFF1C1C1E);
         card.setBackground(bg);
-        if (it.picture != null) {
-            ImageView img = new ImageView(this);
-            img.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            img.setImageBitmap(it.picture);
-            card.addView(img, new FrameLayout.LayoutParams(-1, -1));
-        } else {
-            TextView t = text(13, "sans-serif-medium", Color.WHITE);
-            t.setText(it.title);
-            t.setGravity(Gravity.CENTER);
-            t.setPadding(dp(12), dp(8), dp(12), dp(8));
-            card.addView(t, new FrameLayout.LayoutParams(-1, -1));
-        }
+        TextView plain = text(13, "sans-serif-medium", Color.WHITE);   // the title on the plain card, until (unless) the picture comes
+        plain.setText(it.title);
+        plain.setGravity(Gravity.CENTER);
+        plain.setPadding(dp(12), dp(8), dp(12), dp(8));
+        card.addView(plain, new FrameLayout.LayoutParams(-1, -1));
+        ImageView img = new ImageView(this);
+        img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        img.setVisibility(View.GONE);
+        card.addView(img, new FrameLayout.LayoutParams(-1, -1));
+        tvPics.put(it, img);
+        tvPlain.put(it, plain);
         if (it.progress >= 0) {   // «أكمل المشاهدة»: how far in, a gold line at the foot, from the right
             View track = new View(this);
             track.setBackgroundColor(0x66000000);
@@ -1613,7 +1688,7 @@ public class MainActivity extends Activity {
         for (TextView t : new TextView[]{greeting, weatherLine, clock, ampm, date, zoneLine}) t.setShadowLayer(dp(3), 0, dp(1), p.shadow);
         for (TextView t : gridLabels) t.setTextColor(p.ink);
         for (TextView t : tvLabels) t.setTextColor(p.ink);
-        for (TextView t : tvNames) t.setTextColor(p.gold);
+        for (TextView t : tvNames) { t.setTextColor(p.gold); t.setShadowLayer(dp(3), 0, dp(1), p.shadow); }
         scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, p.scrim));
         gridShade.setBackgroundColor(p.shade);
         dockBand.setColor(p.band);

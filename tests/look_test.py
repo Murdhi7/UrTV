@@ -81,6 +81,13 @@ for photo in ("grey", "dark", "bright"):
     for part, need in (("clock", 4.5), ("date", 4.5), ("title", 4.5), ("gridname", 4.5), ("greeting", 3.0)):
         c = con[("light", part, photo)]
         check(f"light look over a {photo} photo: the {part} reads (contrast {c:.1f}, at least {need})", c >= need, c)
+for photo in ("grey", "bright"):   # the rows' names and the soft lines on the thinnest middle of the light veil (the review's case)
+    for part, need in (("rowname", 3.0), ("softthin", 4.5)):
+        c = con[("light", part, photo)]
+        check(f"light look, the thin middle of the veil over a {photo} photo: the {part} reads (contrast {c:.1f}, at least {need})", c >= need, c)
+for photo in ("grey", "dark", "bright"):
+    c = con[("light", "rownamegrid", photo)]
+    check(f"light look, a row's name over the grid's shade (a row has the focus) on a {photo} photo: contrast {c:.1f}, at least 4.5", c >= 4.5, c)
 for photo in ("grey", "dark"):   # the dark look as it always was, over the photos it was made for
     for part, need in (("clock", 4.5), ("title", 4.5), ("gridname", 4.5), ("greeting", 3.0)):
         c = con[("dark", part, photo)]

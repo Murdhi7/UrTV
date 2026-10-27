@@ -42,8 +42,11 @@ final class Look {
     static final Palette DARK_LOOK = new Palette(0xFFFFFDF6, 0xFFFFFFFF, 0xFFC6BBA4, 0xFFD6AF6B, 0x80000000, 0x66000000,
             new int[]{0xB3000000, 0x40000000, 0x26000000, 0x8C000000, 0xE6000000}, 0xB3000000, 0x1FFFFFFF, 0x14FFFFFF);
 
-    /** Cream over the photo where the text is (the top, the dock and the grid), lighter in the middle; dark ink, a deeper gold. */
-    static final Palette LIGHT_LOOK = new Palette(0xFF14201A, 0xFF14201A, 0xFF4A4232, 0xFF7A5516, 0x66FFFFFF, 0x80FFFFFF,
+    /**
+     * Cream over the photo where the text is (the top, the dock and the grid), lighter in the middle; dark ink, a deep gold and a
+     * dark soft line that read on the thin middle of the veil too (the rows' names under the favourites), with a light halo.
+     */
+    static final Palette LIGHT_LOOK = new Palette(0xFF14201A, 0xFF14201A, 0xFF3A3326, 0xFF5C3F0E, 0x66FFFFFF, 0x80FFFFFF,
             new int[]{0xD9F4EEE2, 0x73F4EEE2, 0x40F4EEE2, 0xB3F4EEE2, 0xF2F4EEE2}, 0xD9F4EEE2, 0x1A000000, 0x1F000000);
 
     static Palette of(boolean light) { return light ? LIGHT_LOOK : DARK_LOOK; }

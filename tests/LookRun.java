@@ -27,6 +27,10 @@ public final class LookRun {
                 out.append("contrast ").append(look).append(" greeting ").append(names[k]).append(" = ").append(Look.contrast(p.gold, top)).append('\n');
                 out.append("contrast ").append(look).append(" title ").append(names[k]).append(" = ").append(Look.contrast(p.ink, bottom)).append('\n');
                 out.append("contrast ").append(look).append(" gridname ").append(names[k]).append(" = ").append(Look.contrast(p.ink, grid)).append('\n');
+                int thin = Look.over(p.scrim[2], photos[k]);   // the thinnest middle of the veil: the rows' names under the favourites
+                out.append("contrast ").append(look).append(" rowname ").append(names[k]).append(" = ").append(Look.contrast(p.gold, thin)).append('\n');
+                out.append("contrast ").append(look).append(" rownamegrid ").append(names[k]).append(" = ").append(Look.contrast(p.gold, grid)).append('\n');
+                out.append("contrast ").append(look).append(" softthin ").append(names[k]).append(" = ").append(Look.contrast(p.soft, thin)).append('\n');
             }
         }
         System.out.print(out);

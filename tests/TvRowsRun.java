@@ -69,6 +69,22 @@ public final class TvRowsRun {
         put("link_none", TvRowsPick.linkAllowed("com.netflix.ninja", null, null));
         put("link_no_row", TvRowsPick.linkAllowed(null, "x", "x"));
 
+        // a huge picture (an 8000×6000 JPEG, 190 MB at full size) is decoded at 1/8 and then fitted to 400×400; a tall poster too
+        int s = TvRowsPick.sampleSize(8000, 6000, 400, 400);
+        put("sample_huge", s + " " + (8000 / s) + "x" + (6000 / s) + " " + ((8000L / s) * (6000 / s) * 4 / 1024) + "KB");
+        int[] f = TvRowsPick.fitted(8000 / s, 6000 / s, 400, 400);
+        put("fit_huge", f[0] + "x" + f[1]);
+        int t = TvRowsPick.sampleSize(1000, 30000, 400, 400);
+        put("sample_tall", t + " " + (1000 / t) + "x" + (30000 / t));
+        put("fit_tall", String.join("x", String.valueOf(TvRowsPick.fitted(1000 / t, 30000 / t, 400, 400)[0]), String.valueOf(TvRowsPick.fitted(1000 / t, 30000 / t, 400, 400)[1])));
+        put("sample_small", TvRowsPick.sampleSize(320, 180, 400, 400) + " " + TvRowsPick.fitted(320, 180, 400, 400)[0]);
+        put("sample_none", TvRowsPick.sampleSize(0, 0, 400, 400) + " " + TvRowsPick.sampleSize(-1, 50, 400, 400));
+        put("provider_own", TvRowsPick.pictureProviderAllowed("com.netflix.ninja", "com.netflix.ninja"));
+        put("provider_other", TvRowsPick.pictureProviderAllowed("com.netflix.ninja", "com.android.providers.media"));
+        put("provider_none", TvRowsPick.pictureProviderAllowed("com.netflix.ninja", null));
+        put("sig_same", TvRowsPick.signature(Arrays.asList(new String[]{"a", "t1"}, new String[]{"b"})).equals(TvRowsPick.signature(Arrays.asList(new String[]{"a", "t1"}, new String[]{"b"}))));
+        put("sig_diff", TvRowsPick.signature(Arrays.asList(new String[]{"a", "t1"}, new String[]{"b"})).equals(TvRowsPick.signature(Arrays.asList(new String[]{"a"}, new String[]{"t1", "b"}))));
+
         put("progress_half", TvRowsPick.progress(30, 60));
         put("progress_over", TvRowsPick.progress(90, 60));
         put("progress_unknown", TvRowsPick.progress(0, 60) + " " + TvRowsPick.progress(10, 0));

@@ -134,13 +134,44 @@ final class TvRowsPick {
     }
 
     /**
-     * Whether a card may open its link: only into the app that published it (the link's package or component names that app),
-     * never another one, and never a link that names none (it would open whatever answers it).
+     * Whether a card may open its link: only into the app that published it. A link that names that app (its package or component)
+     * opens as it is; one that names none (a plain https address, the usual kind) opens too, but pinned to that app (the caller sets
+     * its package), so it never reaches another; one that names another app never opens.
      */
     static boolean linkAllowed(String rowPkg, String linkPkg, String componentPkg) {
         if (rowPkg == null || rowPkg.isEmpty()) return false;
         if (componentPkg != null) return rowPkg.equals(componentPkg) && (linkPkg == null || rowPkg.equals(linkPkg));
-        return rowPkg.equals(linkPkg);
+        return linkPkg == null || rowPkg.equals(linkPkg);
+    }
+
+    /** A content:// picture is read only from the publishing app's own provider (the authority's package), never another's. */
+    static boolean pictureProviderAllowed(String rowPkg, String providerPkg) {
+        return rowPkg != null && !rowPkg.isEmpty() && rowPkg.equals(providerPkg);
+    }
+
+    /**
+     * The power of two to decode a picture of w×h with (BitmapFactory's inSampleSize) so that it comes out no bigger than twice the
+     * card's size each way; never decoded at full size (an 8000×6000 JPEG would be 190 MB). 0 for a picture with no size.
+     */
+    static int sampleSize(int w, int h, int maxW, int maxH) {
+        if (w <= 0 || h <= 0 || maxW <= 0 || maxH <= 0) return 0;
+        int s = 1;
+        while (w / s > 2 * maxW || h / s > 2 * maxH) s *= 2;
+        return s;
+    }
+
+    /** The size a w×h picture is scaled to so that it fits maxW×maxH, its shape kept (never up). */
+    static int[] fitted(int w, int h, int maxW, int maxH) {
+        if (w <= maxW && h <= maxH) return new int[]{w, h};
+        double k = Math.min(maxW / (double) w, maxH / (double) h);
+        return new int[]{Math.max(1, (int) Math.round(w * k)), Math.max(1, (int) Math.round(h * k))};
+    }
+
+    /** What the screen shows, for telling a rebuild that changes nothing (a row's key, then each card's title and link). */
+    static String signature(List<String[]> rowsAndCards) {
+        StringBuilder b = new StringBuilder();
+        for (String[] r : rowsAndCards) b.append(String.join("\u0001", r)).append('\u0002');
+        return b.toString();
     }
 
     /** How far in, 0 to 1, from the position and the length; -1 when not known. */
