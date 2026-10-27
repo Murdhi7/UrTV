@@ -78,6 +78,43 @@ with tempfile.TemporaryDirectory() as tmp:
     personal = re.compile(r"\b\d{1,3}(\.\d{1,3}){3}\b|[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}|serial[ :=]+\w{6,}|ssid[ :=]|/home/|C:\\\\Users", re.I)
     check("no address, serial, network name or user path in either script", not personal.search(sh) and not personal.search(bat))
 
+# ---- the ledger of what our disable runs turned off (optimize/run/disabled-by-us.txt)
+def apps_of(ledger=None, delete_lists=False):
+    with tempfile.TemporaryDirectory() as d:
+        run, lists = sample(d)
+        if delete_lists:
+            for n in ("tcl-safe.txt", "mine.txt"): (lists / n).unlink()
+            (run / "community-applied.txt").unlink()
+        if ledger is not None: (run / "disabled-by-us.txt").write_text(ledger)
+        sections, _ = rs.build(run, lists)
+        enables = [c for title, cmds in sections if title.startswith("Apps") for c in cmds if c.startswith("pm enable")]
+        return enables, [c for title, cmds in sections if title.startswith("Apps") for c in cmds if c.startswith("#")], rs.render_sh(sections), rs.render_bat(sections)
+en, notes, sh_, bat_ = apps_of("com.led.one\ncom.led.two\ncom.led.one\nnot a package!\n$(reboot)\n\n# c\n")
+check("a ledger: its valid packages, once each, nothing else (not the lists, not invalid lines)", en == ["pm enable com.led.one", "pm enable com.led.two"], str(en))
+check("...in restore.sh and in restore.bat alike", sh_.count("pm enable com.led.") == 2 and bat_.count("pm enable com.led.") == 2 and "reboot" not in sh_ and "reboot" not in bat_ and "not a package" not in sh_, sh_)
+en, notes, sh_, bat_ = apps_of("com.led.one\n", delete_lists=True)
+check("the lists were deleted (a custom list is gone): the ledger still restores its package", en == ["pm enable com.led.one"], str(en))
+en, notes, sh_, bat_ = apps_of("")
+check("an empty ledger: no app commands, a comment says so (not the lists' packages)", en == [] and any("empty" in n for n in notes), str((en, notes)))
+check("...and the scripts are still valid with it", subprocess.run(["sh", "-n"], input=sh_, capture_output=True, text=True).returncode == 0 and "pm enable" in sh_)
+en, notes, sh_, bat_ = apps_of(None)
+check("no ledger (an install from before it): the lists minus what the TV had off before, as before", en == ["pm enable com.tcl.messagebox", "pm enable com.tcl.bi", "pm enable com.tcl.mine", "pm enable com.community.ads"], str(en))
+
+# an OLDER install: the first run turned its packages off without a ledger; a later run created the ledger, and those packages were already off then
+with tempfile.TemporaryDirectory() as d:
+    run, lists = sample(d)
+    big = (run / "backup.txt").read_text().replace("== home", "".join(f"package:com.filler{i}\n" for i in range(25)) + "== home")
+    (run / "backup.txt").write_text(big)
+    (run / "disabled-by-us.txt").write_text("com.led.new\n")
+    sections, _ = rs.build(run, lists)
+    en = [c for title, cmds in sections if title.startswith("Apps") for c in cmds if c.startswith("pm enable")]
+    check("older install (a ledger with only the later run, and a real backup): the ledger PLUS the lists minus what was off before; not the one the TV had off",
+          "pm enable com.led.new" in en and "pm enable com.tcl.messagebox" in en and "pm enable com.tcl.bi" in en and "pm enable com.tcl.already" not in en, str(en))
+    (run / "backup.txt").unlink()
+    sections, _ = rs.build(run, lists)
+    en = [c for title, cmds in sections if title.startswith("Apps") for c in cmds if c.startswith("pm enable")]
+    check("...with a ledger and no backup at all: the ledger alone", en == ["pm enable com.led.new"], str(en))
+
 with tempfile.TemporaryDirectory() as tmp:   # another holder before the switch, and a value the scripts do not send
     run, lists = sample(tmp, holder="com.other.launcher")
     (run / "tweaks-journal.txt").write_text("window_animation_scale=0.5;reboot\nstandby_bucket=exempted\n")

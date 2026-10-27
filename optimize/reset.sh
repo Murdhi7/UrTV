@@ -16,7 +16,10 @@ for extra in optimize/lists/mine*.txt; do   # local lists, e.g. mine-bloat.txt; 
   [ -f "$extra" ] && lists+=("$extra")
 done
 [ -s "${URTV_RUN_DIR:-optimize/run}/community-applied.txt" ] && lists+=("${URTV_RUN_DIR:-optimize/run}/community-applied.txt")   # a community list the setup used
-optimize/restore.sh "${lists[@]}" > /dev/null
+# restore's own problems (a file it could not read, a note about a legacy install) must be seen, and must not stop the reset before it has put the home back
+restore_rc=0
+restore_out=$(optimize/restore.sh "${lists[@]}" 2>&1) || restore_rc=$?
+{ grep -E '^(!!|Note:)' <<< "$restore_out" || true; } >&2
 stock=no
 for _ in 1 2 3 4; do   # a cold stock home can take a while to come up
   tv "input keyevent KEYCODE_HOME" > /dev/null
@@ -149,3 +152,7 @@ fi
 echo "Done. Still disabled on this TV (made so by the manufacturer, or by something else):"
 optimize/settle.sh wait 2> /dev/null || true
 tv "pm list packages -d" | sed 's/^package:/   /'
+if [ "$restore_rc" != 0 ]; then
+  echo "!! reset: everything else was done, but optimize/restore.sh reported a problem (the !! line above): fix it, then run optimize/restore.sh again."
+  exit "$restore_rc"
+fi

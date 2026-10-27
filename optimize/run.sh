@@ -213,17 +213,9 @@ do_step() {
 }
 
 # The .done-* marks belong to one TV: a different one (its serial, else its address) starts from the top.
-is_placeholder() {   # a serial that cheap boxes all carry is not an id
-  case "$(tr 'A-Z' 'a-z' <<< "$1")" in unknown|null|0123456789abcdef|1234567890|0000000000|00000000|1234567890abcdef|none|n/a|"") return 0 ;; esac
-  return 1
-}
-tv_id=$(tv "getprop ro.serialno" 2> /dev/null | tr -d '\r\n ' || true)
-# a placeholder is not a serial: the boot serial, then the Android id (random, per TV), then the address tells two such TVs apart
-if is_placeholder "$tv_id"; then tv_id=$(tv "getprop ro.boot.serialno" 2> /dev/null | tr -d '\r\n ' || true); fi
-if is_placeholder "$tv_id"; then
-  aid=$(tv "settings get secure android_id" 2> /dev/null | tr -d '\r\n ' || true)
-  if is_placeholder "$aid"; then tv_id=""; else tv_id="aid:$aid"; fi
-fi
+is_placeholder() { "$PY" -I optimize/tv.py --is-placeholder "$1" 2> /dev/null; }   # one list, in tv.py, shared with its identity check
+# The TV's unique id by one policy (tv.py --id): serial, boot serial, the Android id ("aid:…"), and only then the address
+tv_id=$(tv --id 2> /dev/null | tr -d '\r\n ' || true)
 if [ -z "$tv_id" ]; then tv_id="${TV_HOST:-$(cat optimize/.tv_host 2> /dev/null || true)}"; fi
 saved_id=$(cat "$RUN/.tv" 2> /dev/null || true)
 looks_like_address() { [[ "$1" =~ ^[0-9]+(\.[0-9]+){3}(:[0-9]+)?$ ]] || [[ "$1" =~ ^[A-Za-z0-9.-]+:[0-9]+$ ]]; }

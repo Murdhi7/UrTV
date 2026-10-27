@@ -69,8 +69,9 @@ for label, kw in (("the already-off list cannot be read", dict(off_fails="yes"))
     t, tr = tree(); (tr / "list.txt").write_text("com.a.one\n")
     rc, out, batch = sh(t, tr, "disable.sh", "list.txt", **kw)
     led = tr / "optimize/run/disabled-by-us.txt"
-    check(f"disable.sh: {label} -> nothing is remembered, a !! line says so, the packages are still turned off", rc == 0 and "!! disable.sh: the TV did not say which packages it has" in out
-          and "pm disable-user --user 0 com.a.one" in batch and (not led.exists() or led.read_text().split() == []), f"{out} {led.read_text() if led.exists() else None}")
+    check(f"disable.sh: {label} -> a !! line, a non-zero exit, and NOT ONE disable command (nothing it could not undo exactly)",
+          rc != 0 and "!! disable.sh: the TV did not say which packages it has" in out and "pm disable-user" not in batch and (not led.exists() or led.read_text().split() == []),
+          f"{rc} {out} {batch}")
 t, tr = tree(); (tr / "list.txt").write_text("com.a.new\ncom.a.gone\ncom.a.stuck\n")
 rc, out, batch = sh(t, tr, "disable.sh", "list.txt", installed="com.a.new com.a.stuck", after="com.a.new")
 check("disable.sh: the ledger holds only what was installed and is off afterwards (not a package missing from the TV, not one that stayed on)",

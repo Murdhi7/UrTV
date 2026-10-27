@@ -24,6 +24,10 @@ st = open(os.environ["TVSTATE"]).read().split()
 def save(): open(os.environ["TVSTATE"], "w").write("\n".join(st) + "\n")
 def run(cmd):
     global st
+    if cmd.endswith("; echo END_OF_LIST"):   # the end-marked list questions of disable.sh
+        base = cmd[: -len("; echo END_OF_LIST")]
+        body = run(base) if base != "pm list packages" else "package:android\n" + "".join("package:%s\n" % p.lstrip("-!") for p in st)
+        return body + "END_OF_LIST\n"
     if cmd == "pm list packages -d":
         if os.path.exists(os.environ["TVSTATE"] + ".fail"): sys.exit(1)   # the list cannot be read
         return "".join("package:%s\n" % p[1:].lstrip("!") for p in st if p.startswith("-"))
