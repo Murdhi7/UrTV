@@ -28,6 +28,11 @@ something about the screensaver, the home screen or the TV, find it in the table
 - `optimize/saver.sh`, `optimize/dock.sh` and `optimize/music.sh` with no arguments list every option.
   Names and texts go in single quotes; no apostrophes inside them.
 
+The settings screen (for telling the person where a row is) opens on eight category tiles, two to a row from the right, each with
+its current value: «الموقع والصلاة», «الأذان», «شاشة التوقف», «الشاشة الرئيسية», «المباريات والأسواق», «التطبيقات والمفضلة»,
+«العائلة», «الجوال والتحديث». OK opens one, Back returns to its tile. Which row is in which tile: `SettingsHub.ROWS` in the
+screensaver app, and the list in docs/FEATURES.md. «تحديث تلفزيوني» is in «الجوال والتحديث». The commands below are unchanged.
+
 ## The screensaver «شاشة تلفزيونك»
 
 | They ask for | The setting | Command |

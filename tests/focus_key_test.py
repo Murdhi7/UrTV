@@ -18,11 +18,13 @@ def check(name, ok, detail=""):
 st = (APP / "SettingsActivity.java").read_text(encoding="utf-8")
 render = st[st.index("    private void render() {"):]
 render = render[:render.index("\n    }\n")]
-check("settings: render reads the focused row, its place and the scroll before it empties the list",
-      render.index("View had = focusedRow();") < render.index("list.removeAllViews();") and "scroll.getScrollY()" in render.split("list.removeAllViews();")[0])
-check("settings: only the first build puts the focus on «معاينة الشاشة»", "if (want == null) preview.requestFocus();" in render and ").requestFocus();" not in render)
+check("settings: render reads the focused row, its place and the scroll before it empties the list (unless a screen was just opened)",
+      render.index("View had = entering ? null : focusedRow();") < render.index("list.removeAllViews();") and "scroll.getScrollY()" in render.split("list.removeAllViews();")[0])
+check("settings: only a screen just opened starts at its top (its first row; on the categories the tile last opened), no other focus in render",
+      "final String want = entering ? (screen == null && hubAt != null ? \"hub:\" + hubAt : null)" in render and ").requestFocus();" not in render
+      and "int at = want == null ? (now.isEmpty() ? -1 : 0) : FocusKey.pick(keys, want, wasIndex);" in st)
 check("settings: render ends by putting the focus back (restoreFocus), the scroll first, after the layout (post)",
-      render.rstrip().endswith("if (want != null) restoreFocus(want, wasIndex, scrollY);") and "scroll.post(() -> {" in st
+      render.rstrip().endswith("restoreFocus(want, wasIndex, scrollY);   // a screen just opened: its first row") and "scroll.post(() -> {" in st
       and st.index("scroll.scrollTo(0, scrollY);") < st.index("now.get(at).requestFocus();"))
 check("settings: every row is known by its FocusKey", "card.setTag(FocusKey.key(label));" in st)
 check("settings: a rebuild under an open dialog is finished when the window has the focus back",
