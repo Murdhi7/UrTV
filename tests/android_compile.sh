@@ -4,6 +4,8 @@
 # does not fit in the Android-facing code.
 # usage: tests/android_compile.sh [checkout]      (default: this one)
 #   PASS ...  both compile        FAIL ...  javac's errors follow (exit 1)
+#   A source using a class that is @hide in the public SDK fails first (tests/hidden_api_scan.py, no jar needed). With the Android SDK here
+#   (ANDROID_HOME or ANDROID_SDK_ROOT with platforms/android-34) the real public android.jar is used, which has no hidden classes at all.
 #   SKIP ...  no javac, or the jar is not cached and cannot be fetched (offline): not a failure (exit 0)
 #   FAIL ...  also a jar whose sha1 is not the pinned one (a corrupt or swapped download is never silently skipped, and never used)
 # The jar (about 130 MB) is fetched once from Maven Central's Google mirror, checked against the sha1 below, and kept OUTSIDE the repo in
@@ -18,8 +20,18 @@ JAR=${URTV_ANDROID_JAR:-$CACHE/android-all-$VER.jar}
 
 sha1_of() { if command -v sha1sum >/dev/null 2>&1; then sha1sum "$1" | cut -d' ' -f1; else shasum -a 1 "$1" | cut -d' ' -f1; fi; }
 
+# Hidden APIs first (needs no jar, no javac): android-all has the framework's @hide classes, the public android.jar the apps are really built against has not.
+python3 -I "$(dirname "$0")/hidden_api_scan.py" "$ROOT" || exit 1
+
 command -v javac >/dev/null 2>&1 || { echo "SKIP android compile: no javac on this machine"; exit 0; }
-if [ ! -f "$JAR" ] || [ "$(sha1_of "$JAR")" != "$SHA1" ]; then
+# The real public android.jar (API 34) when the Android SDK is here (CI, a developer's machine): it has no hidden classes, so it is the exact check.
+SDK_JAR=
+for sdk in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}"; do
+  [ -n "$sdk" ] && [ -f "$sdk/platforms/android-34/android.jar" ] && { SDK_JAR=$sdk/platforms/android-34/android.jar; break; }
+done
+KIND="android-all API 34 plus the hidden-API scan"
+if [ -n "$SDK_JAR" ]; then JAR=$SDK_JAR; KIND="the public android.jar, API 34"; fi
+if [ -z "$SDK_JAR" ] && { [ ! -f "$JAR" ] || [ "$(sha1_of "$JAR")" != "$SHA1" ]; }; then
   [ -z "${URTV_ANDROID_JAR:-}" ] || { echo "::error::URTV_ANDROID_JAR is not the expected android-all $VER (sha1 differs)"; echo "FAIL android compile: URTV_ANDROID_JAR is not the expected android-all $VER (sha1 differs)"; exit 1; }
   mkdir -p "$CACHE" 2>/dev/null || { echo "SKIP android compile: cannot make the cache folder"; exit 0; }
   TMPJ=$(mktemp -p "$CACHE" jar.XXXXXX 2>/dev/null) || { echo "SKIP android compile: cannot write to the cache folder"; exit 0; }
@@ -59,9 +71,9 @@ for m in launcher app; do
   mkdir -p "$W/out_$m"
   err=$(javac -encoding UTF-8 -proc:none -cp "$JAR" -d "$W/out_$m" $(find "$ROOT/android/$m/src/main/java" -name '*.java') $(find "$W/stub_$m" -name '*.java') 2>&1 | grep -v '^Picked up\|^Note:')
   if [ -n "$err" ] && echo "$err" | grep -q 'error'; then
-    echo "FAIL android compile: the $m module does not compile against API 34"; echo "$err"; bad=1
+    echo "FAIL android compile: the $m module does not compile against $KIND"; echo "$err"; bad=1
   else
-    echo "PASS android compile: the $m module compiles against API 34"
+    echo "PASS android compile: the $m module compiles against $KIND"
   fi
 done
 exit $bad

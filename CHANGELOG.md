@@ -38,7 +38,7 @@ Newest first. `next` is where changes land first; a release is what was tested t
 - Reports keep only the lines the script builds, and the scrub (the net for what the scripts printed on `!!` lines)
   also covers IPv6 addresses, emails, serials, tokens, links with tokens, Wi-Fi names and user names.
 - `SECURITY.md`, `CONTRIBUTING.md` and this file.
-- For testing only: `optimize/saver.sh updatechannel next` makes «تحديث تلفزيوني» read the apk-next build (the CI now publishes its `version.txt`); `tests/android_compile.sh` compiles both apps against API 34 (SKIP when offline) and runs in `tests/run.sh`.
+- For testing only: `optimize/saver.sh updatechannel next` makes «تحديث تلفزيوني» read the apk-next build (the CI now publishes its `version.txt`); `tests/android_compile.sh` compiles both apps against API 34 (SKIP when offline) and runs in `tests/run.sh`. It also fails on a source that uses a class hidden in the public SDK (`tests/hidden_api_scan.py`; that is what broke the release build once), and uses the real public `android.jar` when the Android SDK is installed.
 
 ## 23 October 2026 (51b9680)
 
