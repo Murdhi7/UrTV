@@ -13,8 +13,10 @@
 #   optimize/dock.sh sleep 30              «مؤقت النوم» for the whole TV: 15 30 60 90, or any 1 to 600 minutes; then the TV goes to sleep
 #   optimize/dock.sh sleep                 how the timer stands: minutes left, and what its end will do
 #   optimize/dock.sh sleep cancel          stop it
+#   optimize/dock.sh familydns on|off|status|grant   «حماية العائلة (DNS)»: Private DNS to AdGuard Family, checked and undone by optimize/familydns.sh
 #   optimize/dock.sh sleep-setup           turn on the sleep service (an accessibility service, once) so the end turns the screen off
 #   optimize/dock.sh pin set 1234         «الرقابة الأبوية»: the master PIN (4 digits), set or changed from here without the old one; never printed back
+#   optimize/dock.sh pin lock PKG          lock one app (its package, e.g. com.netflix.ninja), a pill (@inputs @wifi @tvsettings @tasks @saver @listen @sleep) or @urtv (our settings); `pin unlock PKG` opens it again
 #   optimize/dock.sh pin status            what is set: PIN or not, what is locked, kids mode, wrong tries (never the PIN)
 #   optimize/dock.sh pin off               no PIN: nothing asks, kids mode ends; the apps chosen stay for the next PIN
 #   optimize/dock.sh pin reset             the PIN was forgotten: everything parental back to nothing (the PIN, the locks, kids mode, the wrong tries)
@@ -27,6 +29,7 @@ send() {   # $1 action, $2 extra arguments; prints the receiver's answer (the "d
     | sed -n '/data="/,$p' | sed '1s/.*data="//; $s/"$//'
 }
 case "${1:-}:$#" in
+  familydns:*) shift; exec optimize/familydns.sh "$@" ;;
   show:1) send GET_DOCK ;;
   apps:*)  send LIST_APPS ;;
   reset:*) send RESET_DOCK ;;
@@ -54,6 +57,11 @@ case "${1:-}:$#" in
     svc="sa.urtv.home/sa.urtv.home.SleepService"
     cur=$("$PY" -I optimize/tv.py "settings get secure enabled_accessibility_services; settings get secure accessibility_enabled" | tr -d '\r')
     now=$(sed -n 1p <<< "$cur")
+    # only the word «null» means no service is on; an empty answer is «the TV did not say», and the person's own list must not be overwritten
+    if [ -z "$now" ] || [ -z "$(sed -n 2p <<< "$cur")" ]; then
+      echo "!! enabled_accessibility_services: the TV did not say which accessibility services are on, so the sleep service was NOT added and nothing was changed. Run the same command again."
+      exit 1
+    fi
     # what the TV had, once (optimize/reset.sh takes our entry out again and puts the switch back as it was)
     if [ ! -f "${URTV_RUN_DIR:-optimize/run}/accessibility-before.txt" ]; then
       mkdir -p "${URTV_RUN_DIR:-optimize/run}"
@@ -76,10 +84,12 @@ case "${1:-}:$#" in
     case "${1:-}:$#" in
       set:2) [[ "$2" =~ ^[0-9]{4}$ ]] || { echo "usage: optimize/dock.sh pin set <4 digits>"; exit 1; }
              send PIN_SET "--es pin $2" ;;
+      lock:2|unlock:2) [[ "$2" =~ ^(@[a-z]+|[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+)$ ]] || { echo "usage: optimize/dock.sh pin lock|unlock <package, e.g. com.example.app, or a pill like @wifi, or @urtv>"; exit 1; }
+             send "PIN_$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')" "--es target $2" ;;
       status:1) send PIN_STATUS ;;
       off:1) send PIN_OFF ;;
       reset:1) send PIN_RESET ;;
-      *) echo "usage: optimize/dock.sh pin set <4 digits> | status | off | reset"; exit 1 ;;
+      *) echo "usage: optimize/dock.sh pin set <4 digits> | lock <target> | unlock <target> | status | off | reset"; exit 1 ;;
     esac ;;
   names:1) send NAMES ;;
   names-clear:1) send CLEAR_NAMES ;;
@@ -94,5 +104,5 @@ case "${1:-}:$#" in
       shift 2
     done
     send SET_NAMES "--es names '$pairs'" ;;
-  *) sed -n '2,21p' "$0"; exit 1 ;;
+  *) sed -n '2,22p' "$0"; exit 1 ;;
 esac

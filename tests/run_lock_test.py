@@ -22,7 +22,7 @@ def tree(slow=False, fail=""):
     (t / "bin" / "py").write_text(STUB_PY); (t / "bin" / "py").chmod(0o755)
     for step in ("precheck", "autostart", "community", "backup", "keep", "measure", "disable", "tweaks", "install", "dock"):
         body = "#!/usr/bin/env bash\n"
-        if step == "backup": body += "echo x > optimize/backup-1.txt\n"
+        if step == "backup": body += "{ echo '== all packages'; echo package:android; for i in $(seq 25); do echo package:com.x$i; done; } > optimize/backup-1.txt\n"
         if step == "measure": body += "echo '| ok |' >> optimize/run/summary.md\n"
         if step == "keep" and slow: body += 'while [ ! -f "$GO" ]; do sleep 0.1; done\n'   # holds the first run here
         if step == fail: body += "exit 3\n"
@@ -124,6 +124,13 @@ code, out = run(t)
 left = [f for f in ("tweaks-journal.txt", "home-switch.json") if (t / "optimize/run" / f).exists()]
 results.append(("a different TV: the last TV's tweak and home-switch journals are not used, its backup is replaced",
                 code == 0 and not left and (t / "optimize/run/backup.txt").read_text() != "OLD\n", (out[:5], left)))
+
+# a backup saved while the TV answered nothing is refused (it would be kept for ever)
+t = tree()
+(t / "optimize" / "backup.sh").write_text("#!/usr/bin/env bash\necho '== all packages' > optimize/backup-1.txt\n"); (t / "optimize" / "backup.sh").chmod(0o755)
+code, out = run(t)
+results.append(("an empty package list in the saved backup: stops with a !! line, nothing kept",
+                code == 1 and any("package list came back empty" in l for l in out) and not (t / "optimize/run/backup.txt").exists(), out[-4:]))
 
 for name, ok, info in results:
     print(f"run.sh: {name}: " + ("ok" if ok else f"WRONG {info}"))

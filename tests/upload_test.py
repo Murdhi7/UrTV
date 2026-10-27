@@ -236,4 +236,21 @@ paths = {
 wrong = {k: tv.tv_path(k) for k, v in paths.items() if tv.tv_path(k) != v}
 tv.os.name = real_name
 print(f"Git Bash paths: {len(paths) - len(wrong)}/{len(paths)} put back" + (f": wrong {wrong}" if wrong else ""))
-sys.exit(1 if bad or wrong or bgbad or cutbad else 0)
+# E1: pieces of at most 40 000 characters, and every read of an upload/decode/md5/install step may stay silent for 180 s
+seen = {"max": 0, "read": []}
+class Spy(Dev):
+    def __init__(self, host, port, default_transport_timeout_s=0): seen["read"].append(default_transport_timeout_s)
+    def connect(self, **k): pass
+    def shell(self, cmd, read_timeout_s=0):
+        m = re.search(r"echo -n '([^']*)'", cmd)
+        if m: seen["max"] = max(seen["max"], len(m.group(1)))
+        random.seed(1); return run(cmd)
+tv.AdbDeviceTcp = Spy
+FS.clear(); JOB.clear()
+big = os.urandom(300_000); src = os.path.join(tempfile.mkdtemp(), "y.apk"); open(src, "wb").write(big)
+with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    tv.push_b64(tv.TV(transport_s=tv.SLOW_READ_S), src, "/data/local/tmp/y.apk")
+e1 = FS.get("/data/local/tmp/y.apk") == big and 0 < seen["max"] <= 40_000 and tv.upload_chunk() <= 40_000 and tv.SLOW_READ_S >= 180 and seen["read"] and set(seen["read"]) == {tv.SLOW_READ_S}
+print(f"E1: pieces of at most {seen['max']} characters, transport timeout {seen['read']}: " + ("ok" if e1 else "WRONG"))
+tv.AdbDeviceTcp = Dev
+sys.exit(1 if not e1 or bad or wrong or bgbad or cutbad else 0)

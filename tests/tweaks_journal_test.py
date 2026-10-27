@@ -29,6 +29,7 @@ case "$1" in
   "device_config get activity_manager "*) f="$S/${1##* }"; [ -f "$f" ] && cat "$f" || echo null ;;
   "am get-standby-bucket "*) [ "$UNREADABLE" = yes ] && exit 0; [ -f "$S/standby_bucket" ] && cat "$S/standby_bucket" || echo 10 ;;
   "appops get "*) [ "$UNREADABLE" = yes ] && exit 0; op=${1##* }; [ -f "$S/op_$op" ] && echo "$op: $(cat "$S/op_$op")" || echo "No operations." ;;
+  "getprop ro.build.type") case "$TESTBUILD" in yes) echo userdebug ;; keys) echo user ;; *) echo user ;; esac ;;
   "df -k /data"*) echo "/dev/x 16777216 4194304 12582912 25% /data" ;;
 esac
 exit 0
@@ -47,8 +48,8 @@ class Tv:
         (self.t / "tv").mkdir()
         for k, v in settings.items():
             (self.t / "tv" / k).write_text(v + "\n")
-    def run(self, mode, refuse="", unreadable="", failread="", emptyread=""):
-        env = dict(os.environ, T=str(self.t), PY=str(self.t / "py"), REFUSE=refuse, UNREADABLE=unreadable, FAILREAD=failread, EMPTYREAD=emptyread)
+    def run(self, mode, refuse="", unreadable="", failread="", emptyread="", testbuild=""):
+        env = dict(os.environ, T=str(self.t), PY=str(self.t / "py"), REFUSE=refuse, UNREADABLE=unreadable, FAILREAD=failread, EMPTYREAD=emptyread, TESTBUILD=testbuild)
         r = subprocess.run(["bash", str(self.tree / "optimize" / "tweaks.sh"), mode], env=env, capture_output=True, text=True, cwd=self.tree)
         return r.returncode, r.stdout + r.stderr
     def get(self, k):
@@ -133,11 +134,14 @@ check("restore: a bucket the TV refuses to put back is flagged and the journal i
       "!! standby_bucket: this TV did not take the value (asked for frequent, it says restricted)" in out and tv.journal() is not None, out)
 tv = Tv(window_animation_scale="1.0", transition_animation_scale="1.0", animator_duration_scale="1.0")
 rc, out = tv.run("apply", unreadable="yes")
-check("a firmware that does not say what the Play Store had: recorded as unknown", "standby_bucket=unknown" in tv.journal() and "appop_RUN_IN_BACKGROUND=unknown" in tv.journal(), tv.journal())
+check("a firmware that does not say what the Play Store had: recorded as unknown, NOT changed (a !! line each), so there is nothing to put back",
+      "standby_bucket=unknown" in tv.journal() and "appop_RUN_IN_BACKGROUND=unknown" in tv.journal()
+      and "!! standby_bucket: could not read what this TV has for the Play Store" in out and "!! appop_RUN_IN_BACKGROUND: could not read" in out
+      and tv.get("standby_bucket") == "null" and tv.get("op_RUN_IN_BACKGROUND") == "null", f"{out} {tv.journal()}")
 rc, out = tv.run("restore")
-check("restore then keeps today's values and says so with a !! line",
-      "!! standby_bucket: the TV's own value was not recorded" in out and "!! appop_RUN_IN_BACKGROUND: the TV's own value was not recorded" in out
-      and tv.get("standby_bucket") == "10" and tv.get("op_RUN_IN_BACKGROUND") == "allow", out)
+check("restore leaves them alone and says so with a !! line (it never forces active/allow onto a value it did not change)",
+      "!! standby_bucket: the TV's own value was not recorded" in out and "left as it is" in out
+      and tv.get("standby_bucket") == "null" and tv.get("op_RUN_IN_BACKGROUND") == "null", out)
 tv.run("apply"); rc, out = tv.run("status")
 check("status lists the Play Store's values too", "- tweak standby_bucket: was" in out and "now restricted" in out, out)
 # 9. a read that failed or came back empty is "unknown", never "null": restore must not delete the TV's real value
@@ -172,4 +176,14 @@ rc, out = tv.run("apply")
 check("an exempted bucket is recorded as exempted and left as it is", "standby_bucket=exempted" in tv.journal() and tv.get("standby_bucket") == "5" and "exempted from standby" in out, out)
 rc, out = tv.run("restore")
 check("and restore does not force it to active", tv.get("standby_bucket") == "5" and "!!" not in out, out)
+# 12. a test build (userdebug, test-keys) keeps its own standby bucket: an info line, not a !!
+tv = Tv(window_animation_scale="1.0", transition_animation_scale="1.0", animator_duration_scale="1.0")
+rc, out = tv.run("apply", refuse="standby_bucket", testbuild="yes")
+check("a test build that keeps its standby bucket: an info line, no !!, and the setup is not marked as a problem", "info: standby_bucket stays" in out and "!! standby_bucket" not in out, out)
+tv = Tv(window_animation_scale="1.0", transition_animation_scale="1.0", animator_duration_scale="1.0")
+rc, out = tv.run("apply", refuse="standby_bucket")
+tv = Tv(window_animation_scale="1.0", transition_animation_scale="1.0", animator_duration_scale="1.0")
+rc, out = tv.run("apply", refuse="standby_bucket", testbuild="keys")
+check("test-keys alone (shipped TVs often have it) is not a test build: the !! line stays", "!! standby_bucket: this TV did not take the value" in out, out)
+check("a normal build still gets the !! line", "!! standby_bucket: this TV did not take the value" in out, out)
 sys.exit(1 if failed else 0)

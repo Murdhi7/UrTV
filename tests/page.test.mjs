@@ -637,7 +637,7 @@ for (const [width, height] of [[1920, 1080], [960, 540], [720, 405]]) {
 const chart = (price, closes, prevClose) => JSON.stringify({ chart: { result: [{ meta: { regularMarketPrice: price, chartPreviousClose: prevClose },
   indicators: { quote: [{ close: closes }] } }] } });
 const MOCK = { '^TASI.SR': chart(11500.4, [11400, 11450, 11500.4]), '2222.SR': chart(26.3, [26, 26.2, 26.3]), '^GSPC': chart(6800.2, [6850, 6900, 6800.2]),
-               'GC=F': chart(4000, [3950, 3980, 4000]), 'SI=F': chart(50, [49, 50, 50]) };
+               'GC=F': chart(4000, [3950, 3980, 4000]), 'SI=F': chart(50, [49, 50, 50]), 'BZ=F': chart(82.34, [80, 82.34]) };
 const marketNet = state => r => {
   const u = r.request().url();
   if (state.off) { r.abort(); return true; }
@@ -678,6 +678,15 @@ const mk = p => p.evaluate(() => [...document.querySelectorAll('.mk .m')].map(m 
   await ctx.close();
 }
 {
+  const { p, ctx, errors } = await open('tv.html', 'markets=oil,spx,gold&mkstyle=prices', { net: marketNet({}) });
+  await p.waitForTimeout(800);
+  const r = await mk(p);
+  check('markets prices: Brent oil, S&P 500 and gold are shown in the selected order', !errors.length && r.map(x => x.n).join() === 'نفط برنت,S&P 500,الذهب', JSON.stringify(r) + errors.join('; '));
+  check('markets prices: the Brent quote uses dollars per barrel; gold remains SAR per gram',
+    r[0].px === '٨٢٫٣٤|دولار/برميل' && r[0].ch === '▲ ٢٫٩٣٪' && r[1].px === '٦٬٨٠٠|' && r[2].px === '٤٨٢٫٢٦|ر.س', JSON.stringify(r));
+  await ctx.close();
+}
+{
   const { p, ctx } = await open('tv.html', 'markets=spx,gold&digits=latin&mkstyle=prices', { net: marketNet({}) });
   await p.waitForTimeout(800);
   const r = await mk(p);
@@ -693,7 +702,7 @@ for (const [hash, want, price] of [['', 'تاسي,S&P 500,بيتكوين', false
   await ctx.close();
 }
 for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
-  for (const hash of ['markets=tasi,aramco,gold,silver&mkstyle=prices', 'markets=btc,xrp&mkstyle=prices']) {
+  for (const hash of ['markets=tasi,aramco,gold,silver&mkstyle=prices', 'markets=btc,xrp&mkstyle=prices', 'markets=oil,aramco,gold,silver&mkstyle=prices']) {   // the last: Brent's long unit beside three more
     const { p, ctx } = await open('tv.html', hash, { width, height, net: marketNet({}) });
     await p.waitForTimeout(800);
     const r = await p.evaluate(() => {
@@ -4281,6 +4290,104 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     check('adhkar beside the verse card at 16:40 (the evening window): the evening adhkar and the verse, different', !errors.length && r[1].hd.startsWith('أذكار المساء')
       && r[0].text !== r[1].text, JSON.stringify(r));
     await ctx.close();
+  }
+}
+
+// ---- Wave 2 (PR #28 and the requests), each off unless asked for: the sunrise after Fajr, the bar between two prayers, the humidity and
+// the wind, the Levant's month names. Off, the page is as before: the new parts are not drawn and the weather request is the same.
+{
+  const TIMES = "buildPrayers({Fajr:'04:50',Sunrise:'06:05',Dhuhr:'11:40',Asr:'15:00',Maghrib:'17:45',Isha:'19:15'});";
+  const panel = p => p.evaluate(() => { tickPrayer(); return { l: document.getElementById('prayer-label').textContent, n: document.getElementById('prayer-name').textContent,
+    t: document.getElementById('prayer-time').textContent, c: document.getElementById('prayer-count').textContent,
+    bar: !!document.getElementById('pbar'), w: document.getElementById('pbar-fill') ? parseFloat(document.getElementById('pbar-fill').style.width || '0') : 0 }; });
+  // Riyadh is UTC+3. Fajr 04:50, its iqama 25 minutes later (05:15), the sunrise 06:05
+  for (const [when, on, want, why] of [
+      ['2026-10-22T02:40:00Z', true, { l: 'الشروق', n: 'الشروق', t: '٦:٠٥ ص', c: 'بعد ٢٥ دقيقة' }, '05:40, after the iqama: the time to the sunrise'],
+      ['2026-10-22T03:15:00Z', true, { l: 'الشروق', n: 'الشروق', t: '٦:٠٥ ص', c: 'قبل ١٠ دقائق' }, '06:15: ten minutes since the sunrise'],
+      ['2026-10-22T03:40:00Z', true, { l: 'الصلاة القادمة', n: 'الظهر', c: 'بعد ٥ ساعات' }, '06:40, past the half hour: the Dhuhr as always'],
+      ['2026-10-22T02:00:00Z', true, { l: 'حان الآن', n: 'الفجر' }, '05:00, before the iqama is over: the iqama counts first'],
+      ['2026-10-22T02:40:00Z', false, { l: 'الصلاة القادمة', n: 'الظهر' }, 'off (the default) at 05:40: the Dhuhr as always']]) {
+    const { p, ctx, errors } = await open('tv.html', on ? 'sunrise=1' : '', { width: 1920, height: 1080 });
+    await p.clock.setFixedTime(new Date(when));
+    await p.evaluate(TIMES);
+    const r = await panel(p);
+    const ok = Object.keys(want).every(k => k === 'c' ? r.c.startsWith(want.c) : r[k] === want[k]);
+    check(`sunrise ${on ? 'on' : 'off'}, ${why}`, !errors.length && ok && !r.bar, JSON.stringify(r) + errors.join('; '));
+    await ctx.close();
+  }
+  for (const [hash, want, why] of [['prayerbar=1', 61, '16:40: 100 of the 165 minutes from Asr to Maghrib'], ['', null, 'off (the default): no bar']]) {
+    const { p, ctx, errors } = await open('tv.html', hash, { width: 1920, height: 1080 });
+    await p.clock.setFixedTime(new Date('2026-10-22T13:40:00Z'));
+    await p.evaluate(TIMES);
+    const r = await panel(p);
+    const box = await p.evaluate(() => { const e = document.getElementById('pbar'); if (!e) return { h: 0, none: true };
+      const b = e.getBoundingClientRect(), q = document.querySelector('.p-prayer').getBoundingClientRect();
+      return { h: b.height, inside: b.left >= q.left - 1 && b.right <= q.right + 1 && b.bottom <= innerHeight }; });
+    check(`prayer bar, ${why}`, !errors.length && (want === null ? !r.bar && box.none : r.bar && Math.abs(r.w - want) < 1 && box.h > 0 && box.inside), JSON.stringify({ r, box }) + errors.join('; '));
+    await ctx.close();
+  }
+  {   // the bar between adhan and iqama: Maghrib 17:45, its iqama 10 minutes later; at 17:50 half of it
+    const { p, ctx, errors } = await open('tv.html', 'prayerbar=1', { width: 1920, height: 1080 });
+    await p.clock.setFixedTime(new Date('2026-10-22T14:50:00Z'));
+    await p.evaluate(TIMES);
+    const r = await panel(p);
+    check('prayer bar between the adhan and the iqama: half full at 5 of 10 minutes', !errors.length && r.bar && Math.abs(r.w - 50) < 1 && r.l === 'حان الآن', JSON.stringify(r));
+    await ctx.close();
+  }
+  // the humidity and the wind: two more values in the same request, only when asked
+  const seen = [];
+  const wxNet = r => {
+    const u = r.request().url();
+    if (!/api\.open-meteo\.com\/v1\/forecast/.test(u)) return false;
+    seen.push(u);
+    r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ current: { temperature_2m: 31, weather_code: 0,
+      relative_humidity_2m: 44.6, wind_speed_10m: 12.2 }, daily: { time: ['2026-10-22'], temperature_2m_max: [35], temperature_2m_min: [24], weather_code: [0] } }) });
+    return true;
+  };
+  for (const [w, h] of [[1920, 1080], [1280, 720], [960, 540]]) for (const digits of ['hindi', 'latin']) for (const [hash, on] of [['wxmore=1', true], ['', false]]) {
+    seen.length = 0;
+    const { p, ctx, errors } = await open('tv.html', `${hash}&digits=${digits}&markets=tasi,gold,silver,oil&mkstyle=prices`, { width: w, height: h, net: wxNet, now: new Date('2026-10-22T13:40:00Z') });
+    await p.waitForTimeout(700);
+    const r = await p.evaluate(() => { const m = document.getElementById('wx-more'); if (!m) return { shown: false, none: true };
+      const b = m.getBoundingClientRect(), c = document.querySelector('.clockwrap').getBoundingClientRect(),
+      d = document.querySelector('.dates').getBoundingClientRect();
+      return { text: m.textContent, shown: !m.hidden && b.height > 0, clear: b.right <= d.left && b.bottom <= c.top, inside: b.left >= 0 && b.right <= innerWidth }; });
+    const want = digits === 'latin' ? 'رطوبة 45٪، رياح 12 كم/س' : 'رطوبة ٤٥٪، رياح ١٢ كم/س';
+    const asked = seen.length && /relative_humidity_2m,wind_speed_10m/.test(seen[0]);
+    check(`humidity and wind ${on ? 'on' : 'off'} at ${w}x${h} (${digits}): ${on ? '«' + want + '» under the city, clear of the date and the clock, asked in the one request' : 'not drawn, not asked'}`,
+      !errors.length && (on ? r.shown && r.text === want && r.clear && r.inside && asked && seen.length === 1 : r.none && !asked), JSON.stringify({ r, seen }) + errors.join('; '));
+    await ctx.close();
+  }
+  // the Levant's month names: the date at the top, the matches' dates, the countdown; the Hijri date unchanged
+  for (const [hash, greg, why] of [['months=levant', 'تشرين الأول', 'levant'], ['', 'أكتوبر', 'the default']]) {
+    const { p, ctx, errors } = await open('tv.html', `${hash}&slot=countdown&cd=2027-01-15`, { width: 1920, height: 1080, now: new Date('2026-10-22T13:40:00Z') });
+    const r = await p.evaluate(() => ({ greg: document.getElementById('greg').textContent, hijri: document.getElementById('hijri').textContent,
+      dm: FMT_DM.format(new Date('2026-11-03T12:00:00Z')), slot: document.getElementById('match-row').innerText }));
+    const other = why === 'levant' ? ['أكتوبر', 'نوفمبر', 'يناير'] : ['تشرين', 'كانون'];
+    check(`months, ${why}: «${greg}» in the date, the matches' dates and the countdown; the Hijri month as it was`,
+      !errors.length && r.greg.includes(greg) && r.dm.includes(why === 'levant' ? 'تشرين الثاني' : 'نوفمبر') && r.slot.includes(why === 'levant' ? 'كانون الثاني' : 'يناير')
+      && !other.some(x => (r.greg + r.dm + r.slot).includes(x)) && !/تشرين|كانون/.test(r.hijri), JSON.stringify(r) + errors.join('; '));
+    await ctx.close();
+  }
+  {   // everything on at once, every style, three sizes: nothing over anything, nothing off the screen
+    for (const [w, h] of [[1920, 1080], [1280, 720], [960, 540]]) for (const style of ['current', 'dark1', 'glass1', 'dark3', 'glass3']) {
+      const { p, ctx, errors } = await open('tv.html', `sunrise=1&prayerbar=1&wxmore=1&months=levant&cardstyle=${style}&panel=prayers`, { width: w, height: h, net: wxNet, now: new Date('2026-10-22T03:15:00Z') });
+      await p.waitForTimeout(500);
+      await p.evaluate(TIMES + ' renderPanel(false); tickPrayer();');
+      const r = await p.evaluate(() => {
+        const box = s => { const e = document.querySelector(s); if (!e || getComputedStyle(e).display === 'none') return null; const b = e.getBoundingClientRect(); return b.width ? b : null; };
+        const parts = ['.top', '.clock', '.week', '.bottom'].map(s => [s, box(s)]).filter(x => x[1]);   // as the clock-size check does
+        const hit = [];
+        for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) { const a = parts[i][1], b = parts[j][1];
+          if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) hit.push(parts[i][0] + '×' + parts[j][0]); }
+        const more = box('#wx-more'), bar = box('#pbar'), top = box('.top'), bottom = box('.bottom');
+        return { hit, off: parts.filter(([, b]) => b.left < -1 || b.right > innerWidth + 1 || b.bottom > innerHeight + 1).map(x => x[0]),
+          more: !!more && more.bottom <= top.bottom + 1, bar: !!bar && bar.bottom <= bottom.bottom + 1 };
+      });
+      check(`Wave 2 all on, ${style}, ${w}x${h}: no part over another, none off the screen, the new lines inside their blocks, no script errors`,
+        !errors.length && !r.hit.length && !r.off.length && r.more && r.bar, JSON.stringify(r) + errors.join('; '));
+      await ctx.close();
+    }
   }
 }
 

@@ -300,6 +300,10 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
             case ACTION_STOP_ADHAN: if (source == Prefs.SOURCE_ADHAN) finishAdhan(); break;   // what it paused comes back, as when it ends by itself
             default: break;
         }
+        // a command that started nothing (a pause with nothing loaded, a timer of 0, an unknown reciter) must not leave the service
+        // foreground for good; a command that plays (radio, adhan) is left to its own course
+        boolean mayLeaveNothing = !ACTION_PLAY_RADIO.equals(action) && !ACTION_PLAY_ADHAN.equals(action) && !ACTION_STOP.equals(action);
+        if (IdleCommand.leavesNothing(mayLeaveNothing, source == Prefs.SOURCE_NONE, player != null, sleepUntil)) stopIdle();
         return START_NOT_STICKY;
     }
 
@@ -717,6 +721,13 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
         } else if (!cat.reciters.isEmpty()) {
             playSurah(0, 1, 0);
         }
+    }
+
+    /** Nothing was started: leave without save(), which would wipe the remembered surah and position. */
+    private void stopIdle() {
+        foregroundStarted = false;
+        stopForeground(true);
+        stopSelf();
     }
 
     void stopPlayback() {

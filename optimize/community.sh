@@ -19,7 +19,7 @@ installed=$(tv "pm list packages" | tr -d '\r')
 disabled=$(tv "pm list packages -d" | tr -d '\r')
 # our lists know a TV when several of their TCL packages are on it (they are TCL lists; the Google ones are on every Android TV)
 mine=0
-for p in $(grep -vE '^\s*(#|$)' "$LISTS/tcl-safe.txt" "$LISTS/tcl-optional.txt" | awk '{print $1}' | sed 's/^[^:]*://' | grep '^com\.tcl\.' | sort -u); do
+for p in $(grep -vE '^[[:space:]]*(#|$)' "$LISTS/tcl-safe.txt" "$LISTS/tcl-optional.txt" | awk '{print $1}' | sed 's/^[^:]*://' | grep '^com\.tcl\.' | sort -u); do
   ! grep -qx "package:$p" <<< "$installed" || mine=$((mine + 1))
 done
 if [ "$mine" -ge 3 ]; then echo "   (our own lists know this TV: no community list)"; exit 0; fi
@@ -33,13 +33,26 @@ tmp=$(mktemp -d)
 printf '%s\n' "$installed" > "$tmp/installed"
 # the apps that answer HOME on this TV are never disabled here
 tv "cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2> /dev/null" | tr -d '\r' \
-  | sed -n 's#^\([A-Za-z0-9_.]*\)/.*#\1#p' | sort -u > "$tmp/homes"
-kept=$("$PY" -I optimize/offlist.py kept 2> /dev/null || true)
-grep -vE '^\s*(#|$)' "$LISTS/keep.txt" | awk '{print $1}' > "$tmp/keep"
+  | sed -n 's#^[[:space:]]*\([A-Za-z0-9_.]*\)/.*#\1#p' | sort -u > "$tmp/homes"
+if [ ! -s "$tmp/homes" ]; then   # every TV has a home app: an empty answer is «the TV did not say», and the home must not be guessed by its name
+  echo "!! community list not applied: the TV did not say which app is its home screen, so nothing was turned off. Run optimize/community.sh again."
+  rm -rf "$tmp"; exit 1
+fi
+kept=$("$PY" -I optimize/offlist.py kept) || exit 1   # an unreadable kept.txt stops the step
+grep -vE '^[[:space:]]*(#|$)' "$LISTS/keep.txt" | awk '{print $1}' > "$tmp/keep"
 printf '%s\n' "$kept" >> "$tmp/keep"
 "$PY" -I optimize/community.py packages "$chosen" --keep "$tmp/keep" --homes "$tmp/homes" --installed "$tmp/installed" > "$tmp/pkgs"
 # never Android's own core, whatever the list says (optimize/lists/core.txt; disable.sh would refuse the whole list)
-grep -vEf <(grep -vE '^\s*(#|$)' "$LISTS/core.txt" | sed 's/.*/^(&)$/') "$tmp/pkgs" > "$tmp/pkgs2" || true; mv "$tmp/pkgs2" "$tmp/pkgs"
+grep -vEf <(grep -vE '^[[:space:]]*(#|$)' "$LISTS/core.txt" | sed 's/.*/^(&)$/') "$tmp/pkgs" > "$tmp/pkgs2" || true; mv "$tmp/pkgs2" "$tmp/pkgs"
+# what owners often want (an update service, voice, MiLink, a video player): left on, and offered to the person instead
+rm -f "$RUN/community-ask.txt"
+if grep -qE '^[^#[:space:]]' "$LISTS/community-ask.txt" 2> /dev/null; then
+  grep -E -f <(grep -E '^[^#[:space:]]' "$LISTS/community-ask.txt") "$tmp/pkgs" > "$RUN/community-ask.txt" || true
+  if [ -s "$RUN/community-ask.txt" ]; then
+    grep -vxFf "$RUN/community-ask.txt" "$tmp/pkgs" > "$tmp/pkgs2" || true; mv "$tmp/pkgs2" "$tmp/pkgs"
+    echo "   left on until the person says (ask in one Arabic line; on a yes add them to optimize/lists/mine.txt): $(paste -sd' ' "$RUN/community-ask.txt")"
+  else rm -f "$RUN/community-ask.txt"; fi
+fi
 # already off before we came: not ours (reset.sh would turn it on)
 grep -vxFf <(sed 's/^package://' <<< "$disabled") "$tmp/pkgs" > "$tmp/todo" || true
 if [ -s "$tmp/todo" ]; then   # never what UAD-ng rates Unsafe; offline, the check is skipped and the lists' own filters stay
@@ -49,7 +62,11 @@ if [ -s "$tmp/todo" ]; then   # never what UAD-ng rates Unsafe; offline, the che
       echo "   left on, rated Unsafe: $(paste -sd' ' - <<< "$unsafe")"
       grep -vxFf <(printf '%s\n' "$unsafe") "$tmp/todo" > "$tmp/todo2" || true; mv "$tmp/todo2" "$tmp/todo"
     fi
-  else echo "   (the Unsafe check needs the internet and could not run: only the filters above were applied)"; fi
+  else
+    # the third-party list is the least vetted: without the one safety rating it is not applied at all
+    echo "!! community list not applied: the Unsafe check (UAD-ng) needs the internet and could not run. Nothing from the community list was turned off; run optimize/community.sh again when online."
+    rm -rf "$tmp"; exit 0   # a !! line, not a stop of the whole setup: nothing was applied (community-applied.txt stays empty)
+  fi
 fi
 base=$(basename "$chosen" .txt)
 if [ ! -s "$tmp/todo" ]; then echo "   community list $base: nothing on this TV to turn off"; echo "$base" > "$name"; exit 0; fi

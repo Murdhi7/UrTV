@@ -1,0 +1,68 @@
+# key: kind, keyCode, scanCode, action (0 down, 1 up), repeat, installed (YouTube,Netflix), expected, note
+reset							-
+key	190	0	0	0	YouTube,Netflix	APP:com.google.android.youtube.tv	BUTTON_3 opens YouTube
+key	190	0	0	3	YouTube,Netflix	EAT	its repeats are consumed
+key	190	0	1	0	YouTube,Netflix	EAT	its release is consumed
+key	190	0	1	0	YouTube,Netflix	PASS	a second release is nobody's
+reset							-
+key	191	0	0	0	YouTube,Netflix	APP:com.netflix.ninja	BUTTON_4 opens Netflix
+key	191	0	1	0	YouTube,Netflix	EAT	release consumed
+reset							-
+key	190	0	0	0	Netflix	PASS	YouTube not installed: nothing, the key is as before
+key	190	0	0	2	Netflix	PASS	its repeat too
+key	190	0	1	0	Netflix	PASS	and its release
+reset							-
+key	191	0	0	0	YouTube	PASS	Netflix not installed: nothing
+key	191	0	1	0	YouTube	PASS	release untouched
+reset							-
+key	190	0	0	0		PASS	nothing installed: nothing
+key	191	0	0	0		PASS	nothing installed: nothing
+reset							-
+key	176	0	0	0		SETTINGS	the settings key needs no app
+key	176	0	0	1		EAT	repeat consumed
+key	176	0	1	0		EAT	release consumed
+reset							-
+key	0	578	0	0		INPUTS	star key as scan code 578 with no keycode
+key	0	578	0	1		EAT	repeat consumed
+key	0	578	1	0		EAT	release consumed
+reset							-
+key	231	578	0	0		INPUTS	star key whatever keycode Android gave it (scan 578)
+key	231	578	1	0		EAT	release consumed
+reset							-
+key	190	0	1	0	YouTube	PASS	a release with no press before it is not ours
+key	176	0	1	0		PASS	same for settings
+reset							-
+key	176	0	0	1		PASS	a repeat with no press before it does not act (first press went elsewhere)
+reset							-
+key	0	0	0	0	YouTube,Netflix	PASS	unknown key, no scan code: untouched
+key	0	577	0	0		PASS	another unmapped scan code: untouched
+key	0	579	0	0		PASS	same
+reset							-
+key	19	0	0	0	YouTube,Netflix	PASS	D-pad up untouched
+key	23	0	0	0	YouTube,Netflix	PASS	OK untouched
+key	4	0	0	0	YouTube,Netflix	PASS	Back untouched
+key	82	0	0	0	YouTube,Netflix	PASS	Menu keeps its own rule (on release, in MainActivity)
+reset							-
+key	188	0	0	0	YouTube,Netflix	PASS	BUTTON_1: no source, not mapped
+key	189	0	0	0	YouTube,Netflix	PASS	BUTTON_2: not mapped
+key	192	0	0	0	YouTube,Netflix	PASS	BUTTON_5: not mapped
+key	183	0	0	0	YouTube,Netflix	PASS	PROG_RED: not mapped
+reset							-
+key	190	0	0	0	YouTube	APP:com.google.android.youtube.tv	a press
+key	23	0	0	0	YouTube	PASS	another key meanwhile is not eaten
+key	190	0	1	0	YouTube	EAT	the release of the first still is
+key	190	0	0	0	YouTube	APP:com.google.android.youtube.tv	and a new press acts again
+reset							-
+key	190	0	0	0	YouTube	APP:com.google.android.youtube.tv	press
+key	190	0	1	0	YouTube	EAT	release
+key	190	0	0	0		PASS	the app is gone later: nothing
+reset							-
+key	190	0	0	0	YouTube,Netflix	APP:com.google.android.youtube.tv	a press opens YouTube
+key	190	0	0	0	YouTube,Netflix	APP:com.google.android.youtube.tv	its release was lost (it went to the opened app): the next press is a new press and opens YouTube again
+key	190	0	0	2	YouTube,Netflix	EAT	and its repeats are still consumed
+key	190	0	1	0	YouTube,Netflix	EAT	and its release too
+reset							-
+key	176	0	0	0	YouTube,Netflix	SETTINGS	Settings opens the TV settings
+key	176	0	0	0	YouTube,Netflix	SETTINGS	a lost release: the next press works at once
+key	0	578	0	0	YouTube,Netflix	INPUTS	the star key (scan code) opens the inputs
+key	0	578	0	0	YouTube,Netflix	INPUTS	a lost release: the next press works at once

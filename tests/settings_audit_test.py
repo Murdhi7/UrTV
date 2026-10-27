@@ -13,7 +13,8 @@ shift 2
 S="$T/tv"; mkdir -p "$S"
 key() { echo "$1" | tr ' /' '__'; }
 case "$1" in
-  "settings get "*) IFS=';' read -ra parts <<< "$1"   # «settings get a b; settings get c d»
+  "settings get "*) [ -n "$EMPTYGET" ] && case "$1" in *"$EMPTYGET"*) exit 0 ;; esac
+       IFS=';' read -ra parts <<< "$1"   # «settings get a b; settings get c d»
        for part in "${parts[@]}"; do part=${part# }; f="$S/$(key "${part#settings get }")"; [ -f "$f" ] && cat "$f" || echo null; done ;;
   "settings put "*) set -- $1; ns=$3; k=$4; shift 4; echo "put $ns $k $*" >> "$T/log"
        case " $REFUSE " in *" $k "*) ;; *) echo "$*" > "$S/$(key "$ns $k")" ;; esac ;;
@@ -37,7 +38,7 @@ def tree(files, **settings):
     return t, tr
 
 def sh(t, tr, script, *args, refuse="", **extra):
-    env = dict(os.environ, T=str(t), PY=str(t / "py"), REFUSE=refuse, SETTLE_S="0", **extra)
+    env = dict(os.environ, T=str(t), PY=str(t / "py"), REFUSE=refuse, SETTLE_S="0", EMPTYGET=extra.pop("emptyget", ""), **extra)
     r = subprocess.run(["bash", str(tr / "optimize" / script), *args], env=env, capture_output=True, text=True, cwd=tr)
     log = (t / "log").read_text().splitlines() if (t / "log").exists() else []
     return r.returncode, r.stdout + r.stderr, log
@@ -55,6 +56,11 @@ t, tr = tree(["measure.sh"], system_screen_off_timeout="1800000")   # the TV res
 rc, out, log = sh(t, tr, "measure.sh", "after", "--now")
 check("measure: after a run that died, the next one puts the TV's recorded timeout back first", log[0] == "put system screen_off_timeout 420000", str(log))
 check("measure: and leaves no file behind", not (tr / "optimize/run/.screen-off-timeout").exists())
+
+t, tr = tree(["measure.sh"], system_screen_off_timeout="600000")
+rc, out, log = sh(t, tr, "measure.sh", "after", "--now", emptyget="screen_off_timeout")
+check("measure: an empty answer for the timeout is NOT «not set»: nothing is stretched or deleted, a !! line says so",
+      "!! screen_off_timeout: the TV did not say its value" in out and not any("screen_off_timeout" in l for l in log), f"{out} {log}")
 
 # dock.sh sleep-setup: the accessibility service
 svc = "sa.urtv.home/sa.urtv.home.SleepService"
@@ -84,6 +90,8 @@ sent = reset_step(f"other.app/.Svc$Inner:{svc}", "0")
 check("reset: a service with a $ in its name is sent in single quotes, not expanded", sent == ["settings put secure enabled_accessibility_services 'other.app/.Svc$Inner'"], str(sent))
 sent = reset_step(f"other.app/.Svc;reboot:{svc}", "0")
 check("reset: a list with a character the script does not send is not sent (ours stays, and it says so)", not any("put secure enabled" in x for x in sent), str(sent))
+sent = reset_step("", "0")
+check("reset: an empty answer (the TV did not say) is NOT «no service on»: the switch is left as it is, with a !! line", sent == [], str(sent))
 sent = reset_step("null", "0")
 check("reset: the list is already empty (Android dropped our entry): the switch is still put back from the record", sent == ["settings put secure accessibility_enabled 0"], str(sent))
 sent = reset_step("null", "null")

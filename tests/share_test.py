@@ -175,6 +175,11 @@ cli("--send")
 send_ok = len(sent) == 1 and "hunter2" not in sent[0] and "TV: Test TV" in sent[0]
 print("share: " + ("allowlist keeps only the report's own fields, free text only after the notes headings" if own and allowed and send_ok
                    else f"WRONG allowlist {own} {allowed} {send_ok}"))
-_extra = not (not net_leaks and own and allowed and send_ok)
+# an email typed in the free text (the agent's notes, the owner's own words) is scrubbed too, also glued to Arabic
+free = share.scrub(share.restrict("UrTV problem report, 2026-01-01, UrTV abc\n\nTV: Test TV\nNotes from the agent:\nmailed example.person@example.com about it\n"
+                                  "From the owner:\nكتبت لهم علىsara.owner@example.org وما ردوا\n"))
+free_ok = "example.person" not in free and "sara.owner" not in free and "<email>" in free and "كتبت لهم" in free
+print("share: " + ("an email in the free text is scrubbed, also glued to Arabic" if free_ok else f"WRONG free-text email {free!r}"))
+_extra = not (not net_leaks and own and allowed and send_ok and free_ok)
 if _extra: sys.exit(1)
 sys.exit(1 if leaks or not counts or not alarm or not ok or bad_win or not versions_ok else 0)

@@ -28,7 +28,7 @@ import java.util.List;
  * «أضف مهمة …» adds, «خلصت …» finishes, «احذف …» deletes (TaskVoice). Nothing changes until «نعم» is pressed.
  * No dialogs, like DockActivity: rows are built right-aligned by hand. `am start -n sa.urtv.home/.TasksActivity`.
  */
-public class TasksActivity extends Activity {
+public class TasksActivity extends Activity implements sa.urtv.home.phone.TextTarget {
     private static final Uri TASKS = Uri.parse("content://sa.urtv.screensaver.config/tasks");
     private static final int SPEECH = 41;
     /** from the home screen's «المهام» card: the list opens with the focus on «🎤 تكلّم», so one more OK starts the voice adding */
@@ -97,6 +97,7 @@ public class TasksActivity extends Activity {
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         col.addView(list, new LinearLayout.LayoutParams(-1, -2));
+        scroll.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // the D-pad ids of these rows are left-to-right: pinned, so a TV set to Arabic does not mirror the rows under them
         setContentView(scroll);
 
         if (!hasRecognizer()) {
@@ -182,6 +183,14 @@ public class TasksActivity extends Activity {
                 : TASKS.buildUpon().appendPath(String.valueOf(n)).build();
         if ((which > 0 || n > 0) && write(() -> getContentResolver().delete(uri, null, null) > 0)) toast("حُذفت: " + t);
         else failed();
+    }
+
+    /** Text typed on the phone («تحكم من الجوال») becomes a task, like a spoken one. */
+    @Override public boolean acceptText(String t) {
+        String text = t.trim();
+        if (text.isEmpty()) return false;
+        add(text.length() > MAX_CHARS ? text.substring(0, MAX_CHARS) : text);
+        return true;
     }
 
     private void add(String t) {

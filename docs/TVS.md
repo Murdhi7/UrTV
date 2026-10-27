@@ -74,6 +74,50 @@ app's preview of the same page and `measure.sh` writes «not measured»). Times 
 | xangshi XS97 | not reported | not reported | not reported | not reported | – | not reported |
 | SHARP AQUOS | not reported | not reported | not reported | not reported | – | not reported |
 
+## The remote's shortcut keys
+
+After the home switch the stock launcher is switched off, and the remote's shortcut keys (Settings, YouTube, Netflix, the star)
+stopped working. Six reports: Haier MatrixTV (A14), TCL G08 (three), Xiaomi MiTV-MZTU0, Changhong dangni (A14). A report found the
+cause: YouTube and Netflix arrive as `KEYCODE_BUTTON_3` and `KEYCODE_BUTTON_4`, and the only receiver of Android's global-button
+broadcast on these TVs is in the stock Google TV launcher (`com.google.android.apps.tv.launcherx`, its `GlobalKeyListener_Receiver`),
+which is off with it. Our home now answers these keys **while it is in front**:
+
+| Key | Android key | What our home does | Reported on | Verified |
+|---|---|---|---|---|
+| YouTube | `KEYCODE_BUTTON_3` (190) | opens `com.google.android.youtube.tv`, only if installed | the six reports above | key number from the report and Android's reference; needs a TV |
+| Netflix | `KEYCODE_BUTTON_4` (191) | opens `com.netflix.ninja`, only if installed | the six reports above | same; needs a TV |
+| Settings | `KEYCODE_SETTINGS` (176) | opens the TV's settings (the «الإعدادات» pill) | the six reports above | key number from Android's reference; needs a TV |
+| Star | Linux `KEY_JOURNAL`, scan code 0x242 (578); Android's generic key map has no name for it, so the keycode may be `KEYCODE_UNKNOWN` (0) | what the Menu key does: the «المصادر» list (our choice: the star is the nearest thing to Menu) | TCL G08 | scan code from the report and the Linux headers; the keycode is not known, so the scan code is matched; needs a TV |
+
+How: a key acts on the first press only; its repeats and its release are consumed, so nothing else reacts. An app that is not
+installed (or that kids mode hides) leaves the key as it was. Every open goes through the family lock, so a locked app stays locked from
+its key. The adhan's any-key rule is asked first.
+
+What we did **not** find a source for, so did not map: `KEYCODE_BUTTON_1`, `_2`, `_5` and up, `KEYCODE_PROG_*`, `KEYCODE_TV_*` and the
+`KEYCODE_MEDIA_*` shortcut variants on these remotes (Android's reference gives the numbers, not which TV puts an app on them). Add a key
+only with a report that names it.
+
+Honest notes:
+- We do **not** register a receiver for the global-button action: the system sends it as an explicit broadcast to the component named
+  in the framework's `global_keys` list, so a third-party receiver for the action is never called.
+- Unverified, and possibly against us: AOSP's `PhoneWindowManager.interceptKeyBeforeDispatching` calls `GlobalKeyManager.handleGlobalKey`
+  **before** the key is dispatched, and consumes the keys listed in `global_keys` even when the receiver it names is disabled. So on a TV that
+  lists these keys in `global_keys` the key is probably taken **before our home sees it**, and the handling in our home does nothing there.
+  The code stays (it costs nothing and acts only on these keys); **verify on the TV** whether the key reaches `dispatchKeyEvent` at all:
+  `adb logcat -s UrTVKeys` prints `key=<keycode> scan=<scancode>` for every first press that reaches our home. Inside other apps nothing
+  of ours sees these keys either way; only the accessibility key filter (the separate branch `work/khalid-settingskey`) could see keys in
+  other apps (it sees them before the window manager does); this change does not depend on it and leaves it as it is.
+- Nothing here is checked on a real TV yet: each row needs one press on each of the six models.
+
+## D-pad direction on the home screen and its rows
+
+The home screen reads right to left. The favourites row (the app tiles under the pills) puts the **first favourite at the right edge**:
+**right** moves toward the first favourite, **left** moves away from it, toward the last. The pills row above reads the same way
+(«المصادر» at the right end, or «يُتلى الآن» when it shows). On a TV whose own D-pad feels reversed (four reports, a Sony and a TCL),
+the key is not swapped: the row simply starts on the right, like Arabic text, so «right» is «back toward the start». The first fix
+(a held key walks the row by hand) is in; the screens built in code now pin their own direction, and the surah grid keeps a key at
+its end instead of handing it to Android.
+
 ## On the computer
 
 - **macOS:** Homebrew's Python 3.12 or 3.13 (`brew install python@3.12`). python.org's Python has no certificates

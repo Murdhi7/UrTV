@@ -54,9 +54,11 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Apple TV style home screen: clock top-left, pills top-right, the focused dock app's name over an
@@ -154,6 +156,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        FamilyDnsAndroid.status(this);   // first use in this process: undoes a Family DNS check that a crash cut short
         Digits.init(this);   // the screensaver's «الأرقام» setting, for every number this screen writes
         dockApps = loadDock();
         liveTvPkg = getString(R.string.live_tv_package);
@@ -179,6 +182,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
         Parental.SESSION.clear();   // the home screen is in front again: an app opened with the PIN asks again next time
         IntentFilter tf = new IntentFilter(Intent.ACTION_TIME_TICK);
         tf.addAction(Intent.ACTION_TIME_CHANGED);
@@ -189,6 +193,7 @@ public class MainActivity extends Activity {
         updateWifi();
         updateNowPlaying();
         homeCard.refresh();
+        showUpdateResult();
         wireFocus();   // the «المهام» card may have come or gone with the settings
         View last = lastFocusedId == View.NO_ID ? null : findViewById(lastFocusedId);
         if (last == null && !dockCards.isEmpty()) last = dockCards.get(0);
@@ -210,6 +215,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        resumed = false;   // a slow photo check that answers now must not start the 10-minute rotation again
+        remoteKeys.reset();   // a shortcut key opened an app: its release went there, not here
         PinPrompt.dismiss(this);
         handler.removeCallbacks(rotateWallpaper);
         unregisterReceiver(tick);
@@ -772,10 +779,25 @@ public class MainActivity extends Activity {
     private final Map<String, View> cardByPkg = new HashMap<>();
     static final int MIN_DOCK = Dock.MIN, MAX_DOCK = Dock.MAX;
 
-    /** The user's dock if they edited it, else res/values/config.xml. */
+    /**
+     * After «تحديث تلفزيوني» replaced this app, the first start finds the «update in progress» record: the update screen opens once and says how it
+     * went (it removes the record). Nothing happens without a record, so a normal start costs one missing-file check.
+     */
+    private void showUpdateResult() {
+        try {
+            if (sa.urtv.home.phone.PhoneUpdater.isBusy()) return;   // an update running in this very process: its own screen says how it goes
+            if (sa.urtv.home.phone.PhoneUpdater.confirmKnown()) return;   // an install confirm is still pending: the record stays unread until it is answered
+            long mine = sa.urtv.home.phone.PhoneUpdater.installedCode(this, getPackageName());
+            if (sa.urtv.home.phone.UpdateRecords.peek(new sa.urtv.home.phone.UpdateStore(this), mine).kind != sa.urtv.home.phone.UpdateRecords.Kind.NONE) {
+                launchGuarded(ParentalPolicy.UPDATE_SCREEN, new Intent(this, UpdateActivity.class), "تحديث تلفزيوني");   // the result of an update: behind «قفل الإعدادات» like the rest of the screen
+            }
+        } catch (RuntimeException ignored) { }
+    }
+
     /** The launcher's settings file, shared with DockReceiver. */
     private android.content.SharedPreferences prefs() { return Dock.prefs(this); }
 
+    /** The user's dock if they edited it, else res/values/config.xml. */
     private String[] loadDock() {
         String saved = prefs().getString("dock", null);
         return saved != null ? (saved.isEmpty() ? new String[0] : saved.split(","))
@@ -805,6 +827,8 @@ public class MainActivity extends Activity {
         List<Runnable> actions = new ArrayList<>();
         labels.add("ترتيب المفضلة…");
         actions.add(() -> launchGuarded(ParentalPolicy.MENU_ARRANGE, new Intent(this, DockActivity.class), "ترتيب المفضلة"));
+        labels.add("تحديث تلفزيوني…");
+        actions.add(() -> launchGuarded(ParentalPolicy.MENU_UPDATE, new Intent(this, UpdateActivity.class), "تحديث تلفزيوني"));
         if (inDock) {
             if (dock.size() > MIN_DOCK) {
                 labels.add("إزالة من المفضلة");
@@ -1028,7 +1052,7 @@ public class MainActivity extends Activity {
                 hijri = hijriWeekday.format(now.getTime()) + "، " + hijriDay.format(HijriShift.date(now, shift)).replaceAll("\\s*هـ\\s*$", "") + " هـ";
             }
         } catch (Exception ignored) { }
-        String greg = gregFormat.format(now.getTime());
+        String greg = MonthNames.of(gregFormat.format(now.getTime()), MonthNames.levant(cfg.fragment));   // «تشرين الأول» when chosen
         date.setText(arabicDigits(hijri.isEmpty() ? greg : hijri + "  –  " + greg));
         updateAdhanBar(cfg);
         sa.urtv.home.tilawah.AdhanSync.onConfig(this, cfg.fragment);   // «تعديل وقت الصلاة» changed on the TV: the alarm follows
@@ -1218,7 +1242,7 @@ public class MainActivity extends Activity {
     private void checkOwnChanged() {
         new Thread(() -> {
             long rev = (Long) ownInfo()[2];
-            if (rev != prefs().getLong("ownRev", 0)) runOnUiThread(() -> { if (!isDestroyed()) nextWallpaper(); });
+            if (rev != prefs().getLong("ownRev", 0)) runOnUiThread(() -> { if (!isDestroyed() && resumed) nextWallpaper(); });
         }).start();
     }
 
@@ -1314,8 +1338,11 @@ public class MainActivity extends Activity {
 
     private boolean firstWallpaper = true;
 
+    private boolean resumed;   // home is in front: only then does the photo rotation run
+
     private void scheduleWallpaper(long delay) {
         handler.removeCallbacks(rotateWallpaper);
+        if (!resumed) return;
         handler.postDelayed(rotateWallpaper, Math.max(1000, delay));
     }
 
@@ -1535,6 +1562,15 @@ public class MainActivity extends Activity {
     public boolean dispatchKeyEvent(KeyEvent e) {
         // while the adhan plays: OK on its bar stops it, and with «إيقاف الأذان بأي زر» any key does; that press is consumed whole
         if (adhanTakes(e)) return true;
+        // the remote's shortcut keys (YouTube, Netflix, Settings, the star): with the stock launcher off nothing else answers them
+        if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0)
+            android.util.Log.d("UrTVKeys", "key=" + e.getKeyCode() + " scan=" + e.getScanCode());   // for the TV test: does the shortcut key reach the home screen at all? (codes only)
+        RemoteKeys.Decision key = remoteKeys.decide(e.getKeyCode(), e.getScanCode(), e.getAction(), e.getRepeatCount(),
+                RemoteKeys.opensApp(e.getKeyCode()) ? remoteInstalled() : Collections.<String>emptySet());
+        if (key.kind != RemoteKeys.PASS) {
+            if (key.kind != RemoteKeys.EAT) openRemoteKey(key);
+            return true;
+        }
         // Menu key on the remote opens the Inputs dropdown.
         if (e.getKeyCode() == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP && !pills.isEmpty()) {
             showInputs(pills.get(0), ParentalPolicy.MENU_KEY);
@@ -1565,6 +1601,41 @@ public class MainActivity extends Activity {
             }
         }
         return super.dispatchKeyEvent(e);
+    }
+
+    private final RemoteKeys remoteKeys = new RemoteKeys();
+
+    /** The apps a shortcut key opens that are installed, and that kids mode shows (one it hides counts as not there: the key then does nothing). */
+    private Set<String> remoteInstalled() {
+        Set<String> out = new HashSet<>();
+        ParentalPolicy.State family = Parental.state(this);
+        for (String pkg : RemoteKeys.PACKAGES) if (isInstalled(pkg) && ParentalPolicy.visible(family, pkg)) out.add(pkg);
+        return out;
+    }
+
+    private String labelOf(String pkg) {
+        try {
+            return String.valueOf(getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg, 0)));
+        } catch (PackageManager.NameNotFoundException e) {
+            return pkg;
+        }
+    }
+
+    /** Opens what a shortcut key asked for, behind the same family lock as the tile, the pill or the Menu key it stands for. */
+    private void openRemoteKey(RemoteKeys.Decision key) {
+        switch (key.kind) {
+            case RemoteKeys.OPEN_APP:
+                guarded(ParentalPolicy.REMOTE_APP, key.pkg, labelOf(key.pkg), () -> openPackage(key.pkg));
+                break;
+            case RemoteKeys.OPEN_SETTINGS:
+                launchGuarded(ParentalPolicy.REMOTE_SETTINGS, new Intent(Settings.ACTION_SETTINGS), "إعدادات التلفزيون");
+                break;
+            case RemoteKeys.OPEN_INPUTS:
+                if (!pills.isEmpty()) showInputs(pills.get(0), ParentalPolicy.MENU_KEY);
+                break;
+            default:
+                break;
+        }
     }
 
     /** While a left/right key is held, the highlight moves one item per this many ms (the pill opens in 150). */

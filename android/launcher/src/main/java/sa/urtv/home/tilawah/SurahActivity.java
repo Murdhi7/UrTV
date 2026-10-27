@@ -66,9 +66,15 @@ public class SurahActivity extends Activity {
                     || e.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT)) {
             if (e.getRepeatCount() > 0 && e.getEventTime() - lastMove < 90) return true;
             if (moveCell(e.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT)) { lastMove = e.getEventTime(); return true; }
-            if (e.getRepeatCount() > 0) return true;   // held at the edge of the grid: stay there
+            // on a cell with nowhere to go (an end of the grid), or held: stay there. Android's own search counts the cells the other way
+            if (CellWalk.consume(false, e.getRepeatCount(), onCell())) return true;
         }
         return super.dispatchKeyEvent(e);
+    }
+
+    private boolean onCell() {
+        View focused = getCurrentFocus();
+        return focused != null && grid.indexOfChild(focused) >= 0;
     }
 
     /** Moves the focus to the cell on the right (true) or on the left (false) of the focused one. */
@@ -79,8 +85,8 @@ public class SurahActivity extends Activity {
         if (child < 0) return false;
         int position = grid.getFirstVisiblePosition() + child;
         // the first cell of the grid sits on the right, so the cell before is the one on the right
-        int next = right ? position - 1 : position + 1;
-        if (next < 0 || next >= grid.getCount()) return false;
+        int next = CellWalk.next(position, grid.getCount(), right);
+        if (next == CellWalk.NONE) return false;
         View cell = grid.getChildAt(next - grid.getFirstVisiblePosition());
         if (cell == null) {
             grid.setSelection(next);
