@@ -69,6 +69,35 @@ new	5	5	a,b,c,d,e,f	-	a fresh row
 down	0	FOCUS|a,b,c,d,e,f|5|x	the last ×
 ok	0	REMOVED|a,b,c,d,e|4|-	the last one removed: the focus is on the new last tile
 undo	1	UNDONE|a,b,c,d,e,f|5|-	and it comes back at the end
+# «تراجع» from the TV test: UP from the tile row reaches it, DOWN goes back and UP again; Back while it shows undoes, a second Back leaves
+new	5	2	a,b,c,d,e,f,g	-	a fresh row
+down	0	FOCUS|a,b,c,d,e,f,g|2|x	DOWN to the ×
+ok	0	REMOVED|a,b,d,e,f,g|2|-	c removed, the focus on the tile that took its place
+up	200	0	FOCUS|a,b,d,e,f,g|2|u	UP from the tile row: on «تراجع»
+down	300	FOCUS|a,b,d,e,f,g|2|-	DOWN: back on the tile
+up	400	0	FOCUS|a,b,d,e,f,g|2|u	UP again: on «تراجع» again
+up	500	0	NOTHING|a,b,d,e,f,g|2|u	UP on «تراجع» stays on it
+key	600	21	1	NOTHING|a,b,d,e,f,g|2|u	LEFT on «تراجع» stays on it
+new	5	2	a,b,c,d,e,f,g	-	a fresh row
+down	0	FOCUS|a,b,c,d,e,f,g|2|x	DOWN to the ×
+ok	0	REMOVED|a,b,d,e,f,g|2|-	c removed
+back	4999	UNDONE|a,b,c,d,e,f,g|2|-	Back within the 5 seconds, focus on the tile: c is back in its place
+back	5100	EXIT|a,b,c,d,e,f,g|2|-	a second Back leaves the mode
+new	5	2	a,b,c,d,e,f,g	-	a fresh row
+down	0	FOCUS|a,b,c,d,e,f,g|2|x	DOWN to the ×
+ok	0	REMOVED|a,b,d,e,f,g|2|-	c removed
+up	100	0	FOCUS|a,b,d,e,f,g|2|u	on «تراجع»
+back	200	UNDONE|a,b,c,d,e,f,g|2|-	Back on «تراجع» undoes too
+new	5	2	a,b,c,d,e,f,g	-	a fresh row
+down	0	FOCUS|a,b,c,d,e,f,g|2|x	DOWN to the ×
+ok	0	REMOVED|a,b,d,e,f,g|2|-	c removed
+back	5000	EXIT|a,b,d,e,f,g|2|-	after the 5 seconds Back leaves the mode, c stays removed
+new	5	2	a,b,c,d,e,f,g	-	a fresh row
+down	0	FOCUS|a,b,c,d,e,f,g|2|x	DOWN to the ×
+ok	0	REMOVED|a,b,d,e,f,g|2|-	c removed
+ok	100	PICKED|a,b,d,e,f,g|2|c	d picked up while «تراجع» shows
+back	200	CANCELLED|a,b,d,e,f,g|2|-	Back while carrying puts d back first, it does not undo
+back	300	UNDONE|a,b,c,d,e,f,g|2|-	the next Back, still within the seconds, undoes
 # RTL: the row reads from the right, so RIGHT goes toward the start of the row
 step	22	1	-1	RIGHT, Arabic: toward the start
 step	21	1	1	LEFT, Arabic: toward the end

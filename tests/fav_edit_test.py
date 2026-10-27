@@ -59,6 +59,27 @@ check("keys: the adhan rule first, then the remote's shortcut keys (one that act
       and "if (edit != null) leaveEdit();   // a shortcut key" in d)
 check("the long-press menu: «تعديل المفضلة» on a favourite, and no «ترتيب المفضلة…» (that list is the settings' only)",
       'labels.add("تعديل المفضلة")' in main and "ترتيب المفضلة…" not in main)
+# ---- «تراجع» from the TV test: UP from the tile row did not reach the chip and the seconds ran out. The keys are the mode's own (editKey),
+# and under them Android's own focus search is wired so that no key that reaches the views can leave the row or miss the chip
+fn = lambda name: main.split(name)[1].split("\n    }\n")[0]
+keyfn_ = fn("private boolean editKey(KeyEvent e)")
+check("«تراجع»: UP and Back in the mode are handled in editKey (edit.up, edit.back), not left to Android",
+      "k == KeyEvent.KEYCODE_DPAD_UP" in keyfn_ and "applyEdit(edit.up(0, now))" in keyfn_ and "applyEdit(edit.back(now))" in keyfn_ and keyfn_.rstrip().endswith("return true;"))
+wire = fn("private void wireEditFocus()")
+check("«تراجع»: while it shows, UP from every tile of the row is the chip (nextFocusUp), else the tile itself",
+      "c.setNextFocusUpId(chip ? undoChip.getId() : c.getId())" in wire and "for (View c : dockCards)" in wire)
+check("«تراجع»: from the chip DOWN is the focused tile, and UP, LEFT and RIGHT stay on it",
+      "undoChip.setNextFocusDownId(tile.getId())" in wire and all(f"undoChip.setNextFocus{w}Id(undoChip.getId())" in wire for w in ("Up", "Left", "Right")))
+check("«تراجع»: a tile's DOWN is its ×, and from the × UP is the tile", "c.setNextFocusDownId(x != null ? x.getId() : c.getId())" in wire and "x.setNextFocusUpId(c.getId())" in wire)
+paint = fn("private void paintEdit()")
+check("«تراجع»: every redraw of the mode wires it before it moves the focus, and the focus goes to the chip when the model is on it",
+      paint.index("wireEditFocus();") < paint.index("requestFocus()") and "e.onUndo() && chip ? undoChip" in paint)
+check("«تراجع»: a focus request the chip refuses (not laid out yet) is made again once it is",
+      "!target.requestFocus() && target == undoChip" in paint and "undoChip.post(" in paint and "edit.onUndo()" in paint)
+check("«تراجع»: a rewiring of the screen while the mode is on (the row, the pills) ends with the mode's own wiring",
+      fn("private void wireFocus()").rstrip().endswith("if (edit != null) wireEditFocus();   // a rewiring while «تعديل المفضلة» is on (the row, the pills) keeps the mode's own"))
+check("«تراجع»: leaving the mode wires the row's own ways again (up to the pills)", "wireFocus();" in fn("private void endEditUi(int focus)"))
+check("«تراجع»: Back while it shows undoes (FavEdit.back), checked case by case below", "if (undoAvailable(now)) return undo(now);" in edit.split("int back(long now)")[1].split("\n    }\n")[0])
 dock_sh = (ROOT / "optimize/dock.sh").read_text(encoding="utf-8")
 check("dock.sh keeps the agent's way (apps, set, show, reset) and knows nothing of the edit mode",
       all(a in dock_sh for a in ("send LIST_APPS", "send SET_DOCK", "send GET_DOCK", "send RESET_DOCK")) and "edit_favourites" not in dock_sh and "FavEdit" not in dock_sh)

@@ -821,6 +821,29 @@ public class MainActivity extends Activity {
             c.setNextFocusLeftId(col == 0 ? c.getId() : gridCards.get(j - 1).getId());
             c.setNextFocusRightId(col == cols - 1 || j == g - 1 ? c.getId() : gridCards.get(j + 1).getId());
         }
+        if (edit != null) wireEditFocus();   // a rewiring while «تعديل المفضلة» is on (the row, the pills) keeps the mode's own
+    }
+
+    /**
+     * While «تعديل المفضلة» is on, Android's own focus search never leaves the row: UP from a tile is «تراجع» while it shows (else the
+     * tile itself), DOWN its ×, and from the chip DOWN is the tile and the other ways stay on it. editKey moves the focus itself; this is
+     * the net under it, for a key that reaches the views (on the TV the UP to the chip went astray and the seconds ran out).
+     */
+    private void wireEditFocus() {
+        FavEdit e = edit;
+        if (e == null || dockCards.isEmpty()) return;
+        boolean chip = undoChip.getVisibility() == View.VISIBLE;
+        for (View c : dockCards) {
+            TextView x = xByCard.get(c);
+            c.setNextFocusUpId(chip ? undoChip.getId() : c.getId());
+            c.setNextFocusDownId(x != null ? x.getId() : c.getId());
+            if (x != null) { x.setNextFocusUpId(c.getId()); x.setNextFocusDownId(x.getId()); }
+        }
+        View tile = dockCards.get(Math.min(e.at(), dockCards.size() - 1));
+        undoChip.setNextFocusDownId(tile.getId());
+        undoChip.setNextFocusUpId(undoChip.getId());
+        undoChip.setNextFocusLeftId(undoChip.getId());
+        undoChip.setNextFocusRightId(undoChip.getId());
     }
 
     private void scrollToRow(View tileBox) {
@@ -1005,6 +1028,7 @@ public class MainActivity extends Activity {
             TextView x = xByCard.get(c);
             if (x != null) { x.setVisibility(View.GONE); x.setFocusable(false); }
         }
+        wireFocus();   // the row's own ways again (up to the pills, down to the apps)
         if (!dockCards.isEmpty()) dockCards.get(Math.min(focus, dockCards.size() - 1)).requestFocus();
         for (View c : dockCards) liftCard(c, false);
     }
@@ -1076,9 +1100,11 @@ public class MainActivity extends Activity {
             if (x != null) { x.setVisibility(View.VISIBLE); x.setFocusable(true); }
         }
         if (dockCards.isEmpty()) return;
+        wireEditFocus();
         // the focus first: a card gaining it animates to the ordinary focus size, and the lifted one must come after
         View target = e.onUndo() && chip ? undoChip : e.onX() ? xByCard.get(dockCards.get(e.at())) : dockCards.get(e.at());
-        if (target != null && !target.isFocused()) target.requestFocus();
+        if (target != null && !target.isFocused() && !target.requestFocus() && target == undoChip)
+            undoChip.post(() -> { if (edit != null && edit.onUndo() && undoChip.getVisibility() == View.VISIBLE) undoChip.requestFocus(); });   // once laid out
         for (int i = 0; i < dockCards.size(); i++) liftCard(dockCards.get(i), e.carrying() && i == e.at());
     }
 

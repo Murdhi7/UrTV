@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * «تعديل المفضلة» on the home screen: the favourites row edited in place with the remote. Pick an app up with OK, walk it along the row
  * with the arrows, drop it with OK; Back while carrying puts it back; the × under a tile (DOWN from the tile) removes it, and «تراجع»
- * brings it back for a few seconds. No Android in here (key codes are written out, so it runs without the SDK): tests/FavEditRun.java
+ * (UP from the row, or Back while it shows) brings it back for a few seconds. No Android in here (key codes are written out, so it runs without the SDK): tests/FavEditRun.java
  * runs it. MainActivity draws what this says and saves {@link #row} through Dock.save, the store «ترتيب المفضلة» and dock.sh share.
  */
 final class FavEdit {
@@ -137,7 +137,10 @@ final class FavEdit {
         return PICKED;
     }
 
-    /** Back: while carrying the app goes back where it was; otherwise the mode is over (the screen saves {@link #row}). */
+    /**
+     * Back: while carrying the app goes back where it was; while «تراجع» shows it undoes, wherever the focus is (on the TV the UP to
+     * the chip did not always reach it, and the seconds ran out); otherwise the mode is over (the screen saves {@link #row}).
+     */
     int back(long now) {
         expire(now);
         if (carrying()) {
@@ -147,6 +150,7 @@ final class FavEdit {
             before = null;
             return CANCELLED;
         }
+        if (undoAvailable(now)) return undo(now);
         return EXIT;
     }
 
