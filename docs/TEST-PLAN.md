@@ -26,8 +26,10 @@ Navigate with the remote, or `adb shell input keyevent DPAD_DOWN|DPAD_UP|DPAD_CE
 
 | ID | Action | Expected |
 |---|---|---|
-| A1 | Open the app from the TV launcher | Banner «شاشة تلفزيونك»; settings list opens, right-to-left, first row focused |
-| A2 | Move through every row with D-pad | Every row focusable and highlighted; nothing unreachable |
+| A1 | Open the app from the TV launcher | Banner «شاشة تلفزيونك»; the settings open on eight category tiles, two to a row, the first («الموقع والصلاة») on the right and focused; each shows its current value under its name |
+| A1b | ◀▶▲▼ on the tiles, then OK on «الجوال والتحديث», then Back | ▶ goes to the right tile of a pair, ◀ to the left one, ▲▼ a row; nothing wraps. OK opens it: its name and line on the right, its rows on the left from the top (first row focused, «تحديث تلفزيوني» among them); Back returns to the categories with the focus on «الجوال والتحديث»; OK again comes back on the row last focused; Back twice leaves |
+| A2 | Open every tile and move through every row with D-pad | Every row focusable and highlighted; nothing unreachable; each row is in exactly one tile (the list in FEATURES.md) |
+| A2b | In «الموقع والصلاة», change «طريقة الحساب» | The focus stays on that row after the change, as before |
 | A3 | المدينة → open | First item «بحث عن مدينة أو قرية…», then 13 regions with counts |
 | A4 | Region «منطقة الرياض» → pick «الخرج» | Dialog closes, row shows «المدينة: الخرج» |
 | A5 | المدينة → search → type `ابها` or `Abha` | Results list from the internet; pick one → row updates |
