@@ -120,7 +120,13 @@ final class Updater {
         String v = latestFromAsset(next ? NEXT_VERSION_URL : VERSION_URL);
         if (v == null && !next) v = latestFromRedirect();
         if (v == null) return;
-        new Prefs(c).raw().edit().putString("latestVersion", v).putLong("latestCheck", System.currentTimeMillis()).apply();
+        new Prefs(c).raw().edit().putString("latestVersion", v).putString("latestChannel", next ? "next" : "latest").putLong("latestCheck", System.currentTimeMillis()).apply();
+    }
+
+    /** After the update channel was changed (agents only): read the newest version of the new channel's release in the background. */
+    static void refreshLatestAsync(Context c) {
+        final Context app = c.getApplicationContext();
+        new Thread(new Runnable() { @Override public void run() { checkLatest(app); } }).start();
     }
 
     private static String latestFromAsset(String url) {
@@ -175,7 +181,7 @@ final class Updater {
     /** The three lines under the settings: this app's version, the newest release, and how to update. */
     static String[] versionLines(Context c) {
         String mine = BuildConfig.VERSION_NAME;
-        String latest = new Prefs(c).raw().getString("latestVersion", null);
+        String latest = new Prefs(c).latestVersion();
         Integer newer = Versions.compare(latest, mine);   // major first, then minor: 4.0 is newer than 3.12
         String available = latest == null || Versions.parse(latest) == null ? "لم يُفحص بعد"
             : newer == null || newer <= 0 ? "لا يوجد أحدث" : arabic(latest);

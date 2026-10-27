@@ -70,7 +70,7 @@ check("the screen the owner answers on is out of the phone's reach (PrivateScree
 check("the city and the home cards go through SaverReceiver.set, the code optimize/saver.sh uses", "SaverReceiver.set(" in text(ROOT / "android/app/src/main/java/sa/urtv/screensaver/ConfigProvider.java"), "")
 check("the provider's phone calls need the signature permission", "checkCallingPermission(PHONE_PERMISSION)" in text(ROOT / "android/app/src/main/java/sa/urtv/screensaver/ConfigProvider.java")
       and 'sa.urtv.screensaver.PHONE_SETTINGS"\n        android:protectionLevel="signature"' in text(ROOT / "android/app/src/main/AndroidManifest.xml"), "")
-check("the provider lets the phone set only the city and the home cards", re.search(r'for \(String k : new String\[\] \{"city", "home_panel"\}\)', text(ROOT / "android/app/src/main/java/sa/urtv/screensaver/ConfigProvider.java")) is not None, "")
+check("the provider lets the phone set only the city, the home cards and the idle time", re.search(r'for \(String k : new String\[\] \{"city", "home_panel", "idle"\}\)', text(ROOT / "android/app/src/main/java/sa/urtv/screensaver/ConfigProvider.java")) is not None, "")
 til = JAVA / "tilawah"
 check("the adhan goes through AdhanSettings, for the ADB receiver and for the phone alike", "AdhanSettings." in text(til / "MusicReceiver.java") and "AdhanSettings." in text(til / "PhoneBridge.java"), "")
 voices = re.search(r"COUNT = (\d+)", text(til / "AdhanVoices.java"))
@@ -87,11 +87,11 @@ check("the page's one script carries the nonce the server fills in", page.count(
 check("the page sends the session in X-UrTV-Session and the cookie goes with it", "'X-UrTV-Session'" in page and "credentials: 'same-origin'" in page, "")
 check("the page takes the token out of the address bar at once", "history.replaceState" in page and page.index("history.replaceState") < page.index("pair({ token: h })"), "")
 api = text(PHONE / "PhoneApi.java")
-served = set(re.findall(r'case "(/api/[a-z/]+)"', api)) | {"/api/state"}
-used = set(re.findall(r"['\"](/api/[a-z/]+)['\"]", page))
+served = set(re.findall(r'case "(/api/[a-z_/]+)"', api)) | {"/api/state"} | ({"/api/icon/"} if 'startsWith("/api/icon/")' in api else set())
+used = set(re.findall(r"['\"](/api/[a-z_/]+)['\"]", page))
 check("every call of the page is an endpoint the server has, and the reverse", used == served, (used ^ served))
 check("the page says plainly what it cannot do: keys to other apps, and text outside our screens",
-      "أندرويد يسمح لتطبيقنا بإرسال الأسهم والاختيار والرجوع إلى شاشاته هو فقط" in page and "أندرويد لا يسمح لتطبيق بالكتابة داخل تطبيق آخر" in page, "")
+      "أندرويد يسمح لتطبيقنا بإرسال الأسهم والاختيار والرجوع إلى شاشاته هو فقط" in page and "يُكتب في حقلها بعد تفعيل خدمة إمكانية الوصول" in page and "/api/text" in page, "")
 check("the page has no reset, uninstall, ADB or PIN-changing control", not re.search(r"reset|uninstall|adb|إعادة ضبط|حذف التطبيق", page, re.I), "")
 
 # ---- docs and registration
@@ -119,4 +119,31 @@ with tempfile.TemporaryDirectory() as tmp:
     run = subprocess.run(["java", "-Dfile.encoding=UTF-8", "-cp", tmp, "sa.urtv.home.phone.PhoneRun"], capture_output=True)
 out = run.stdout.decode("utf-8")
 print(out, end="")
+
+# the remote's newer parts: apps, icons, launch, adhan stop, do, family
+apps_src = text(JAVA / "PhoneApps.java")
+main_src = text(JAVA / "MainActivity.java")
+actions_src = text(PHONE / "PhoneActions.java")
+check("the apps and icons are the favourites the home shows (Dock.shown, kids mode applied); an icon is only given for one of them",
+      "Dock.shown(app, all)" in apps_src and "ParentalPolicy.visible(st," in apps_src and "if (!shown) return null;" in apps_src)
+check("an app that asks for the PIN is never started by the phone: the home screen is brought up with the request and asks ON THE TV",
+      "locked = Parental.needsPin(app, target);" in apps_src and "if (!locked) {" in apps_src and "putExtra(EXTRA_LAUNCH, target)" in apps_src and "pin_on_tv" in apps_src)
+check("the home runs the request through the very guard of a tap, for the favourites and the pills only, once",
+      "phoneRequested(" in main_src and "guarded(ParentalPolicy.REMOTE_APP, t, labelOf(t), () -> openPackage(t))" in main_src and "i.removeExtra(PhoneApps.EXTRA_LAUNCH)" in main_src
+      and "for (String[] a : PhoneApps.apps(this)) shown |= a[0].equals(t);" in main_src)
+check("kids mode shows the phone no pills and no app outside the allowed list", "if (st.kids) return out;" in apps_src and 'Parental.state(app).kids' in apps_src)
+check("the family summary is read only and never carries the PIN", "public static Map<String, Object> family(" in apps_src and "pin_set" in apps_src and "Parental.pin(" not in apps_src and "PinStore" not in apps_src)
+check("the phone has no way to change the family lock, reset, uninstall or reach ADB: no such call anywhere in the phone package",
+      not re.search(r"setLocked|setKids|setAllowed|adbSet|adbReset|adbLock|turnOff\(|\.uninstall\(|deletePackage|uninstallPackage|Runtime\.getRuntime|ProcessBuilder|\"adb\"|pm clear|factory", "".join(text(p) for p in PHONE.glob("*.java"))), "")
+check("Back reaches every app through the accessibility service when it is on, and only Back (the arrows stay on our own screens)",
+      'key.equals("back") && PhoneApps.globalBack()' in actions_src and "GLOBAL_ACTION_BACK" in text(JAVA / "SleepService.java") and "GLOBAL_ACTION_HOME" not in text(JAVA / "SleepService.java"))
+check("the adhan stop and the sleep timer go through the app's own code", "MusicService.stopAdhan(c)" in text(til / "PhoneBridge.java") and "SleepTimer.start(" in apps_src and "SleepTimer.MINUTES" in apps_src)
+check("the favourites are looked up at most every few seconds and cleared on a package or favourites change; an icon comes from the cache after that check and expires",
+      "APPS_TTL_MS = 5_000" in apps_src and "public static synchronized void invalidate()" in apps_src and "PhoneApps.invalidate();" in main_src and main_src.count("PhoneApps.invalidate();") == 2
+      and "ICON_TTL_MS" in apps_src and apps_src.index("for (String[] a : apps(app)) shown |= a[0].equals(pkg);") < apps_src.index("ICONS.get(pkg)"))
+check("kids mode: a pill request from the phone is ignored by the home (it shows none)", 'if (t.startsWith("@") && Parental.state(this).kids) return;' in main_src)
+check("cancelling the sleep timer from the phone is a PIN-protected change", '(endpoint.equals("do") && "sleep_cancel".equals(v.get("op")))' in api and 'only(body, "op", "pin")' in text(PHONE / "Schema.java"))
+check("the new settings are the app's lists", re.findall(r"MINUTES = \{([0-9, ]+)\}", text(JAVA / "SleepTimer.java"))[0].replace(" ", "") == "15,30,60,90"
+      and re.findall(r"IDLE_MINUTES = \{([^}]*)\}", text(ROOT / "android/app/src/main/java/sa/urtv/screensaver/Prefs.java"))[0].replace('"', "").replace(" ", "") == "1,2,5,10,15,30", "")
+
 sys.exit(1 if failed or run.returncode != 0 or "FAIL" in out else 0)

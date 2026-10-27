@@ -4,117 +4,196 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark light">
 <title>تحكم من الجوال</title>
 <style>
-:root { --bg:#04120c; --card:#0d2418; --line:#27412f; --gold:#d6af6b; --text:#f6efe0; --dim:#c6bba4; --red:#ee8b70; --ink:#04120c; }
+:root { --bg:#04120c; --card:#0d2418; --line:#2f4d39; --gold:#d6af6b; --gt:#d6af6b; --text:#f6efe0; --dim:#c6bba4; --red:#ee8b70; --ink:#04120c; --tile:#1a4030; --bar:#08190f; }
+:root[data-theme="light"] { --bg:#f7f3ea; --card:#ffffff; --line:#b9ae94; --gold:#c99a3e; --gt:#775210; --text:#1d2b22; --dim:#4a574d; --red:#a63a1f; --ink:#04120c; --tile:#e6dcc3; --bar:#ffffff; }
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html,body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif; }
-body { padding:12px 14px calc(24px + env(safe-area-inset-bottom)); max-width:560px; margin:0 auto; }
-h1 { font-size:22px; margin:6px 0 4px; }
-h2 { font-size:17px; margin:18px 0 8px; color:var(--gold); }
+html,body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif; }
+body { max-width:560px; margin:0 auto; padding:0 16px calc(84px + env(safe-area-inset-bottom)); overflow-x:hidden; }
+body.login { padding-bottom:24px; }
+h1 { font-size:22px; margin:14px 0 6px; }
+h2 { font-size:17px; margin:20px 0 8px; color:var(--gt); }
 p { margin:6px 0; color:var(--dim); font-size:14px; }
 .hidden { display:none !important; }
-button,select,input,textarea { font:inherit; color:var(--text); background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
-button { cursor:pointer; min-height:48px; touch-action:manipulation; }
+button,select,input,textarea { font:inherit; color:var(--text); background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 12px; max-width:100%; }
+button { cursor:pointer; min-height:52px; min-width:52px; touch-action:manipulation; }
 button:active { background:var(--gold); color:var(--ink); }
-button.gold { background:var(--gold); color:var(--ink); border-color:var(--gold); font-weight:600; }
+button:focus-visible,input:focus-visible,select:focus-visible { outline:3px solid var(--gt); outline-offset:2px; }
+button.gold { background:var(--gold); color:var(--ink); border-color:var(--gold); font-weight:700; }
 button.red { color:var(--red); border-color:var(--red); }
-input,select,textarea { width:100%; }
-textarea { min-height:90px; resize:vertical; }
-.tabs { display:flex; gap:6px; overflow-x:auto; margin:10px 0 4px; padding-bottom:4px; }
-.tabs button { flex:0 0 auto; padding:8px 14px; min-height:42px; }
-.tabs button.on { background:var(--gold); color:var(--ink); border-color:var(--gold); }
-.pad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; direction:ltr; margin:10px 0; }
-.pad button { min-height:62px; font-size:22px; }
-.row { display:flex; gap:8px; margin:8px 0; flex-wrap:wrap; }
-.row > * { flex:1 1 0; min-width:90px; }
-.note { border:1px solid var(--line); border-radius:12px; padding:8px 12px; margin:10px 0; background:#0a1c13; }
+input,select { width:100%; min-height:52px; }
+input[type=checkbox] { appearance:none; -webkit-appearance:none; width:60px; min-height:52px; height:52px; flex:0 0 60px; border-radius:26px; position:relative; padding:0; background:var(--tile); }
+input[type=checkbox]::before { content:""; position:absolute; top:10px; inset-inline-start:8px; width:30px; height:30px; border-radius:50%; background:var(--dim); transition:inset-inline-start .15s; }
+input[type=checkbox]:checked { background:var(--gold); border-color:var(--gold); }
+input[type=checkbox]:checked::before { inset-inline-start:24px; background:var(--ink); }
+input[type=range] { padding:0; border:0; background:none; }
+.row { display:flex; gap:10px; margin:10px 0; }
+.row > * { flex:1 1 0; min-width:0; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:12px 14px; margin:12px 0; }
+.card h2 { margin-top:2px; }
+.note { border:1px solid var(--line); border-radius:12px; padding:8px 12px; margin:10px 0; background:var(--card); font-size:14px; }
 .warn { border-color:var(--red); color:var(--red); }
+.sw { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0; min-height:52px; }
 .list button { display:block; width:100%; text-align:right; margin:6px 0; }
-label.sw { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:10px 0; }
-label.sw input { width:auto; transform:scale(1.4); }
-#msg { position:fixed; inset-inline:14px; bottom:calc(14px + env(safe-area-inset-bottom)); background:var(--gold); color:var(--ink); border-radius:12px; padding:10px 14px; text-align:center; z-index:5; }
+header.top { position:sticky; top:0; z-index:4; background:var(--bg); display:flex; align-items:center; gap:10px; padding:calc(8px + env(safe-area-inset-top)) 0 8px; border-bottom:1px solid var(--line); }
+header.top .ttl { flex:1; min-width:0; font-weight:700; }
+header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--dim); }
+.dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#3ecf7a; margin-inline-end:6px; }
+#theme { flex:0 0 52px; padding:0; font-size:20px; }
+#bar { position:fixed; bottom:0; inset-inline:0; z-index:5; background:var(--bar); border-top:1px solid var(--line); display:flex; padding:6px 8px calc(6px + env(safe-area-inset-bottom)); gap:6px; max-width:560px; margin:0 auto; }
+#bar button { flex:1 1 0; min-height:56px; border:0; background:none; font-size:14px; padding:4px 2px; border-radius:12px; color:var(--dim); line-height:1.3; }
+#bar button b { display:block; font-size:20px; font-weight:400; }
+#bar button.on { background:var(--gold); color:var(--ink); font-weight:700; }
+#modes button.on { background:var(--gold); color:var(--ink); border-color:var(--gold); font-weight:700; }
+#now { display:flex; align-items:center; gap:10px; margin:12px 0; }
+#now .t { flex:1; min-width:0; overflow-wrap:anywhere; }
+#now button { flex:0 0 auto; }
+#pad { height:190px; margin:12px 0; border:2px dashed var(--line); border-radius:24px; background:var(--card); display:flex; align-items:center; justify-content:center; text-align:center; color:var(--dim); font-size:14px; touch-action:none; user-select:none; -webkit-user-select:none; }
+.dp { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; direction:ltr; margin:10px 0; }
+.dp button { min-height:60px; font-size:22px; }
+.vol { display:flex; gap:10px; margin:10px 0; }
+.vol button { flex:1 1 0; min-height:60px; font-size:20px; }
+.grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:10px 0; }
+.app { display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 4px; min-height:104px; position:relative; font-size:14px; line-height:1.3; overflow-wrap:anywhere; text-align:center; }
+.tile { width:52px; height:52px; border-radius:14px; background:var(--tile); display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700; position:relative; overflow:hidden; color:var(--gt); }
+.tile img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.lock { position:absolute; top:4px; inset-inline-end:6px; font-size:14px; }
+.tools { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+.tools button { flex:1 1 30%; }
+#msg { position:fixed; inset-inline:16px; bottom:calc(88px + env(safe-area-inset-bottom)); background:var(--gold); color:var(--ink); border-radius:14px; padding:12px 14px; text-align:center; z-index:9; font-weight:600; }
+#dlg { position:fixed; inset:0; z-index:10; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; justify-content:center; }
+#dlg > div { background:var(--bg); border:1px solid var(--line); border-radius:18px 18px 0 0; padding:16px 16px calc(16px + env(safe-area-inset-bottom)); width:100%; max-width:560px; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; scroll-behavior:auto !important; } }
 </style>
 </head>
-<body>
-<h1>تحكم من الجوال</h1>
+<body class="login">
 
 <section id="login">
+  <h1>تحكم من الجوال</h1>
   <p id="loginInfo">افتح هذه الصفحة بمسح الرمز الظاهر على التلفزيون، أو اكتب الرمز المكوّن من ٦ أرقام الظاهر تحت العنوان.</p>
-  <input id="code" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="الرمز (٦ أرقام)" dir="ltr">
+  <input id="code" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="الرمز (٦ أرقام)" dir="ltr" aria-label="الرمز">
   <div class="row"><button id="codeGo" class="gold">اتصال</button></div>
-  <p id="loginState"></p>
+  <p id="loginState" role="status"></p>
 </section>
 
 <section id="app" class="hidden">
-  <div class="tabs" id="tabs"></div>
+  <header class="top">
+    <div class="ttl">التلفزيون<span class="sub"><span class="dot"></span>متصل · <span id="left"></span></span></div>
+    <button id="theme" aria-label="المظهر">◐</button>
+  </header>
 
   <div id="t-remote">
-    <div id="foreNote" class="note warn hidden">يوجد تطبيق آخر أمام الشاشة: أندرويد يسمح لتطبيقنا بإرسال الأسهم والاختيار والرجوع إلى شاشاته هو فقط. الرئيسية والصوت وتشغيل/إيقاف تعمل في كل مكان.</div>
-    <div class="pad">
+    <div id="now" class="card hidden"><div class="t" id="nowT"></div><button id="adhanStop1" class="gold hidden">أوقف الأذان الآن</button></div>
+    <div id="pad" aria-label="لوحة اللمس">اسحب للتحريك · المس للاختيار · أبقِ الإصبع للتكرار</div>
+    <div id="foreNote" class="note hidden"></div>
+    <div class="dp">
       <span></span><button data-k="up" data-rep="1" aria-label="أعلى">▲</button><span></span>
-      <button data-k="left" data-rep="1" aria-label="يسار">◀</button><button data-k="ok" aria-label="اختيار">اختيار</button><button data-k="right" data-rep="1" aria-label="يمين">▶</button>
+      <button data-k="left" data-rep="1" aria-label="يسار">◀</button><button class="gold" data-k="ok" aria-label="اختيار">اختيار</button><button data-k="right" data-rep="1" aria-label="يمين">▶</button>
       <span></span><button data-k="down" data-rep="1" aria-label="أسفل">▼</button><span></span>
     </div>
     <div class="row"><button data-k="back">رجوع</button><button data-k="home">الرئيسية</button><button data-k="play_pause">تشغيل / إيقاف</button></div>
-    <div class="row"><button data-k="vol_down" data-rep="1">صوت −</button><button data-k="mute">كتم</button><button data-k="vol_up" data-rep="1">صوت +</button></div>
-    <p>الأسهم والاختيار والرجوع تعمل داخل شاشات تلفزيونك فقط (الرئيسية، التلاوة، المهام…).</p>
+    <div class="vol"><button data-k="vol_down" data-rep="1" aria-label="خفض الصوت">صوت −</button><button data-k="mute" aria-label="كتم">🔇 كتم</button><button data-k="vol_up" data-rep="1" aria-label="رفع الصوت">صوت +</button></div>
+    <input id="txt" dir="auto" maxlength="120" enterkeyhint="send" placeholder="اكتب هنا (عربي أو إنجليزي)" aria-label="نص للتلفزيون">
+    <div class="row" id="modes" role="group" aria-label="طريقة الكتابة"><button data-mode="replace" class="on">استبدال</button><button data-mode="append">إضافة</button></div>
+    <div class="row"><button id="txtGo" class="gold">أرسل</button><button id="txtSearch">بحث</button></div>
+    <div id="svcNote" class="note warn hidden"><div>فعّل خدمة "تلفزيونك: الكتابة من الجوال" في إعدادات التلفزيون لتكتب في التطبيقات الأخرى</div><div>الإعدادات ← إمكانية الوصول ← تلفزيونك: الكتابة من الجوال</div></div>
+    <p>يُكتب النص في الحقل النصي المفتوح، ويُضاف مهمةً إذا كانت شاشة «المهام» مفتوحة، وفي التطبيقات الأخرى يُكتب في حقلها بعد تفعيل خدمة إمكانية الوصول. ومن دون الخدمة: أندرويد لا يسمح لتطبيق بالكتابة داخل تطبيق آخر، فيُنسخ النص إلى حافظة التلفزيون.</p>
   </div>
 
-  <div id="t-text" class="hidden">
-    <h2>كتابة نص</h2>
-    <textarea id="txt" dir="auto" maxlength="120" placeholder="اكتب هنا (عربي أو إنجليزي)"></textarea>
-    <div class="row"><button id="txtGo" class="gold">إرسال إلى التلفزيون</button></div>
-    <p>يُكتب النص في الحقل النصي المفتوح في شاشات تلفزيونك، ويُضاف مهمةً إذا كانت شاشة «المهام» مفتوحة. في أي مكان آخر يُنسخ إلى حافظة التلفزيون فقط، لأن أندرويد لا يسمح لتطبيق بالكتابة داخل تطبيق آخر (مثل بحث يوتيوب).</p>
+  <div id="t-apps" class="hidden">
+    <h2>التطبيقات</h2>
+    <input id="appQ" type="search" placeholder="ابحث عن تطبيق" maxlength="30" aria-label="بحث">
+    <p id="appsNote"></p>
+    <div id="grid" class="grid"></div>
+    <h2>أدوات تلفزيونك</h2>
+    <div id="tools" class="tools"></div>
+  </div>
+
+  <div id="t-now" class="hidden">
+    <div class="card">
+      <h2>التلاوة</h2>
+      <p id="playerNow"></p>
+      <button id="adhanStop2" class="gold hidden" style="width:100%">أوقف الأذان الآن</button>
+      <div class="row"><button data-q="prev">السابقة</button><button id="qToggle">إيقاف مؤقت</button><button data-q="next">التالية</button><button data-q="stop" class="red">إيقاف</button></div>
+      <p>القارئ</p><select id="qRec" aria-label="القارئ"></select>
+      <p>السورة</p><select id="qSurah" aria-label="السورة"></select>
+      <div class="row"><button id="qPlay" class="gold">تشغيل</button></div>
+      <p>مؤقت النوم للتلاوة</p><select id="qSleep" aria-label="مؤقت النوم للتلاوة"><option value="0">بدون</option><option value="15">١٥ دقيقة</option><option value="30">٣٠ دقيقة</option><option value="60">٦٠ دقيقة</option><option value="90">٩٠ دقيقة</option></select>
+    </div>
+    <div class="card">
+      <h2>الأذان القادم</h2>
+      <p id="nextA"></p>
+      <label class="sw"><span>الأذان في أوقات الصلاة</span><input type="checkbox" id="aOn2"></label>
+    </div>
+    <div class="card hidden" id="saverCard">
+      <h2>شاشة التوقف</h2>
+      <button id="saverGo" class="gold" style="width:100%">شغّل شاشة التوقف الآن</button>
+      <p>تبدأ تلقائيًا بعد</p><select id="saverIdle" aria-label="مدة الخمول"></select>
+    </div>
+    <div class="card hidden" id="sleepCard">
+      <h2>مؤقت النوم</h2>
+      <p id="sleepNow"></p>
+      <div id="sleepOpts" class="row" style="flex-wrap:wrap"></div>
+      <button id="sleepCancel" class="red hidden" style="width:100%">إلغاء</button>
+    </div>
   </div>
 
   <div id="t-settings" class="hidden">
-    <div id="pinBox" class="hidden"><h2>الرقم السري</h2><input id="pin" type="password" inputmode="numeric" maxlength="8" dir="ltr" placeholder="الرقم السري"></div>
     <h2>المدينة</h2>
     <p id="cityNow"></p>
-    <div class="row"><input id="cityQ" placeholder="ابحث عن مدينة" maxlength="30"><button id="cityGo" style="flex:0 0 90px">بحث</button></div>
+    <div class="row"><input id="cityQ" placeholder="ابحث عن مدينة" maxlength="30" aria-label="مدينة"><button id="cityGo" style="flex:0 0 90px">بحث</button></div>
     <div id="cityRes" class="list"></div>
     <h2>بطاقات الشاشة الرئيسية</h2>
     <div id="cards"></div>
     <div class="row"><button id="cardsGo" class="gold">حفظ البطاقات</button></div>
     <h2>الأذان</h2>
     <label class="sw"><span>الأذان في أوقات الصلاة</span><input type="checkbox" id="aOn"></label>
-    <p>المؤذن (لغير الفجر)</p><select id="aVoice"></select>
-    <p>مؤذن الفجر</p><select id="aFajr"></select>
+    <p>المؤذن (لغير الفجر)</p><select id="aVoice" aria-label="المؤذن"></select>
+    <p>مؤذن الفجر</p><select id="aFajr" aria-label="مؤذن الفجر"></select>
     <label class="sw"><span>أذان مختصر</span><input type="checkbox" id="aShort"></label>
     <label class="sw"><span>إيقاف الأذان بأي زر</span><input type="checkbox" id="aStop"></label>
-    <p>مستوى صوت الأذان: <b id="aVolN"></b></p><input type="range" id="aVol" min="10" max="100" step="5">
-  </div>
-
-  <div id="t-quran" class="hidden">
-    <h2>القرآن</h2>
-    <p id="playerNow"></p>
-    <p>القارئ</p><select id="qRec"></select>
-    <p>السورة</p><select id="qSurah"></select>
-    <div class="row"><button id="qPlay" class="gold">تشغيل</button><button data-q="pause">إيقاف مؤقت</button><button data-q="resume">استئناف</button></div>
-    <div class="row"><button data-q="prev">السابقة</button><button data-q="next">التالية</button><button data-q="stop" class="red">إيقاف</button></div>
-    <p>مؤقت النوم للتلاوة</p><select id="qSleep"><option value="0">بدون</option><option value="15">١٥ دقيقة</option><option value="30">٣٠ دقيقة</option><option value="60">٦٠ دقيقة</option><option value="90">٩٠ دقيقة</option></select>
-  </div>
-
-  <div id="t-update" class="hidden">
+    <p>مستوى صوت الأذان: <b id="aVolN"></b></p><input type="range" id="aVol" min="10" max="100" step="5" aria-label="مستوى صوت الأذان">
     <h2>تحديث تلفزيونك</h2>
     <p>يتحقق التلفزيون من أحدث نسخة من مشروعنا وينزّلها ويتأكد أنها موقّعة بنفس توقيع التطبيق المثبّت. إذا نجح كل ذلك تضغط «ثبّت» فيفتح شاشة التثبيت من أندرويد على التلفزيون، وتؤكد أنت بالريموت. لا يُثبَّت شيء بدون تأكيدك.</p>
     <div class="row"><button id="upCheck" class="gold">افحص التحديث</button><button id="upGo" class="hidden">ثبّت</button></div>
     <p id="upState"></p>
+    <div class="card hidden" id="famCard">
+      <h2>الرقابة الأبوية</h2>
+      <p id="famPin"></p><p id="famKids"></p><p id="famLocked"></p>
+      <p>للعرض فقط. التغيير من التلفزيون نفسه.</p>
+    </div>
+    <p id="phones"></p>
+    <div class="row"><button id="out" class="red">قطع الاتصال</button></div>
   </div>
 
-  <div class="row" style="margin-top:22px"><button id="out" class="red">خروج</button></div>
-  <p id="left"></p>
+  <nav id="bar" aria-label="الأقسام"></nav>
 </section>
 
 <div id="msg" class="hidden" role="status"></div>
+<div id="dlg" class="hidden" role="dialog" aria-modal="true" aria-label="الرقم السري"><div>
+  <p id="dlgT">اكتب الرقم السري.</p>
+  <input id="pin" type="password" inputmode="numeric" maxlength="8" dir="ltr" placeholder="الرقم السري" aria-label="الرقم السري" autocomplete="off">
+  <div class="row"><button id="pinOk" class="gold">تأكيد</button><button id="pinNo">إلغاء</button></div>
+</div></div>
 
 <script nonce="__NONCE__">
 (function () {
   'use strict';
-  var sess = null, state = null, repTimer = null, poll = null, pollEnd = 0;
+  var sess = null, state = null, repTimer = null, poll = null, pollEnd = 0, tick = null, curTab = 'remote', svcOff = false, txtMode = 'replace', apps = null, pinVal = '';
   function $(id) { return document.getElementById(id); }
+  function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x !== undefined) e.textContent = x; return e; }
   try { sess = sessionStorage.getItem('urtv'); } catch (e) { sess = null; }
+
+  // ---- theme: dark on every screen by default (whatever the phone is set to); the ◐ button switches ALL screens together and the phone remembers it
+  function theme(t) { if (t) document.documentElement.setAttribute('data-theme', t); }
+  try { theme(localStorage.getItem('urtvTheme')); } catch (e) { }
+  $('theme').onclick = function () {
+    var dark = document.documentElement.getAttribute('data-theme') !== 'light';
+    var n = dark ? 'light' : 'dark'; theme(n);
+    try { localStorage.setItem('urtvTheme', n); } catch (e) { }
+  };
 
   var MSG = {
     other_app: 'تطبيق آخر أمام الشاشة: لا يسمح أندرويد بإرسال هذا الزر إليه. الرئيسية والصوت وتشغيل/إيقاف تعمل دائمًا.',
@@ -122,7 +201,10 @@ label.sw input { width:auto; transform:scale(1.4); }
     failed: 'ما نجح الأمر.', refused: 'ما قبل التلفزيون هذه القيمة.', saver_missing: 'حدّث تطبيق «شاشة تلفزيونك» على التلفزيون.',
     pin_required: 'اكتب الرقم السري أولًا.', pin_wrong: 'الرقم السري غير صحيح.', slow_down: 'مهلًا، طلبات كثيرة.', no_session: 'انتهت الجلسة.',
     bad_request: 'طلب غير مقبول.', busy: 'هناك طلب آخر ينتظر موافقة التلفزيون.', wrong: 'الرمز غير صحيح أو منتهٍ.', locked: 'توقف التحكم لكثرة المحاولات الخاطئة.',
+    not_found: 'ما وجد التلفزيون هذا التطبيق.',
     typed: 'كُتب النص في الحقل.', task: 'أُضيف النص مهمةً.', copied: 'نُسخ النص إلى حافظة التلفزيون (لا يوجد حقل نصي مفتوح في شاشاتنا).',
+    opened: 'فُتح على التلفزيون', pin_on_tv: 'اكتب الرقم السري على التلفزيون', nothing: 'لا يوجد أذان الآن.',
+    typed_other: 'تمت الكتابة في التطبيق', typed_other_nosearch: 'تمت الكتابة، والبحث يحتاج أندرويد ١١ أو أحدث',
     saved: 'تم الحفظ.', sent: 'أُرسل.', done: ''
   };
   var UP = {
@@ -137,6 +219,11 @@ label.sw input { width:auto; transform:scale(1.4); }
     network: 'التلفزيون غير متصل بالواي فاي أو الإيثرنت.', space: 'لا توجد مساحة كافية.', blocked: 'نظام التلفزيون يمنع التثبيت.', invalid: 'رفض مثبّت أندرويد الملف.',
     conflict: 'يتعارض مع نسخة مثبّتة.', incompatible: 'لا يناسب هذا الجهاز.', record: 'تعذّر حفظ سجل التحديث.'
   };
+  var TXT = {   // the words of the text box (the same codes mean other things elsewhere)
+    service_off: 'فعّل خدمة "تلفزيونك: الكتابة من الجوال" في إعدادات التلفزيون لتكتب في التطبيقات الأخرى', refused: 'ما أقدر أكتب في هذا التطبيق', locked: 'التطبيق الأمامي مقفول بالرقم السري، افتحه على التلفزيون أولاً',
+    password_field: 'ما أكتب في حقل كلمة المرور', failed: 'ما نجحت الكتابة.'
+  };
+  var TOOLS = [['tasks', 'المهام'], ['saver', 'شاشة التوقف'], ['inputs', 'المصادر'], ['settings', 'الإعدادات'], ['listen', 'تلاوة وأذان']];
 
   function toast(t) {
     if (!t) return;
@@ -144,6 +231,12 @@ label.sw input { width:auto; transform:scale(1.4); }
     clearTimeout(toast.t); toast.t = setTimeout(function () { m.classList.add('hidden'); }, 3500);
   }
   function digits(s) { return String(s).replace(/[٠-٩]/g, function (d) { return d.charCodeAt(0) - 0x660; }).replace(/[۰-۹]/g, function (d) { return d.charCodeAt(0) - 0x6f0; }); }
+  function dur(sec) {
+    sec = Math.max(0, Math.round(sec));
+    if (sec < 60) return 'أقل من دقيقة';
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+    return (h ? h + ' ساعة' + (m ? ' و ' : '') : '') + (m ? m + ' دقيقة' : '');
+  }
 
   function api(path, body) {
     var h = {};
@@ -152,7 +245,7 @@ label.sw input { width:auto; transform:scale(1.4); }
     if (body !== undefined) { h['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
     return fetch(path, o).then(function (r) {
       return r.json().catch(function () { return { ok: false, error: 'bad_request' }; }).then(function (j) {
-        if (r.status === 401 && sess) { leave(); }
+        if ((r.status === 401 || (j && j.error === 'no_session')) && sess) { leave(); }
         return j;
       });
     }, function () { return { ok: false, error: 'failed' }; });
@@ -163,10 +256,39 @@ label.sw input { width:auto; transform:scale(1.4); }
     return false;
   }
 
+  // ---- the PIN: asked only when the TV answers pin_required, then the same request goes again with it
+  var pinAsk = null;
+  function askPin(wrong) {
+    return new Promise(function (res) {
+      pinAsk = res;
+      $('dlgT').textContent = wrong ? MSG.pin_wrong : 'اكتب الرقم السري.';
+      $('pin').value = ''; $('dlg').classList.remove('hidden'); $('pin').focus();
+    });
+  }
+  function pinDone(v) { $('dlg').classList.add('hidden'); var r = pinAsk; pinAsk = null; if (r) r(v); }
+  $('pinOk').onclick = function () { var v = digits($('pin').value).replace(/\D/g, ''); if (v) pinDone(v); };
+  $('pinNo').onclick = function () { pinDone(null); };
+  $('pin').onkeydown = function (e) { if (e.key === 'Enter') $('pinOk').onclick(); };
+  function gated(path, body) {
+    var b = {}; for (var k in body) b[k] = body[k];
+    if (pinVal) b.pin = pinVal;
+    return api(path, b).then(function (j) {
+      if (j && !j.ok && (j.error === 'pin_required' || j.error === 'pin_wrong') && sess) {
+        var wrong = j.error === 'pin_wrong'; pinVal = '';
+        return askPin(wrong).then(function (p) { if (p === null) return j; pinVal = p; return gated(path, body); });
+      }
+      return j;
+    });
+  }
+
   // ---- pairing
-  function show(app) { $('login').classList.toggle('hidden', app); $('app').classList.toggle('hidden', !app); }
+  function show(app) {
+    $('login').classList.toggle('hidden', app); $('app').classList.toggle('hidden', !app);
+    document.body.classList.toggle('login', !app);
+  }
   function leave() {
-    sess = null; state = null;
+    sess = null; state = null; apps = null; pinVal = ''; icons = {}; iconQ = []; iconWait = {}; svcOff = false; famSeen = false;
+    clearInterval(tick); tick = null; stopRep();
     try { sessionStorage.removeItem('urtv'); } catch (e) { }
     show(false);
     $('loginState').textContent = 'انتهت الجلسة. امسح الرمز من جديد.';
@@ -177,6 +299,7 @@ label.sw input { width:auto; transform:scale(1.4); }
       if (!j.ok) { $('loginState').textContent = MSG[j.error] || MSG.failed; return; }
       $('loginState').textContent = 'بانتظار موافقة التلفزيون: اضغط «سماح» بالريموت.';
       pollEnd = Date.now() + 70000;
+      clearInterval(poll);
       poll = setInterval(function () { waitFor(j.id); }, 1200);
     });
   }
@@ -200,64 +323,129 @@ label.sw input { width:auto; transform:scale(1.4); }
     pair({ code: c });
   };
 
-  // ---- the app
-  var TABS = [['remote', 'الريموت'], ['text', 'كتابة'], ['settings', 'الإعدادات'], ['quran', 'القرآن'], ['update', 'التحديث']];
+  // ---- the app: four tabs
+  var TABS = [['remote', 'الريموت', '🎮'], ['apps', 'التطبيقات', '▦'], ['now', 'يعمل الآن', '♪'], ['settings', 'الإعدادات', '⚙']];
   function tab(name) {
+    curTab = name;
     TABS.forEach(function (t) { $('t-' + t[0]).classList.toggle('hidden', t[0] !== name); });
-    var bs = $('tabs').children;
+    var bs = $('bar').children;
     for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('on', bs[i].getAttribute('data-t') === name);
+    window.scrollTo(0, 0);
+    if (name === 'apps') loadApps();
+    if (name === 'settings') loadFamily();
     if (name !== 'remote') refresh();
   }
   function enter() {
     show(true);
-    if (!$('tabs').children.length) {
+    if (!$('bar').children.length) {
       TABS.forEach(function (t) {
-        var b = document.createElement('button'); b.textContent = t[1]; b.setAttribute('data-t', t[0]);
+        var b = el('button'); b.setAttribute('data-t', t[0]);
+        b.appendChild(el('b', '', t[2])); b.appendChild(document.createTextNode(t[1]));
         b.onclick = function () { tab(t[0]); };
-        $('tabs').appendChild(b);
+        $('bar').appendChild(b);
       });
     }
     tab('remote');
     refresh();
+    clearInterval(tick);
+    tick = setInterval(function () { if (sess && !document.hidden && !pinAsk) api('/api/state').then(function (s) { if (s.ok) { state = s; render(s, false); } }); }, 5000);
   }
   function opt(sel, value, text, chosen) {
-    var o = document.createElement('option'); o.value = value; o.textContent = text; if (chosen) o.selected = true; sel.appendChild(o);
+    var o = el('option', '', text); o.value = value; if (chosen) o.selected = true; sel.appendChild(o);
   }
-  function refresh() {
-    api('/api/state').then(function (s) {
-      if (!s.ok) return;
-      state = s;
-      $('foreNote').classList.toggle('hidden', s.foreground === 'own');
-      $('pinBox').classList.toggle('hidden', !s.pin_required);
-      $('left').textContent = 'تنتهي هذه الجلسة بعد ' + Math.max(1, Math.round(s.seconds_left / 60)) + ' دقيقة من الآن إن لم تُستعمل.';
-      $('cityNow').textContent = s.settings ? 'المدينة الحالية: ' + s.city : 'إعدادات المدينة غير متاحة: حدّث تطبيق «شاشة تلفزيونك».';
-      cards(s);
-      var a = s.adhan;
-      $('aOn').checked = a.on; $('aShort').checked = a.short; $('aStop').checked = a.stopkey; $('aVol').value = a.volume; $('aVolN').textContent = a.volume + '٪';
-      fill($('aVoice'), s.voices.filter(function (v) { return !v.fajr; }), a.voice);
-      fill($('aFajr'), s.voices.filter(function (v) { return v.fajr; }).concat(s.voices.filter(function (v) { return !v.fajr; })), a.fajr_voice);
-      fill($('qRec'), s.reciters, s.player.reciter, true);
-      var sur = $('qSurah'); if (!sur.children.length) s.surahs.forEach(function (n, i) { opt(sur, String(i + 1), (i + 1) + '. ' + n, false); });
-      if (s.player.surah) sur.value = String(s.player.surah);
-      $('playerNow').textContent = s.player.playing ? 'يُشغَّل الآن' + (s.player.surah ? ': ' + s.surahs[s.player.surah - 1] : '') : 'لا شيء يُشغَّل.';
-      upText(s.update);
-    });
-  }
-  function fill(sel, list, current, byId) {
+  function fill(sel, list, current) {
     sel.textContent = '';
     list.forEach(function (v) { opt(sel, String(v.id), v.name, String(v.id) === String(current)); });
   }
+  function refresh() {
+    api('/api/state').then(function (s) { if (s.ok) { state = s; render(s, true); } });
+  }
+  function recName(s, id) {
+    var r = (s.reciters || []).filter(function (x) { return String(x.id) === String(id); })[0];
+    return r ? r.name : '';
+  }
+  function playLabel(s) {
+    var p = s.player || {};
+    if (!p.playing || p.source === 'none') return '';
+    if (p.source === 'radio') return 'الإذاعة تعمل';
+    if (p.source === 'adhan') return 'الأذان يُرفع';
+    var n = p.surah && s.surahs ? s.surahs[p.surah - 1] : '', r = recName(s, p.reciter);
+    return (n ? 'سورة ' + n : 'تلاوة') + (r ? ' · ' + r : '');
+  }
+  // the parts that change by themselves (every poll), then the forms (only when the person arrives or has just saved)
+  function render(s, full) {
+    var live = !!s.adhan_live, p = s.player || {};
+    var secs = typeof s.seconds_left === 'number' ? s.seconds_left : 0;
+    $('left').textContent = 'بقي ' + Math.max(1, Math.round(secs / 60)) + ' دقيقة';
+    var fn = $('foreNote'), fore = s.foreground === 'other';
+    fn.classList.toggle('hidden', !fore); fn.classList.toggle('warn', fore && !s.keys_everywhere);
+    $('svcNote').classList.toggle('hidden', !(svcOff || (fore && s.typing_service === false)));
+    fn.textContent = s.keys_everywhere ? 'الأسهم تعمل في شاشاتنا؛ الرجوع والرئيسية في كل مكان'
+      : 'يوجد تطبيق آخر أمام الشاشة: أندرويد يسمح لتطبيقنا بإرسال الأسهم والاختيار والرجوع إلى شاشاته هو فقط. الرئيسية والصوت وتشغيل/إيقاف تعمل في كل مكان.';
+    var lab = live ? 'الأذان الآن' + (s.adhan_prayer ? ': ' + s.adhan_prayer : '') : playLabel(s);
+    $('now').classList.toggle('hidden', !lab); $('nowT').textContent = lab;
+    $('adhanStop1').classList.toggle('hidden', !live); $('adhanStop2').classList.toggle('hidden', !live);
+    var np = $('playerNow');
+    np.textContent = live ? lab : playLabel(s) ? playLabel(s) + ' (يعمل)' : p.surah ? 'متوقف مؤقتًا: سورة ' + (s.surahs && s.surahs[p.surah - 1] || '') : 'لا شيء يُشغَّل.';
+    $('qToggle').textContent = p.playing ? 'إيقاف مؤقت' : 'استئناف';
+    $('qToggle').setAttribute('data-op', p.playing ? 'pause' : 'resume');
+    var na = s.next_adhan;
+    $('nextA').textContent = na && na.prayer ? 'الأذان القادم: ' + na.prayer + (typeof na.in_seconds === 'number' ? ' بعد ' + dur(na.in_seconds) : '') : 'موعد الأذان القادم غير معروف الآن.';
+    var st = s.sleep_timer;
+    $('sleepCard').classList.toggle('hidden', !st);
+    if (st) {
+      var left = st.left_seconds || 0;
+      $('sleepNow').textContent = left > 0 ? 'ينتهي بعد ' + dur(left) : 'المؤقت متوقف.';
+      $('sleepCancel').classList.toggle('hidden', left <= 0);
+    }
+    $('saverCard').classList.toggle('hidden', !s.saver_idle_options);
+    if (s.family) famDraw(s.family); else if (!famSeen) $('famCard').classList.add('hidden');
+    $('phones').textContent = typeof s.phones === 'number' ? 'الجوالات المتصلة: ' + s.phones : '';
+    upText(s.update);
+    if (!full) return;
+    $('cityNow').textContent = s.settings ? 'المدينة الحالية: ' + s.city : 'إعدادات المدينة غير متاحة: حدّث تطبيق «شاشة تلفزيونك».';
+    cards(s);
+    var a = s.adhan || {};
+    $('aOn').checked = !!a.on; $('aOn2').checked = !!a.on; $('aShort').checked = !!a.short; $('aStop').checked = !!a.stopkey;
+    $('aVol').value = a.volume || 50; $('aVolN').textContent = (a.volume || 50) + '٪';
+    var vs = s.voices || [];
+    fill($('aVoice'), vs.filter(function (v) { return !v.fajr; }), a.voice);
+    fill($('aFajr'), vs.filter(function (v) { return v.fajr; }).concat(vs.filter(function (v) { return !v.fajr; })), a.fajr_voice);
+    fill($('qRec'), s.reciters || [], p.reciter);
+    var sur = $('qSurah'); if (!sur.children.length) (s.surahs || []).forEach(function (n, i) { opt(sur, String(i + 1), (i + 1) + '. ' + n, false); });
+    if (p.surah) sur.value = String(p.surah);
+    var si = $('saverIdle'); si.textContent = '';
+    (s.saver_idle_options || []).forEach(function (m) { opt(si, String(m), m + ' دقيقة', String(m) === String(s.saver_idle)); });
+    var so = $('sleepOpts'); so.textContent = '';
+    ((st && st.options) || [15, 30, 60, 90]).forEach(function (m) {
+      var b = el('button', '', m + ' دقيقة'); b.onclick = function () { set({ sleep_minutes: m }); }; so.appendChild(b);
+    });
+  }
+  var famSeen = false;
+  function famDraw(fam) {
+    famSeen = true; $('famCard').classList.remove('hidden');
+    var a = 0, pills = 0; (fam.locked || []).forEach(function (x) { if (String(x).charAt(0) === '@') pills++; else a++; });
+    $('famPin').textContent = 'الرقابة الأبوية: ' + (fam.pin_set ? 'مفعّلة' : 'غير مفعّلة');
+    $('famKids').textContent = 'وضع الأطفال: ' + (fam.kids ? 'يعمل' : 'متوقف');
+    $('famLocked').textContent = 'المقفل: ' + a + ' تطبيقًا و ' + pills + ' من أزرار التلفزيون';
+  }
+  function loadFamily() {
+    api('/api/family').then(function (j) {
+      var f = j && j.ok ? (j.family || j) : null;
+      if (f && typeof f.pin_set !== 'undefined') famDraw(f);
+    });
+  }
   function cards(s) {
     var box = $('cards'); box.textContent = '';
+    var hc = s.home_cards || [];
     for (var i = 0; i < 3; i++) {
-      var sel = document.createElement('select'); sel.setAttribute('data-card', i);
-      opt(sel, '', 'بدون', !s.home_cards[i]);
-      (s.panels || []).forEach(function (p) { opt(sel, p.id, p.name, s.home_cards[i] === p.id); });
+      var sel = document.createElement('select'); sel.setAttribute('data-card', i); sel.setAttribute('aria-label', 'بطاقة ' + (i + 1));
+      opt(sel, '', 'بدون', !hc[i]);
+      (s.panels || []).forEach(function (p) { opt(sel, p.id, p.name, hc[i] === p.id); });
       sel.style.marginBottom = '8px'; box.appendChild(sel);
     }
   }
-  function withPin(b) { if (state && state.pin_required) b.pin = $('pin').value; return b; }
-  function set(b) { return api('/api/set', withPin(b)).then(function (j) { say(j); refresh(); return j; }); }
+  function set(b) { return gated('/api/set', b).then(function (j) { say(j); refresh(); return j; }); }
 
   $('cityGo').onclick = function () {
     var q = $('cityQ').value.trim(); if (!q) return;
@@ -266,7 +454,7 @@ label.sw input { width:auto; transform:scale(1.4); }
       if (!j.ok) { say(j); return; }
       if (!j.cities.length) { box.textContent = 'لا توجد نتيجة.'; return; }
       j.cities.forEach(function (name) {
-        var b = document.createElement('button'); b.textContent = name;
+        var b = el('button', '', name);
         b.onclick = function () { set({ city: name }).then(function () { box.textContent = ''; }); };
         box.appendChild(b);
       });
@@ -278,24 +466,124 @@ label.sw input { width:auto; transform:scale(1.4); }
     set({ home_cards: out });
   };
   $('aOn').onchange = function () { set({ adhan_on: this.checked }); };
+  $('aOn2').onchange = function () { set({ adhan_on: this.checked }); };
   $('aShort').onchange = function () { set({ adhan_short: this.checked }); };
   $('aStop').onchange = function () { set({ adhan_stopkey: this.checked }); };
   $('aVoice').onchange = function () { set({ adhan_voice: parseInt(this.value, 10) }); };
   $('aFajr').onchange = function () { set({ adhan_fajr_voice: parseInt(this.value, 10) }); };
   $('aVol').oninput = function () { $('aVolN').textContent = this.value + '٪'; };
   $('aVol').onchange = function () { set({ adhan_volume: parseInt(this.value, 10) }); };
+  $('saverIdle').onchange = function () { set({ saver_idle: parseInt(this.value, 10) }); };
+  $('sleepCancel').onclick = function () { gated('/api/do', { op: 'sleep_cancel' }).then(function (j) { say(j); refresh(); }); };
+  $('saverGo').onclick = function () { api('/api/do', { op: 'screensaver' }).then(function (j) { say(j); }); };
+  function stopAdhan() { api('/api/adhan_stop', {}).then(function (j) { say(j); setTimeout(refresh, 800); }); }
+  $('adhanStop1').onclick = stopAdhan; $('adhanStop2').onclick = stopAdhan;
 
+  // ---- the Quran
   $('qPlay').onclick = function () { api('/api/quran', { op: 'play', reciter: $('qRec').value, surah: parseInt($('qSurah').value, 10) }).then(function (j) { say(j); setTimeout(refresh, 1500); }); };
-  document.querySelectorAll('[data-q]').forEach(function (b) {
-    b.onclick = function () { api('/api/quran', { op: b.getAttribute('data-q') }).then(function (j) { say(j); setTimeout(refresh, 800); }); };
-  });
+  function q(op) { api('/api/quran', { op: op }).then(function (j) { say(j); setTimeout(refresh, 800); }); }
+  document.querySelectorAll('[data-q]').forEach(function (b) { b.onclick = function () { q(b.getAttribute('data-q')); }; });
+  $('qToggle').onclick = function () { q(this.getAttribute('data-op') || 'pause'); };
   $('qSleep').onchange = function () { api('/api/quran', { op: 'sleep', minutes: parseInt(this.value, 10) }).then(function (j) { say(j); }); };
 
-  $('txtGo').onclick = function () {
+  // ---- the text
+  try { if (localStorage.getItem('urtvTxtMode') === 'append') txtMode = 'append'; } catch (e) { }
+  function drawModes() { document.querySelectorAll('[data-mode]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-mode') === txtMode); b.setAttribute('aria-pressed', b.getAttribute('data-mode') === txtMode); }); }
+  drawModes();
+  document.querySelectorAll('[data-mode]').forEach(function (b) {
+    b.onclick = function () { txtMode = b.getAttribute('data-mode'); drawModes(); try { localStorage.setItem('urtvTxtMode', txtMode); } catch (e) { } };
+  });
+  function sendText(search) {
     var t = $('txt').value; if (!t.trim()) return;
-    api('/api/text', { text: t }).then(function (j) { if (say(j)) $('txt').value = ''; });
-  };
+    var body = { text: t, mode: txtMode }; if (search === true) body.search = true;
+    api('/api/text', body).then(function (j) {
+      if (j && j.ok) {
+        if (j.result === 'typed_other' || j.result === 'typed_other_nosearch') { svcOff = false; $('svcNote').classList.add('hidden'); }
+        say(j); $('txt').value = ''; return;
+      }
+      var e = j && j.error;   // the text stays: the person can fix the cause and send again
+      if (e === 'service_off') { svcOff = true; $('svcNote').classList.remove('hidden'); }
+      toast(TXT[e] || MSG[e] || MSG.failed);
+    });
+  }
+  $('txtGo').onclick = function () { sendText(false); };
+  $('txtSearch').onclick = function () { sendText(true); };
+  $('txt').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); sendText(false); } };
 
+  // ---- the apps
+  function iconUrl(pkg) { return '/api/icon/' + encodeURIComponent(pkg); }
+  // An image element cannot send the session header, so each icon is fetched like any call, read as a blob and shown as a data: address.
+  var icons = {}, iconQ = [], iconRun = 0, iconWait = {};
+  function iconGet(pkg, done) {
+    if (pkg in icons) { done(icons[pkg]); return; }
+    if (iconWait[pkg]) { iconWait[pkg].push(done); return; }
+    iconWait[pkg] = [done]; iconQ.push(pkg); iconPump();
+  }
+  function iconPump() {
+    while (iconRun < 4 && iconQ.length) {
+      (function (job) {
+        iconRun++;
+        var h = {}; if (sess) h['X-UrTV-Session'] = sess;
+        var fin = function (d) { var w = iconWait[job] || []; delete iconWait[job]; icons[job] = d; iconRun--; w.forEach(function (cb) { cb(d); }); iconPump(); };
+        fetch(iconUrl(job), { credentials: 'same-origin', headers: h }).then(function (r) {
+          if (!r.ok) throw 0;
+          return r.blob();
+        }).then(function (b) {
+          var fr = new FileReader();
+          fr.onload = function () { fin(typeof fr.result === 'string' && fr.result.indexOf('data:image/') === 0 ? fr.result : null); };
+          fr.onerror = function () { fin(null); };
+          fr.readAsDataURL(b);
+        }).catch(function () { fin(null); });
+      })(iconQ.shift());
+    }
+  }
+  function loadApps() {
+    api('/api/apps').then(function (j) {
+      if (!j.ok) { apps = null; $('appsNote').textContent = 'حدّث تطبيق «تلفزيونك» على التلفزيون لتظهر التطبيقات هنا.'; drawApps(); drawTools([]); return; }
+      apps = j.apps || []; $('appsNote').textContent = ''; drawApps(); drawTools(j.tools);
+    });
+  }
+  function launch(target) {
+    api('/api/launch', { target: target }).then(function (j) { say(j); });
+  }
+  var drawGen = 0;
+  function drawApps() {
+    drawGen++;
+    var g = $('grid'); g.textContent = '';
+    var f = $('appQ').value.trim().toLowerCase();
+    (apps || []).forEach(function (a) {
+      if (f && String(a.name).toLowerCase().indexOf(f) < 0) return;
+      var b = el('button', 'app'); b.setAttribute('data-pkg', a.pkg);
+      var t = el('span', 'tile', String(a.name || '?').charAt(0));
+      var im = document.createElement('img'); im.alt = '';
+      im.onload = function () { t.firstChild.textContent = ''; };
+      im.onerror = function () { im.remove(); };
+      t.appendChild(im);
+      var want = a.pkg, gen = drawGen;
+      var go = function () { iconGet(want, function (d) { if (!d) im.remove(); else if (im.parentNode && gen === drawGen) im.setAttribute('src', d); }); };
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (es) { if (es.some(function (x) { return x.isIntersecting; })) { io.disconnect(); go(); } }, { rootMargin: '200px' });
+        io.observe(b);
+      } else go();
+      b.appendChild(t); b.appendChild(el('span', '', a.name));
+      if (a.locked) { var l = el('span', 'lock', '🔒'); l.setAttribute('aria-label', 'مقفل بالرقم السري'); b.appendChild(l); }
+      b.onclick = function () { launch(a.pkg); };
+      g.appendChild(b);
+    });
+    if (apps && !g.children.length) g.appendChild(el('p', '', 'لا توجد نتيجة.'));
+  }
+  function drawTools(list) {
+    var box = $('tools'); box.textContent = '';
+    var by = {}; (list || []).forEach(function (t) { by[t.id] = t; });
+    TOOLS.forEach(function (t) {
+      var x = by[t[0]] || {}, b = el('button', '', (x.locked ? '🔒 ' : '') + (x.name || t[1]));
+      b.setAttribute('data-tool', t[0]); b.onclick = function () { launch('@' + t[0]); };
+      box.appendChild(b);
+    });
+  }
+  $('appQ').oninput = drawApps;
+
+  // ---- the update
   function upText(u) {
     if (!u) return;
     var t = UP[u.status] || '';
@@ -307,22 +595,38 @@ label.sw input { width:auto; transform:scale(1.4); }
   }
   function upPoll() { setTimeout(function () { api('/api/state').then(function (s) { if (!s.ok) return; upText(s.update); if (s.update.status === 'checking' || s.update.status === 'downloading') upPoll(); }); }, 1500); }
   $('upCheck').onclick = function () { api('/api/update', { op: 'check' }).then(function (j) { if (j.ok) { upText(j); upPoll(); } else say(j); }); };
-  $('upGo').onclick = function () { api('/api/update', withPin({ op: 'install' })).then(function (j) { if (j.ok) { upText(j); upPoll(); } else say(j); }); };
+  $('upGo').onclick = function () { gated('/api/update', { op: 'install' }).then(function (j) { if (j.ok) { upText(j); upPoll(); } else say(j); }); };
 
-  // ---- the remote: a press sends one key; a held arrow or volume key repeats
+  // ---- the remote: a press sends one key; a held arrow or volume key repeats; the pad: swipe = arrow, tap = OK
   function press(k) {
-    api('/api/key', { key: k }).then(function (j) { if (!j.ok) { toast(MSG[j.error] || MSG.failed); stop(); } });
+    api('/api/key', { key: k }).then(function (j) { if (!j.ok) { toast(MSG[j.error] || MSG.failed); stopRep(); } });
   }
-  function stop() { if (repTimer) { clearInterval(repTimer); repTimer = null; } }
+  function stopRep() { if (repTimer) { clearTimeout(repTimer); clearInterval(repTimer); repTimer = null; } }
+  function holdRep(k) { stopRep(); repTimer = setTimeout(function () { repTimer = setInterval(function () { press(k); }, 160); }, 450); }
   document.querySelectorAll('[data-k]').forEach(function (b) {
     var k = b.getAttribute('data-k'), rep = b.getAttribute('data-rep');
-    b.addEventListener('pointerdown', function (e) {
-      e.preventDefault(); press(k); stop();
-      if (rep) repTimer = setTimeout(function () { repTimer = setInterval(function () { press(k); }, 160); }, 450);
-    });
-    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { b.addEventListener(ev, function () { if (repTimer) { clearTimeout(repTimer); clearInterval(repTimer); repTimer = null; } }); });
+    b.addEventListener('pointerdown', function (e) { e.preventDefault(); press(k); stopRep(); if (rep) holdRep(k); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { b.addEventListener(ev, stopRep); });
     b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    b.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); press(k); } });   // keyboard users
   });
+  var pad = $('pad'), ps = null;
+  pad.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    try { pad.setPointerCapture(e.pointerId); } catch (x) { }
+    ps = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false };
+  });
+  pad.addEventListener('pointermove', function (e) {
+    if (!ps) return;
+    var dx = e.clientX - ps.x, dy = e.clientY - ps.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 30) return;
+    var d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+    ps.moved = true; ps.x = e.clientX; ps.y = e.clientY;
+    press(d); holdRep(d);
+  });
+  function padEnd(e) { stopRep(); if (ps && !ps.moved && e.type === 'pointerup' && Date.now() - ps.t < 400) press('ok'); ps = null; }
+  pad.addEventListener('pointerup', padEnd); pad.addEventListener('pointercancel', padEnd);
+  pad.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   $('out').onclick = function () { api('/api/logout', {}).then(function () { leave(); $('loginState').textContent = 'تم الخروج.'; }); };
 

@@ -107,6 +107,7 @@ python3 tests/tv_rows_test.py
 python3 tests/adhan_reply_test.py
 python3 tests/clock_zone_test.py
 python3 tests/phone_test.py
+python3 tests/type_into_test.py
 python3 tests/phone_qr_test.py
 python3 tests/update_test.py
 python3 tests/update_channel_test.py
@@ -124,3 +125,4 @@ python3 tests/dock_pin_test.py
 node tests/prayer_crosscheck_page.mjs
 node tests/hijri_crosscheck_page.mjs
 node tests/page.test.mjs
+node tests/phone_page.test.mjs

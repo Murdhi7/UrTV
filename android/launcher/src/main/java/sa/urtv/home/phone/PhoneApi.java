@@ -53,7 +53,15 @@ final class PhoneApi implements PhoneServer.Handler {
         if (secret == null) return json(401, err("no_session"));
 
         if (r.path.equals("/api/state")) return post ? json(405, err("method")) : state(secret);
-        if (!post) return json(404, err("not_found"));
+        if (!post) {
+            switch (r.path) {
+                case "/api/apps": return ok(control.actions().apps());
+                case "/api/family": return ok(control.actions().family());
+                default: break;
+            }
+            if (r.path.startsWith("/api/icon/")) return icon(r.path.substring("/api/icon/".length()));
+            return json(404, err("not_found"));
+        }
 
         String endpoint;
         switch (r.path) {
@@ -63,6 +71,9 @@ final class PhoneApi implements PhoneServer.Handler {
             case "/api/quran": endpoint = "quran"; break;
             case "/api/cities": endpoint = "cities"; break;
             case "/api/update": endpoint = "update"; break;
+            case "/api/launch": endpoint = "launch"; break;
+            case "/api/adhan_stop": endpoint = "adhanstop"; break;
+            case "/api/do": endpoint = "do"; break;
             case "/api/logout": endpoint = "logout"; break;
             default: return json(404, err("not_found"));
         }
@@ -70,7 +81,9 @@ final class PhoneApi implements PhoneServer.Handler {
         if (!c.ok()) return json(400, err("bad_request"));
         Map<String, Object> v = c.values;
 
-        boolean protectedChange = endpoint.equals("set") || (endpoint.equals("update") && "install".equals(v.get("op")));
+        // cancelling the sleep timer is a change like the others: a child's phone must not undo a parent's bedtime timer (the screensaver, which only opens a screen, is not)
+        boolean protectedChange = endpoint.equals("set") || (endpoint.equals("update") && "install".equals(v.get("op")))
+            || (endpoint.equals("do") && "sleep_cancel".equals(v.get("op")));
         PinGate gate = control.pinGate();
         if (protectedChange && gate.required()) {
             Object given = v.get("pin");
@@ -85,8 +98,11 @@ final class PhoneApi implements PhoneServer.Handler {
         Actions a = control.actions();
         switch (endpoint) {
             case "key": return result(a.key((String) v.get("key")));
-            case "text": return result(a.text((String) v.get("text")));
+            case "text": return result(a.text((String) v.get("text"), (String) v.get("mode"), Boolean.TRUE.equals(v.get("search"))));
             case "set": return result(a.set(v));
+            case "launch": return result(a.launch((String) v.get("target")));
+            case "adhanstop": return result(a.adhanStop());
+            case "do": return result(a.doOp((String) v.get("op")));
             case "quran": return result(a.quran(v));
             case "cities": {
                 Map<String, Object> out = ok();
@@ -150,6 +166,24 @@ final class PhoneApi implements PhoneServer.Handler {
         out.putAll(control.actions().state());
         out.put("pin_required", control.pinGate().required());
         out.put("seconds_left", control.secondsLeft(secret));
+        out.put("phones", (long) control.phones().size());
+        return json(200, out);
+    }
+
+    /** One favourite's icon, a PNG the browser keeps for a day; 404 for a package that is not one of them (nothing else is ever revealed). */
+    private PhoneServer.Response icon(String pkg) {
+        if (!Schema.packageName(pkg)) return json(404, err("not_found"));
+        byte[] png = control.actions().icon(pkg);
+        if (png == null) return json(404, err("not_found"));
+        PhoneServer.Response resp = new PhoneServer.Response(200, "image/png", png);
+        headers(resp);
+        resp.headers.put("Cache-Control", "private, max-age=86400");
+        return resp;
+    }
+
+    private static PhoneServer.Response ok(Map<String, Object> body) {
+        Map<String, Object> out = ok();
+        out.putAll(body);
         return json(200, out);
     }
 
@@ -227,7 +261,7 @@ final class PhoneApi implements PhoneServer.Handler {
     /** For tests: the endpoints that need a session. */
     static List<String> sessionPaths() {
         List<String> l = new ArrayList<>();
-        for (String p : new String[] {"/api/state", "/api/key", "/api/text", "/api/set", "/api/quran", "/api/cities", "/api/update", "/api/logout"}) l.add(p);
+        for (String p : new String[] {"/api/state", "/api/key", "/api/text", "/api/set", "/api/quran", "/api/cities", "/api/update", "/api/launch", "/api/adhan_stop", "/api/do", "/api/apps", "/api/family", "/api/icon/com.example.app", "/api/logout"}) l.add(p);
         return l;
     }
 }
