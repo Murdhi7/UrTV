@@ -42,7 +42,7 @@ check("the hint line is the one asked for", "اختر تطبيقًا لتحري�
 check("«تراجع» lasts 5 seconds", "UNDO_MS = 5000" in edit)
 check("the row changing under the mode (an app installed, dock.sh) ends it without saving: buildApps abandons it",
       "if (edit != null) abandonEdit();" in main.split("private void buildApps()")[1][:200])
-check("another screen coming up (onPause) or Home leaves the mode, saving", main.split("protected void onPause()")[1][:300].count("leaveEdit()") == 1 and "if (edit != null) leaveEdit();   // Home while editing" in main)
+check("another screen coming up (onPause) or Home leaves the mode, saving", main.split("protected void onPause()")[1].split("\n    }\n")[0].count("leaveEdit()") == 1 and "if (edit != null) leaveEdit();   // Home while editing" in main)
 # the old arrange screen: from the settings only
 check("the long-press menu no longer opens the old arrange screen", "DockActivity" not in main)
 check("the long-press menu has «تعديل المفضلة» for a favourite and not «ترتيب المفضلة…»",
