@@ -111,6 +111,8 @@ public class MainActivity extends Activity {
     private final Runnable rotateWallpaper = this::nextWallpaper;
     static final long WALLPAPER_INTERVAL_MS = 10 * 60 * 1000;
     private TextView greeting, weatherLine, clock, ampm, date, zoneLine, title, appsLabel;
+    private Pill tilawahPill;       // «تلاوة وأذان»: in the row only while the setting shows it (applyListenPill)
+    private LinearLayout pillRow;    // the top row of pills
     private Pill wifiPill;   // the network's name shows while it has the focus
     private Greeting greetingLine;
     private int glowColor = 0xFF3A3A3A;
@@ -167,6 +169,8 @@ public class MainActivity extends Activity {
                 View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                         | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
         setContentView(buildUi());
+        // started by the screensaver's «الأذان» row; not again after a restore (the system hands back the same intent)
+        if (b == null && (getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) openRequested(getIntent());
         wantEdit = getIntent() != null && getIntent().getBooleanExtra(EXTRA_EDIT, false);   // the settings' «تعديل المفضلة»
         buildApps();
 
@@ -241,6 +245,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent);
         Parental.SESSION.clear();
         if (edit != null) leaveEdit();   // Home while editing: the order so far is kept
         if (intent != null && intent.getBooleanExtra(EXTRA_EDIT, false)) {   // the settings' «تعديل المفضلة»
@@ -248,6 +253,7 @@ public class MainActivity extends Activity {
             if (appsShown) beginPendingEdit();
             return;
         }
+        openRequested(intent);   // the screensaver's «الأذان» row (open=adhan)
         // Home pressed while already home: jump back to the first dock app.
         if (inputsPopup != null) inputsPopup.dismiss();
         if (!dockCards.isEmpty()) dockCards.get(0).requestFocus();
@@ -456,7 +462,9 @@ public class MainActivity extends Activity {
         sleepPill.setOnClickListener(v -> guarded(ParentalPolicy.PILL_SLEEP, null, "مؤقت النوم", () -> showSleep(v)));
         List<Pill> row = new ArrayList<>(Arrays.asList(inputs, wifiPill, settings, sleepPill));
         if (isInstalled(SAVER_PKG)) { row.add(tasks); row.add(saver); }
-        if (getResources().getBoolean(R.bool.show_listening)) row.add(tilawah);
+        tilawahPill = tilawah;
+        pillRow = right;
+        if (listenPillWanted(ConfigSnapshot.read(this).listenPillOn)) row.add(tilawah);   // «زر تلاوة وأذان»: hidden in the screensaver's settings, it is simply not in the row
         for (Pill p : row) {
             right.addView(p, llp(-2, dp(Pill.HEIGHT), dp(10), 0, 0, 0));
             pills.add(p);
@@ -476,6 +484,50 @@ public class MainActivity extends Activity {
         right.addView(nowCard, 0, llp(-2, dp(NowCard.HEIGHT), dp(10), -hang, 0, -hang));
         header.addView(right, new FrameLayout.LayoutParams(-2, -2, Gravity.LEFT | Gravity.TOP));
         return header;
+    }
+
+    /** «تلاوة وأذان» opened on its adhan tab: the adhan's settings, the same screen and the same prefs as the player's. */
+    private Intent adhanSettingsIntent() {
+        return new Intent(this, sa.urtv.home.tilawah.MainActivity.class).putExtra(sa.urtv.home.tilawah.MainActivity.EXTRA_OPEN, "adhan");
+    }
+
+    /**
+     * The screensaver's settings row «الأذان» brings the home to the front with open=adhan: the adhan settings open from here, behind the same
+     * family lock as the «تلاوة وأذان» button (it asks for the PIN when that is locked), whether the button is shown or hidden.
+     */
+    private void openRequested(Intent i) {
+        if (i == null || !"adhan".equals(i.getStringExtra("open"))) return;
+        i.removeExtra("open");
+        if (getResources().getBoolean(R.bool.show_listening)) handler.post(() -> launchGuarded(ParentalPolicy.PILL_LISTEN, adhanSettingsIntent(), "إعدادات الأذان"));
+    }
+
+    /** The button is wanted: the screensaver's setting says shown, and this build has the listening part at all. */
+    private boolean listenPillWanted(boolean setting) { return setting && getResources().getBoolean(R.bool.show_listening); }
+
+    /** This build has the listening part, but its button is hidden by the setting: the app menu then has a way in. */
+    private boolean listenPillHidden() {
+        return getResources().getBoolean(R.bool.show_listening) && (tilawahPill == null || tilawahPill.getParent() != pillRow);
+    }
+
+    /**
+     * «زر تلاوة وأذان» shown or hidden by the setting, while the screen is up (the minute tick). Hiding takes the button OUT of the row (a
+     * hidden view would stop the walk along the row, which needs every sibling visible) and out of `pills`; the focus moves to the pill before
+     * it. It comes back at the end of the row, where it always was. Nothing else changes: the adhan, its bar, the card and the Quran stay.
+     */
+    private void applyListenPill(boolean setting) {
+        if (tilawahPill == null || pillRow == null) return;
+        boolean want = listenPillWanted(setting), has = tilawahPill.getParent() == pillRow;
+        if (want == has) return;
+        if (want) {
+            pillRow.addView(tilawahPill, llp(-2, dp(Pill.HEIGHT), dp(10), 0, 0, 0));
+            pills.add(tilawahPill);
+        } else {
+            boolean hadFocus = tilawahPill.hasFocus();
+            pills.remove(tilawahPill);
+            pillRow.removeView(tilawahPill);
+            if (hadFocus && !pills.isEmpty()) pills.get(pills.size() - 1).requestFocus();
+        }
+        wireFocus();   // the row changed: up/down from the pills follow it
     }
 
     /** Shows or hides the «يُتلى الآن» card by what «تلاوة» is doing: a surah or a station (playing or paused), else nothing. */
@@ -1116,6 +1168,12 @@ public class MainActivity extends Activity {
             dockApps = getResources().getStringArray(R.array.dock_apps);
             buildApps();
         });
+        if (listenPillHidden()) {   // the button is hidden: the player (and the adhan's settings in it) opens from here, behind the same lock
+            labels.add("تلاوة وأذان…");
+            actions.add(() -> launchGuarded(ParentalPolicy.PILL_LISTEN, new Intent(this, sa.urtv.home.tilawah.MainActivity.class), "تلاوة وأذان"));
+            labels.add("إعدادات الأذان…");   // the same screen, on its «الأذان» tab: on or off, the voices, short, any key, the volume
+            actions.add(() -> launchGuarded(ParentalPolicy.PILL_LISTEN, adhanSettingsIntent(), "إعدادات الأذان"));
+        }
         labels.add("الرقابة الأبوية…");
         actions.add(() -> launchGuarded(ParentalPolicy.PARENTAL_SCREEN, new Intent(this, ParentalActivity.class), "الرقابة الأبوية"));
         showMenu(anchor, labels, actions);
@@ -1321,6 +1379,7 @@ public class MainActivity extends Activity {
         String greg = MonthNames.of(gregFormat.format(now.getTime()), MonthNames.levant(cfg.fragment));   // «تشرين الأول» when chosen
         date.setText(arabicDigits(hijri.isEmpty() ? greg : hijri + "  –  " + greg));
         updateAdhanBar(cfg);
+        applyListenPill(cfg.listenPillOn);
         sa.urtv.home.tilawah.AdhanSync.onConfig(this, cfg.fragment);   // «تعديل وقت الصلاة» changed on the TV: the alarm follows
         updateSleepPill();
     }

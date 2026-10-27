@@ -27,6 +27,8 @@ import java.util.List;
  */
 public class MainActivity extends Activity {
 
+    /** opens the screen on its «الأذان» tab: the adhan's settings from the home's app menu and from the screensaver's settings (value "adhan") */
+    public static final String EXTRA_OPEN = "open";
     private static final int TAB_RECITERS = 0, TAB_STATIONS = 1, TAB_ADHAN = 2;
 
     private static final int KIND_RESUME = 0, KIND_RECITER = 1, KIND_STATION = 2,
@@ -41,6 +43,13 @@ public class MainActivity extends Activity {
     private RowsAdapter adapter;
     private View lastSelected;
     private boolean focusedOnce;
+
+    /** singleTop: the settings' «الأذان» row asked again while this is already open: show the adhan tab. */
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && "adhan".equals(intent.getStringExtra(EXTRA_OPEN))) selectTab(TAB_ADHAN);
+    }
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -128,7 +137,7 @@ public class MainActivity extends Activity {
                 focusList(firstSelectable());
             });
         }
-        selectTab(TAB_RECITERS);
+        selectTab("adhan".equals(getIntent().getStringExtra(EXTRA_OPEN)) ? TAB_ADHAN : TAB_RECITERS);
 
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
