@@ -1,0 +1,106 @@
+"""«إعداد تلفزيوني» (android/launcher/.../setup/SetupEngine.java): the TV sets itself up over its own local ADB. The engine runs on a plain JVM against a
+fake TV, and its choices are compared with the shell scripts' own (the same lists, the same ledger, the same journal fields). No Android, no TV needed.
+
+    python3 tests/setup_engine_test.py
+"""
+import re, shutil, subprocess, sys, tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SETUP = ROOT / "android/launcher/src/main/java/sa/urtv/home/setup"
+failed = 0
+def check(name, ok, detail=""):
+    global failed
+    print(("PASS " if ok else "FAIL ") + name + ("" if ok else f"  -> {detail}"))
+    failed += not ok
+
+# the generated lists are the very lists of optimize/
+gen = subprocess.run([sys.executable, str(ROOT / "optimize/gen_setup_lists.py"), "--check"], capture_output=True, text=True)
+check("SetupLists.java is what optimize/lists say (python3 optimize/gen_setup_lists.py rewrites it)", gen.returncode == 0, gen.stdout + gen.stderr)
+
+if not shutil.which("javac"):
+    print("SKIP setup engine: no javac on this machine")
+    sys.exit(1 if failed else 0)
+with tempfile.TemporaryDirectory() as tmp:
+    r = subprocess.run(["javac", "-encoding", "UTF-8", "-d", tmp, *map(str, sorted(SETUP.glob("*.java"))), str(ROOT / "tests/SetupEngineRun.java")], capture_output=True, text=True)
+    # (the Android-facing classes of the folder are compiled by tests/android_compile.sh; here only the pure ones)
+    pure = [p for p in sorted(SETUP.glob("*.java")) if "import android." not in p.read_text(encoding="utf-8")]
+    r = subprocess.run(["javac", "-encoding", "UTF-8", "-d", tmp, *map(str, pure), str(ROOT / "tests/SetupEngineRun.java")], capture_output=True, text=True)
+    check("the pure classes compile", r.returncode == 0, r.stderr)
+    if r.returncode:
+        sys.exit(1)
+    out = subprocess.run(["java", "-cp", tmp, "sa.urtv.home.setup.SetupEngineRun"], capture_output=True, text=True, timeout=300, encoding="utf-8").stdout.splitlines()
+    got = {l.split()[0]: l for l in out}
+
+safe = [l.split()[0] for l in (ROOT / "optimize/lists/tcl-safe.txt").read_text(encoding="utf-8").splitlines() if l.strip() and not l.lstrip().startswith("#")]
+keep = [l.split()[0] for l in (ROOT / "optimize/lists/keep.txt").read_text(encoding="utf-8").splitlines() if l.strip() and not l.lstrip().startswith("#")]
+check("A: the whole run on a healthy TV: checks, grants, the safe list, the screensaver and the home switch are all done",
+      got.get("A_steps") == "A_steps DONE DONE DONE DONE DONE", got.get("A_steps"))
+ledger = (got.get("A_ledger") or "").split(" ", 1)[-1].split(",")
+check("A: the ledger holds the safe list minus what the TV had off before (com.tcl.bi), once each", sorted(ledger) == sorted(p for p in safe if p != "com.tcl.bi"), ledger)
+check("A: the journal has the fields of optimize/home-journal.sh and says done", all(f'"{k}"' in (got.get("A_journal") or "") for k in ("nonce", "state", "stock", "role_holder_before", "wizard_before", "stock_before", "safety_switch", "written"))
+      and '"state": "done"' in got.get("A_journal", "") and '"role_holder_before": "com.google.android.apps.tv.launcherx"' in got.get("A_journal", ""), got.get("A_journal"))
+check("A: ours is home, the safety switch was armed once and disarmed, the stock home's helpers are off", got.get("A_home") == "A_home sa.urtv.home sa.urtv.home/.MainActivity armed=1 disarmed=1 helpersOff=true", got.get("A_home"))
+check("A: ours is the screensaver", got.get("A_screensaver") == "A_screensaver sa.urtv.screensaver/.ScreenDream", got.get("A_screensaver"))
+check("A: the undo gives back the stock home, the role, the screensaver the TV had and empties the ledger",
+      got.get("A_undo") == "A_undo DONE com.google.android.apps.tv.launcherx com.google.android.apps.tv.launcherx/.home.HomeActivity com.google.android.apps.tv.dreamx/.service.Dream ledger=[]", got.get("A_undo"))
+check("A: after the undo the TV is as it was (only what was already off stays off), and the journal says restored", got.get("A_same") == "A_same true [com.tcl.bi]" and got.get("A_journal_state") == "A_journal_state restored", (got.get("A_same"), got.get("A_journal_state")))
+check("A: a second run changes nothing more (the ledger is the same, Home is already ours)", (got.get("A2") or "").startswith("A2 true DONE true"), got.get("A2"))
+check("B: the TV does not end its list of disabled packages: nothing turned off, nothing remembered", got.get("B") == "B FAILED disables=0 ledger=null", got.get("B"))
+check("C: a TV that answers nothing: no step counts as done, and not one change is sent, no file written, no safety switch armed",
+      got.get("C") == "C FAILED FAILED FAILED FAILED FAILED changes=0 files=[] armed=0", got.get("C"))
+check("D: Home does not open ours: the stock home and the role are back, the setup app is not left off, the switch is disarmed, the journal says restored",
+      got.get("D") == "D FAILED com.google.android.apps.tv.launcherx stockOff=false wizOff=false armed=1 disarmed=1 state=restored", got.get("D"))
+check("E: a TV that answers «illegal» to disabling its own home: skipped, put back as it was", got.get("E") == "E SKIPPED com.google.android.apps.tv.launcherx stockOff=false state=restored disarmed=1", got.get("E"))
+check("F: WebView too old, unknown, or no screensaver installed: skipped, not one setting written", got.get("F") == "F SKIPPED SKIPPED SKIPPED puts=0", got.get("F"))
+check("G: the setup wizard owns the Wi-Fi: left on; another owner: turned off", got.get("G") == "G DONE wizardDisabled=0" and got.get("G2") == "G2 wizardDisabled=1", (got.get("G"), got.get("G2")))
+check("H: a switch cut off (journal «switching», Home not ours) is undone; nothing to do when there is no cut-off switch", got.get("H") == "H DONE restored com.google.android.apps.tv.launcherx" and got.get("H2") == "H2 true", (got.get("H"), got.get("H2")))
+check("I: the app that answers Home is the «before» only when it is the stock home; nothing readable at all stops before any change", got.get("I") == "I com.google.android.apps.tv.launcherx FAILED changes=0 files=[]", got.get("I"))
+check("J: the safe list holds nothing from keep.txt or core.txt", got.get("J") == f"J 0 {len(safe)} {len(safe)}" and not set(safe) & set(keep), got.get("J"))
+check("K: lists need their end marker; WebView and ledger parsing", got.get("K") == "K true 1 true 120 -1 [a.b, e.f]", got.get("K"))
+
+# the shell's own answer on the same TV: optimize/disable.sh with the same installed and already-off sets writes the same ledger
+with tempfile.TemporaryDirectory() as d:
+    d = Path(d); tr = d / "tree"; (tr / "optimize").mkdir(parents=True)
+    shutil.copytree(ROOT / "optimize/lists", tr / "optimize/lists")
+    for f in ("disable.sh", "offlist.py", "settle.sh"):
+        shutil.copy(ROOT / "optimize" / f, tr / "optimize")
+    installed = safe + ["com.google.android.apps.tv.launcherx", "com.android.vending", "com.tcl.airplay2", "sa.urtv.home", "sa.urtv.screensaver", "com.google.android.tungsten.setupwraith",
+                        "com.google.android.leanbacklauncher.recommendations", "com.tcl.tv.tclhome_passive"]
+    (d / "state").write_text("\n".join(["-com.tcl.bi"] + [p for p in installed if p != "com.tcl.bi"]) + "\n")
+    (d / "py").write_text('''#!/usr/bin/env python3
+import os, sys
+a = sys.argv[3:]
+st = open(os.environ["STATE"]).read().split()
+if a[0] == "--batch":
+    for l in sys.stdin:
+        w = l.split()
+        if w[:3] == ["pm", "disable-user", "--user"] and w[4] in [s.lstrip("-") for s in st]:
+            st = [("-" + s.lstrip("-")) if s.lstrip("-") == w[4] else s for s in st]
+    open(os.environ["STATE"], "w").write("\\n".join(st) + "\\n")
+elif a[0].startswith("pm list packages -d"):
+    print("".join("package:%s\\n" % s[1:] for s in st if s.startswith("-")) + "END_OF_LIST")
+elif a[0].startswith("pm list packages"):
+    print("package:android\\n" + "".join("package:%s\\n" % s.lstrip("-") for s in st) + "END_OF_LIST")
+''')
+    (d / "py").chmod(0o755)
+    import os
+    env = dict(os.environ, STATE=str(d / "state"), PY=str(d / "py"), URTV_RUN_DIR=str(tr / "optimize/run"), URTV_HOME=str(d / "home"), PACKAGE_SETTLE_S="0")
+    # the shell would run offlist.py with PY; give it a real python
+    (d / "pyreal").write_text('#!/bin/bash\nif [ "$2" = optimize/tv.py ]; then exec "' + str(d / "py") + '" "$@"; else exec python3 "$@"; fi\n'); (d / "pyreal").chmod(0o755)
+    env["PY"] = str(d / "pyreal")
+    r = subprocess.run(["bash", str(tr / "optimize/disable.sh"), "optimize/lists/tcl-safe.txt"], env=env, capture_output=True, text=True, cwd=tr)
+    shell_ledger = sorted((tr / "optimize/run/disabled-by-us.txt").read_text().split()) if (tr / "optimize/run/disabled-by-us.txt").exists() else None
+    check("PARITY: optimize/disable.sh on the same TV writes the very ledger the app writes", r.returncode == 0 and shell_ledger == sorted(ledger), (r.returncode, r.stderr[-300:], shell_ledger, sorted(ledger)))
+
+# the home journal's field names: the app writes the ones optimize/home-journal.sh reads
+hj = (ROOT / "optimize/home-journal.sh").read_text(encoding="utf-8")
+sh_fields = re.findall(r'"([a-z_]+)": "', hj[hj.index("jwrite()"):hj.index("jstate()")])[:8]
+src_ = (SETUP / "SetupEngine.java").read_text(encoding="utf-8")
+app_fields = re.findall(r'\\"([a-z_]+)\\": \\"', src_[src_.index("private void journalWrite"):src_.index("private void journalState")])
+check("PARITY: the journal fields of the app are the shell's, in the same order", app_fields == sh_fields == ["nonce", "state", "stock", "role_holder_before", "wizard_before", "stock_before", "safety_switch", "written"], (app_fields, sh_fields))
+engine_src = (SETUP / "SetupEngine.java").read_text(encoding="utf-8")
+check("the engine runs only fixed commands: none is built from text the TV sent, except package names that matched [A-Za-z0-9_.]+",
+      "PKG.matcher" in engine_src and "COMPONENT.matcher" in engine_src, "")
+check("the engine's lines name no network, serial or address (it never prints what dumpsys wifi or getprop said)", not re.search(r'out\.line\([^;]*(wifi|ssid|serial)', engine_src, re.I), "")
+sys.exit(1 if failed else 0)
