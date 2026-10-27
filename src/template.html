@@ -382,9 +382,31 @@
     color:#FFFDF6;font-variant-numeric:tabular-nums;
     text-shadow:0 4px 70px rgba(0,0,0,.65), 0 0 130px rgba(255,236,190,.12);
   }
-  /* «حجم الساعة» (#clocksize=): large is the clock above; the others only scale its font (the sub line and the cards keep their sizes) */
+  /* «حجم الساعة» (#clocksize=): large is the clock above, centred in its space, and nothing here touches it. A smaller clock is
+     not the large layout with a hole in it: the screen is laid out again around two straight edges, the right one (the date,
+     the clock and its city line, the next prayer) and the left one (the markets, the card, the bottom-left slot).
+     medium: the clock and its city line move to the right edge, the card grows to min(1000px, 56vw) on the left edge, and the
+       gutter between them is the page's own side margin (3.6vw).
+     small: three columns from the middle row to the bottom row. The right one is as wide as the clock at its widest time
+       (--ckk, so nothing moves at 10 o'clock) and holds the clock over the next prayer; the other two hold the card over the
+       occasion and the slot: one card on the left edge, as wide as beside the medium clock, or the card and a second one
+       (#panel2=) as a pair of the same height, a column each. The Hijri date, the headline beside a small clock, is a step larger. */
   html.ck-medium .clock{font-size:clamp(96px,min(13.6vw,24.8vh),276px)}
-  html.ck-small .clock{font-size:clamp(74px,min(10.5vw,19vh),214px)}
+  html.ck-small{--ckf:clamp(74px,min(10.5vw,19vh),214px);--ckc:calc(var(--ckf) * var(--ckk,3.26))}   /* --ckk: the widest time, in ems (boot) */
+  html.ck-small .clock{font-size:var(--ckf)}
+  html.ck-medium .mid{gap:3.6vw}
+  html.ck-medium .mid > .clockwrap,html.ck-small .mid > .clockwrap{justify-self:start;align-items:flex-start}
+  html.ck-medium .ystrip,html.ck-small .ystrip{left:auto;right:0;transform:none}
+  html.ck-medium .mid > .week{width:min(1000px,56vw)}
+  html.ck-small .hijri{font-size:clamp(21px,2.1vw,42px)}
+  html.ck-small .mid{grid-template-columns:minmax(var(--ckc),auto) minmax(0,1fr) minmax(0,1fr);grid-template-rows:1fr auto 1fr;gap:0 2.4vw}
+  html.ck-small .mid > .clockwrap{grid-column:1;grid-row:1/-1;align-self:center}
+  html.ck-small .mid > .week{grid-row:2;width:auto;max-width:none;justify-self:stretch}
+  html.ck-small .mid.n1 > .week{grid-column:2/-1;justify-self:end;width:min(1000px,56vw);max-width:100%}   /* one card: as wide as beside the medium clock */
+  html.ck-small .mid.n2:not(.fit) > .week{align-self:stretch}
+  @media (min-aspect-ratio:5/4){
+    html.ck-small:not(.slot-none) .bottom{grid-template-columns:var(--ckc) minmax(0,1fr) minmax(0,1fr)}
+  }
   .clock .d{unicode-bidi:isolate}
   .clock .d i{font-style:normal}
   .clock .d i + i{margin-left:var(--digit-gap,.09em)}
@@ -714,7 +736,11 @@ CONFIG.prayerMethod = _Q.get('pm') === 'jafari' ? 0
 // says the same on the home screen); Umm al-Qura says nothing, «بتوقيت الرياض» as it always was
 const CAL_LABEL = {0:'الحساب الجعفري', 8:'حساب الخليج', 9:'حساب الكويت', 10:'حساب قطر', 16:'حساب الإمارات', 5:'حساب الهيئة المصرية', 23:'حساب الأردن', 21:'حساب المغرب', 19:'حساب الجزائر', 18:'حساب تونس'};
 const clockSubText = () => 'بتوقيت ' + CONFIG.city + (CAL_LABEL[CONFIG.prayerMethod] ? ' · ' + CAL_LABEL[CONFIG.prayerMethod] : '');
-CONFIG.cards = (CONFIG.widget && _Q.has('home_panel') ? _list('home_panel') : [CONFIG.panel])
+// «بطاقة ثانية» (#panel2=): a second card beside the small clock only; with a larger clock, on the launcher, without a first card,
+// or when it is the first card again or the next prayer (the bottom-right panel says it already), there is none
+CONFIG.panel2 = (p => CARD_KINDS.includes(p) && p !== 'nextprayer' && p !== CONFIG.panel ? p : 'none')(_Q.get('panel2') || '');
+const PAIR = !CONFIG.widget && CONFIG.clockSize === 'small' && CONFIG.panel !== 'none' && CONFIG.panel2 !== 'none';
+CONFIG.cards = (CONFIG.widget && _Q.has('home_panel') ? _list('home_panel') : PAIR ? [CONFIG.panel, CONFIG.panel2] : [CONFIG.panel])
   .filter((k, i, a) => CARD_KINDS.includes(k) && a.indexOf(k) === i).slice(0, 3);
 CONFIG.panel = CONFIG.cards[0] || 'none';   // the first one, for what only needs to know "the card"
 // does a card on this page need that kind's data? The smart card reads what the matches, the adhkar, the prayers and the hours load;
@@ -725,7 +751,7 @@ const USES = k => CONFIG.cards.some(c => c === k || (USES_OF[c] || []).includes(
 // The panels' snapshot is keyed by the link without the settings that only change how things look (the card's style and place, the clock's
 // size, the strips, the photo timing): changing one of those offline must not lose the games already on screen. What changes the words or
 // the markup inside the saved panels (the teams, leagues, digits, slot, markets, their style and switch…) stays in the key.
-const SNAP_LOOK = ['citynote', 'cardstyle', 'panel', 'week', 'clocksize', 'adhanbar', 'yearstrip', 'national', 'photos', 'adj', 'own', 'ownmode', 'gap'];
+const SNAP_LOOK = ['citynote', 'cardstyle', 'panel', 'panel2', 'week', 'clocksize', 'adhanbar', 'yearstrip', 'national', 'photos', 'adj', 'own', 'ownmode', 'gap'];
 function snapLink(){
   return location.hash.replace(/^#/, '').split('&').filter(kv => kv && !SNAP_LOOK.includes(kv.split('=')[0])).join('&');
 }
@@ -2444,6 +2470,8 @@ const Z_STEPS = [1, .94, .88, .82, .76, .7, .64];
 function cardCut(card){   // a name or a cell wider than its place: it would end in «…» or run into the next
   for(const e of card.el.querySelectorAll('li, li *, .hd > span')){
     if(e.clientWidth > 0 && e.scrollWidth > e.clientWidth + 1) return true;
+    // the screensaver's pair is measured to the fraction of a pixel (fits()): a source line over by half a pixel ended in «…» there
+    if(!CONFIG.widget && e.clientWidth > 0 && e.scrollWidth >= e.clientWidth && getComputedStyle(e).textOverflow === 'ellipsis' && !fits(e)) return true;
   }
   return false;
 }
@@ -2462,17 +2490,29 @@ function shrinkCard(c, tooWide){   // false when there is no step left
   if(cap !== c.cap || maxLen !== c.maxLen){ c.cap = cap; c.maxLen = maxLen; renderCard(c, false, true); }
   return true;
 }
+// The screensaver's pair beside the small clock (#panel2=) is fitted the same way: its box is the middle row, which may not push
+// the bottom row down (and keeps 2vh of air); the pair is drawn the same height, so while it is fitted each card has its own.
 function fitCards(){
-  if(!CONFIG.widget || CARDS.length < 2) return;
+  if(CARDS.length < 2) return;
   const mid = document.querySelector('.mid');
-  for(let g = 0; g < 120; g++){
-    const tall = mid.getBoundingClientRect().height > innerHeight + .5;
-    const cut = CARDS.filter(cardCut);
-    if(!tall && !cut.length) return;
-    // the cut-off cards first; then, only if the box is too tall, the tallest that can still give something
-    if(cut.some(c => shrinkCard(c, true))) continue;
-    if(!tall || !CARDS.slice().sort((a, b) => b.el.offsetHeight - a.el.offsetHeight).some(c => shrinkCard(c))) return;
-  }
+  const tooTall = CONFIG.widget ? () => mid.getBoundingClientRect().height > innerHeight + .5 : pairTooTall;
+  mid.classList.add('fit');
+  try{
+    for(let g = 0; g < 120; g++){
+      const tall = tooTall();
+      const cut = CARDS.filter(cardCut);
+      if(!tall && !cut.length) return;
+      // the cut-off cards first; then, only if the box is too tall, the tallest that can still give something
+      if(cut.some(c => shrinkCard(c, true))) continue;
+      if(!tall || !CARDS.slice().sort((a, b) => b.el.offsetHeight - a.el.offsetHeight).some(c => shrinkCard(c))) return;
+    }
+  }finally{ mid.classList.remove('fit'); }
+}
+function pairTooTall(){
+  const stage = document.querySelector('.stage'), cs = getComputedStyle(stage);
+  const room = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 2 * parseFloat(cs.rowGap)
+    - document.querySelector('.top').offsetHeight - document.querySelector('.bottom').offsetHeight - .02 * innerHeight;
+  return Math.max(...CARDS.map(c => c.el.offsetHeight)) > room + .5;
 }
 
 // the year's numbers, shared by the card and the strip: the Gregorian year in Riyadh time, its days, today's number
@@ -3084,10 +3124,11 @@ const CARD_FILTER = {   // blur px, then the CSS filter functions, as in the app
   dark1:[6,'saturate(140%)'], glass1:[9,'saturate(170%) brightness(.62)'],
   dark3:[6,'saturate(140%)'], glass3:[9,'saturate(160%) brightness(.55)'],
 };
-const CARD = {cv:null, t:0, url:'', since:0};
+const CARD = {cv:null, t:0, url:'', since:0};   // cv: the copies drawn, one per card beside the clock (two for the small clock's pair)
 function cardRelease(){
   clearTimeout(CARD.t); CARD.t = 0;
-  if(CARD.cv){ CARD.cv.width = 0; CARD.cv.remove(); CARD.cv = null; }
+  document.querySelectorAll('.week > canvas.bl').forEach(cv => { cv.width = 0; cv.remove(); });   // every card's, also one left half made
+  CARD.cv = null;
 }
 function cardBlurLater(url){
   CARD.url = url; CARD.since = Date.now();
@@ -3098,41 +3139,43 @@ function cardBlurLater(url){
 }
 function cardBlurNow(){
   CARD.t = 0;
-  const f = CARD_FILTER[CONFIG.cardStyle], card = document.querySelector('.week'), url = CARD.url;
-  if(!f || !card || !url || CONFIG.panel === 'none') return;
+  const f = CARD_FILTER[CONFIG.cardStyle], cards = CARDS.map(c => c.el), url = CARD.url;
+  if(!f || !cards.length || !url || CONFIG.panel === 'none') return;
   try{
     const img = new Image();
     img.onload = () => {
       try{
         if(url !== CARD.url || CARD.cv) return;   // the photo changed while this loaded
-        const W = innerWidth, H = innerHeight, r = card.getBoundingClientRect(), K = .25;   // a quarter size is plenty under a blur
-        const [sx, sy] = SHIFT_SEQ[shiftTick];   // the stage's burn-in shift moves the card, not the photo
-        const cv = document.createElement('canvas');
-        cv.width = Math.max(1, Math.round(r.width * K)); cv.height = Math.max(1, Math.round(r.height * K));
-        const g = cv.getContext('2d');
-        const patch = () => g.setTransform(K, 0, 0, K, -(r.left - sx) * K, -(r.top - sy) * K);   // canvas = the card's patch of the screen
-        patch();
-        if(g.filter !== undefined) g.filter = `blur(${f[0] * K}px) ${f[1]}`;
-        // where .photo draws it: cover, centred at 26%, then its final scale(1.03) about the centre
-        const iw = img.naturalWidth, ih = img.naturalHeight, s = Math.max(W / iw, H / ih), dw = iw * s, dh = ih * s;
-        g.translate(W / 2, H / 2); g.scale(1.03, 1.03); g.translate(-W / 2, -H / 2);
-        g.drawImage(img, (W - dw) * .5, (H - dh) * .26, dw, dh);
-        g.filter = 'none';
-        patch();
-        g.fillStyle = `rgba(0,0,0,${document.querySelector('.photo').style.getPropertyValue('--dim') || .05})`;   // the photo's own darkness
-        g.fillRect(0, 0, W, H);
-        const v = g.createLinearGradient(0, 0, 0, H);   // the vertical part of .veil, the part that reaches the card
-        v.addColorStop(0, 'rgba(3,10,7,.62)'); v.addColorStop(.22, 'rgba(3,10,7,.30)'); v.addColorStop(.46, 'rgba(3,10,7,.12)');
-        v.addColorStop(.74, 'rgba(3,10,7,.42)'); v.addColorStop(1, 'rgba(2,6,4,.88)');
-        g.fillStyle = v; g.fillRect(0, 0, W, H);
-        g.translate(.22 * W, .34 * H); g.scale(1.2 * W, .85 * H);   // and its soft shade at 22% 34%
-        const rg = g.createRadialGradient(0, 0, 0, 0, 0, 1);
-        rg.addColorStop(0, 'rgba(3,14,9,.42)'); rg.addColorStop(.58, 'rgba(3,14,9,0)');
-        g.fillStyle = rg; g.fillRect(-1, -1, 2, 2);
-        cv.className = 'bl';
-        card.insertBefore(cv, card.firstChild);
-        CARD.cv = cv;
-        requestAnimationFrame(() => requestAnimationFrame(() => cv.classList.add('on')));
+        CARD.cv = cards.map(card => {
+          const W = innerWidth, H = innerHeight, r = card.getBoundingClientRect(), K = .25;   // a quarter size is plenty under a blur
+          const [sx, sy] = SHIFT_SEQ[shiftTick];   // the stage's burn-in shift moves the card, not the photo
+          const cv = document.createElement('canvas');
+          cv.width = Math.max(1, Math.round(r.width * K)); cv.height = Math.max(1, Math.round(r.height * K));
+          const g = cv.getContext('2d');
+          const patch = () => g.setTransform(K, 0, 0, K, -(r.left - sx) * K, -(r.top - sy) * K);   // canvas = the card's patch of the screen
+          patch();
+          if(g.filter !== undefined) g.filter = `blur(${f[0] * K}px) ${f[1]}`;
+          // where .photo draws it: cover, centred at 26%, then its final scale(1.03) about the centre
+          const iw = img.naturalWidth, ih = img.naturalHeight, s = Math.max(W / iw, H / ih), dw = iw * s, dh = ih * s;
+          g.translate(W / 2, H / 2); g.scale(1.03, 1.03); g.translate(-W / 2, -H / 2);
+          g.drawImage(img, (W - dw) * .5, (H - dh) * .26, dw, dh);
+          g.filter = 'none';
+          patch();
+          g.fillStyle = `rgba(0,0,0,${document.querySelector('.photo').style.getPropertyValue('--dim') || .05})`;   // the photo's own darkness
+          g.fillRect(0, 0, W, H);
+          const v = g.createLinearGradient(0, 0, 0, H);   // the vertical part of .veil, the part that reaches the card
+          v.addColorStop(0, 'rgba(3,10,7,.62)'); v.addColorStop(.22, 'rgba(3,10,7,.30)'); v.addColorStop(.46, 'rgba(3,10,7,.12)');
+          v.addColorStop(.74, 'rgba(3,10,7,.42)'); v.addColorStop(1, 'rgba(2,6,4,.88)');
+          g.fillStyle = v; g.fillRect(0, 0, W, H);
+          g.translate(.22 * W, .34 * H); g.scale(1.2 * W, .85 * H);   // and its soft shade at 22% 34%
+          const rg = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+          rg.addColorStop(0, 'rgba(3,14,9,.42)'); rg.addColorStop(.58, 'rgba(3,14,9,0)');
+          g.fillStyle = rg; g.fillRect(-1, -1, 2, 2);
+          cv.className = 'bl';
+          card.insertBefore(cv, card.firstChild);
+          requestAnimationFrame(() => requestAnimationFrame(() => cv.classList.add('on')));
+          return cv;
+        });
       }catch(e){ cardRelease(); }
       img.onload = null; img.src = '';
     };
@@ -3326,6 +3369,9 @@ function boot(){
   if(!SLOT_MATCHES) document.getElementById('match-row').textContent = '';   // not «لا شيء هذا الأسبوع»: that is the matches slot's
   if(CONFIG.cardStyle !== 'current') document.documentElement.classList.add('cs-' + CONFIG.cardStyle);
   if(CONFIG.clockSize !== 'large') document.documentElement.classList.add('ck-' + CONFIG.clockSize);
+  // the small clock's column: its widest time of day in ems, every minute measured in Thmanyah Display (١٢:٣٣ م is 2.60 of them, 10:00 م
+  // in Latin digits 3.25), so the cards beside it and the panels under it never move
+  if(CONFIG.clockSize === 'small') document.documentElement.style.setProperty('--ckk', LATIN ? '3.26' : '2.62');
   buildMarkets();
   restoreSnap();
   paintMkUp(); wxExpire(); wxSource();

@@ -6,13 +6,17 @@
 // Network is cut; the photos and fonts the app serves from the device are served from the repo instead,
 // the way PhotoCache.java answers them on the TV.
 import { chromium } from 'playwright';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const page = name => 'file://' + path.join(ROOT, 'dist', name);
+const page = name => 'file://' + (path.isAbsolute(name) ? name : path.join(ROOT, 'dist', name));   // a page of dist/, or one elsewhere (the base to compare with)
+// the branch the large clock is compared with, pixel for pixel (fetched, one commit deep, when this checkout does not have it)
+const BASE_REF = process.env.URTV_BASE_REF || 'origin/next';
 const INDEX = readFileSync(path.join(ROOT, 'photos/index.json'), 'utf8');
 let failed = 0;
 const check = (name, ok, detail = '') => {
@@ -4062,6 +4066,177 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
   const c0 = await rama('', NOW), c1 = await rama('hijri=1', NOW), c2 = await rama('hijri=-2', NOW);
   check('occasion countdown: hijri=1 is one day less, hijri=-2 two days more, the same occasion',
     c0.oc.name === c1.oc.name && c0.oc.name === c2.oc.name && c0.oc.days - c1.oc.days === 1 && c2.oc.days - c0.oc.days === 2, JSON.stringify([c0.oc, c1.oc, c2.oc]));
+}
+
+// ---- «حجم الساعة» laid out again, and «بطاقة ثانية» (#panel2=, beside the small clock only). medium and small are not the large
+// layout with a smaller clock: the clock and its city line stand on the right edge, the card grows; small makes three columns
+// down to the bottom row, the second card in the middle one. Every card, every style, both digit systems, three screen sizes:
+// nothing overlaps, goes off screen, is cut or ends in «…». The large clock is the page of origin/next, pixel for pixel.
+{
+  const SCREENS = [[1920, 1080], [1280, 720], [960, 540]];
+  const STYLES = ['current', 'dark1', 'glass1', 'dark3', 'glass3'];
+  const KINDS = CARD_KINDS_TEST.filter(k => k !== 'nextprayer');   // the home screen's only
+  const EXTRA = 'teams=136013&stocks=2222,1120,AAPL&slot=weather&tasks=' + encodeURIComponent(TASKS12.slice(0, 5).join('\n'));
+  const SEED = HOME_SEED() + CREST_GAMES(LONG_GAMES);
+  const openSaver = async (hash, w, h, now = HOME_NOW) => {
+    const o = await open('tv.html', `${EXTRA}&${hash}`, { width: w, height: h, now, net: crestNet([]) });
+    await o.p.evaluate(SEED);
+    return o;
+  };
+  // these kinds in the cards there are (in place: the data is put in by hand and the network is cut), then what the eye would object to
+  const probe = (p, kinds) => p.evaluate(kinds => {
+    kinds.forEach((k, i) => { CARDS[i].kind = k; CARDS[i].ul.__h = null; });
+    renderPanel(false);
+    const box = e => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom }; };
+    const S = document.querySelector('.stage').getBoundingClientRect(), x = v => Math.round(v - S.left);   // where in the stage (it shifts against burn-in)
+    const cards = CARDS.map(c => c.el);
+    const parts = [['top', document.querySelector('.top')], ['clock', document.querySelector('.clockwrap')], ...cards.map((e, i) => ['card' + i, e]),
+      ['bottom', document.querySelector('.bottom')]].map(([n, e]) => [n, box(e)]);
+    const hit = [];
+    for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+      const a = parts[i][1], b = parts[j][1];
+      if (a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1) hit.push(parts[i][0] + '×' + parts[j][0]);
+    }
+    const off = parts.filter(([, b]) => b.l < -1 || b.r > innerWidth + 1 || b.t < -1 || b.b > innerHeight + 1).map(x => x[0]);
+    // cut: wider than its place; «…»: a text the browser ends in an ellipsis, to the fraction of a pixel (innerText never has it)
+    const R = document.createRange();
+    const over = e => e.clientWidth > 0 && e.scrollWidth > e.clientWidth + 1;
+    const dots = e => { if (!e.clientWidth || getComputedStyle(e).textOverflow !== 'ellipsis') return false;
+      const cs = getComputedStyle(e); R.selectNodeContents(e);
+      return R.getBoundingClientRect().width > e.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + .05; };
+    const cut = CARDS.filter(c => [...c.el.querySelectorAll('li, li *, .hd > span')].some(e => over(e) || dots(e))).map(c => c.eff)
+      .concat([...document.querySelectorAll('.bottom .panel *')].filter(e => over(e) || dots(e)).map(e => 'bottom ' + (e.id || e.className)));
+    const text = [...cards, document.querySelector('.bottom'), document.querySelector('.clockwrap')].map(e => e.innerText).join(' ');
+    const stage = document.querySelector('.stage').innerText;
+    return { hit, off, cut, dots: text.includes('…'), latin: (stage.match(/[0-9]+/g) || []).filter(x => x !== '500'), hindi: /[٠-٩]/.test(stage),
+      kinds: CARDS.map(c => c.eff), cols: cards.map(box).map(b => [x(b.l), x(b.r), Math.round(b.b - b.t)]),
+      panels: [...document.querySelectorAll('.bottom .panel')].map(box).map(b => [x(b.l), x(b.r)]),
+      stageL: S.left, clock: box(document.querySelector('.clock')), dates: box(document.querySelector('.dates')), markets: box(document.querySelector('.markets')) };
+  }, kinds);
+  const x0 = (v, r) => Math.round(v - r.stageL);
+  const bad = (r, digits) => r.hit.length || r.off.length || r.cut.length || r.dots || (digits === 'latin' ? r.hindi : r.latin.length);
+  // a card each, by itself, at every clock size
+  for (const [w, h] of SCREENS) for (const clock of ['large', 'medium', 'small']) for (const style of STYLES) for (const digits of ['hindi', 'latin']) {
+    const o = await openSaver(`clocksize=${clock}&cardstyle=${style}&digits=${digits}`, w, h), fails = [];
+    for (const k of KINDS) { const r = await probe(o.p, [k]); if (bad(r, digits)) fails.push(k + ' ' + JSON.stringify(r)); }
+    check(`clock ${clock}, ${style}, ${digits}, ${w}x${h}: every card fits, nothing overlaps, is cut or ends in «…»`, !fails.length && !o.errors.length,
+      fails.slice(0, 3).join(' | ') + o.errors.join('; '));
+    if (clock !== 'large') {   // the right edge: the clock, the date over it, the next prayer under it; the card on the left edge
+      const r = await probe(o.p, ['verse']);
+      check(`clock ${clock}, ${style}, ${digits}, ${w}x${h}: the clock on the right edge with the date, the card on the left edge with the markets`,
+        Math.abs(r.clock.r - r.dates.r) < 3 && Math.abs(r.cols[0][0] - x0(r.markets.l, r)) < 1.5, JSON.stringify(r));
+    }
+    await o.ctx.close();
+  }
+  // the pair beside the small clock: every kind is the first card and the second once, in every style and both digit systems
+  for (const [w, h] of SCREENS) for (const style of STYLES) for (const digits of ['hindi', 'latin']) {
+    const o = await openSaver(`clocksize=small&panel=verse&panel2=prayers&cardstyle=${style}&digits=${digits}`, w, h), fails = [];
+    for (let i = 0; i < KINDS.length; i++) {
+      const pair = [KINDS[i], KINDS[(i + 1 + (w + style.length) % (KINDS.length - 1)) % KINDS.length]];
+      const r = await probe(o.p, pair);
+      // three columns: the cards over the occasion and the slot, the same height
+      const lined = r.cols.length === 2 && Math.abs(r.cols[0][0] - r.panels[1][0]) < 1.5 && Math.abs(r.cols[1][0] - r.panels[2][0]) < 1.5 && r.cols[0][2] === r.cols[1][2];
+      if (bad(r, digits) || !lined) fails.push(pair + ' ' + JSON.stringify(r));
+    }
+    check(`second card, ${style}, ${digits}, ${w}x${h}: every kind in the pair fits, the pair is one height over the bottom row's columns`,
+      !fails.length && !o.errors.length, fails.slice(0, 3).join(' | ') + o.errors.join('; '));
+    await o.ctx.close();
+  }
+  // nothing moves when the clock gains a digit (9:59 → 10:00), nor at the widest time (١٢:٣٣ م; 10:00 م in Latin digits)
+  for (const [w, h] of SCREENS) for (const digits of ['hindi', 'latin']) {
+    const at = [];
+    for (const now of ['2026-10-22T06:59:00Z', '2026-10-22T07:00:00Z', '2026-10-22T09:33:00Z', '2026-10-22T19:00:00Z']) {
+      const o = await openSaver(`clocksize=small&panel=verse&panel2=hourly&digits=${digits}`, w, h, new Date(now));
+      const r = await probe(o.p, ['verse', 'hourly']);
+      at.push(JSON.stringify([r.cols.map(c => c.slice(0, 2)), r.panels]));
+      check(`second card at ${now.slice(11, 16)} UTC, ${digits}, ${w}x${h}: the clock stays in its column`, x0(r.clock.l, r) >= r.cols[0][1] + 2 && !bad(r, digits), JSON.stringify(r));
+      await o.ctx.close();
+    }
+    const moved = at.map(JSON.parse).some(a => a.flat(2).some((v, i) => Math.abs(v - JSON.parse(at[0]).flat(2)[i]) > 1));
+    check(`second card, ${digits}, ${w}x${h}: the cards and the bottom row do not move with the hour`, !moved, at.join(' '));
+  }
+  // the second card is there only beside the small clock, with a first card, and never the first one again or the next prayer
+  for (const [hash, want] of [['clocksize=small&panel=verse&panel2=prayers', 'verse,prayers'], ['clocksize=medium&panel=verse&panel2=prayers', 'verse'],
+      ['clocksize=large&panel=verse&panel2=prayers', 'verse'], ['panel=verse&panel2=prayers', 'verse'], ['clocksize=small&panel=verse&panel2=verse', 'verse'],
+      ['clocksize=small&panel=verse&panel2=nextprayer', 'verse'], ['clocksize=small&panel=verse&panel2=bogus', 'verse'], ['clocksize=small&panel=verse&panel2=none', 'verse'],
+      ['clocksize=small&panel=none&panel2=prayers', ''], ['clocksize=small&panel=verse&panel2=prayers&widget=1', 'verse'],
+      ['clocksize=small&home_panel=hourly&panel2=prayers&widget=1', 'hourly']]) {
+    const o = await open('tv.html', hash);
+    const r = await o.p.evaluate(() => ({ kinds: CARDS.map(c => c.kind).join(), shown: [...document.querySelectorAll('.mid > .week')].filter(e => getComputedStyle(e).display !== 'none').length }));
+    check(`#${hash}: ${want ? want.split(',').length + ' card' + (want.includes(',') ? 's' : '') + ' (' + want + ')' : 'no card'}`,
+      !o.errors.length && r.kinds === want && r.shown === (want ? want.split(',').length : 0), JSON.stringify(r) + o.errors.join('; '));
+    await o.ctx.close();
+  }
+  {   // the pair keeps its games offline: the second card is a look, not in the snapshot's key
+    const o = await open('tv.html', 'clocksize=small&panel=verse&panel2=prayers');
+    const keys = await o.p.evaluate(() => [LS.snap, SNAP_LOOK.includes('panel2')]);
+    await o.ctx.close();
+    const q = await open('tv.html', 'clocksize=small&panel=verse');
+    const k2 = await q.p.evaluate(() => LS.snap);
+    check('panel2 is a look only: the snapshot key is the same with and without it', keys[1] && keys[0] === k2, JSON.stringify([keys, k2]));
+    await q.ctx.close();
+  }
+  // the large clock: the page of origin/next, pixel for pixel (the default, clocksize=large, a second card that large ignores)
+  const shot = async (file, hash, w, h) => {   // once the fonts and the photo are in, and the picture holds still
+    const o = await open(file, hash, { width: w, height: h, now: HOME_NOW });
+    await o.p.evaluate(async () => {
+      await document.fonts.ready;
+      const m = /url\("?(.*?)"?\)/.exec(getComputedStyle(document.querySelector('.photo')).backgroundImage);
+      if (m) { const i = new Image(); i.src = m[1]; await i.decode().catch(() => {}); }
+    });
+    let png = await o.p.screenshot({ animations: 'disabled' });
+    for (let k = 0; k < 6; k++) {
+      await o.p.waitForTimeout(250);
+      const next = await o.p.screenshot({ animations: 'disabled' });
+      if (next.equals(png)) break;
+      png = next;
+    }
+    await o.ctx.close();
+    return png;
+  };
+  let base = null, why = '';
+  try {
+    const git = (...a) => execFileSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 << 20 });
+    try { git('rev-parse', '--verify', '-q', BASE_REF + '^{commit}'); }
+    catch (e) { git('fetch', '-q', '--depth=1', 'origin', BASE_REF.replace(/^origin\//, '') + ':refs/remotes/' + BASE_REF); }   // a shallow CI checkout
+    base = path.join(mkdtempSync(path.join(tmpdir(), 'urtv-base-')), 'tv.html');
+    writeFileSync(base, git('show', BASE_REF + ':dist/tv.html'));
+  } catch (e) { base = null; why = String(e.message).split('\n')[0]; }
+  check(`large clock: the page of ${BASE_REF} to compare with`, !!base, why);
+  // the pixels that differ and by how much at most (0-255 a channel). Two loads of one page are not always the same to the last
+  // level: the photo's scaling and the large blurred shadows (the clock's, the year strip's today) come out up to 5 levels apart.
+  // A change of layout or colour is tens of levels on the text's edges, so 8 tells the two apart (and the medium clock must fail it).
+  const NOISE = 8;
+  const pixelDiff = async (a, b) => {
+    const ctx = await browser.newContext(), p = await ctx.newPage();
+    const r = await p.evaluate(async ([a, b]) => {
+      const load = async s => { const i = new Image(); i.src = 'data:image/png;base64,' + s; await i.decode();
+        const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const g = c.getContext('2d'); g.drawImage(i, 0, 0);
+        return g.getImageData(0, 0, c.width, c.height); };
+      const x = await load(a), y = await load(b);
+      if (x.width !== y.width || x.height !== y.height) return { n: -1, max: 255 };
+      let n = 0, max = 0;
+      for (let k = 0; k < x.data.length; k += 4) {
+        const d = Math.max(Math.abs(x.data[k] - y.data[k]), Math.abs(x.data[k + 1] - y.data[k + 1]), Math.abs(x.data[k + 2] - y.data[k + 2]));
+        if (d) { n++; if (d > max) max = d; }
+      }
+      return { n, max };
+    }, [a.toString('base64'), b.toString('base64')]);
+    await ctx.close();
+    return r;
+  };
+  if (base) {
+    for (const [w, h] of SCREENS) {
+      for (const hash of ['', 'clocksize=large', 'teams=136013&panel=verse&panel2=prayers&clocksize=large&cardstyle=dark3',
+          'teams=136013&panel=prayers&panel2=hourly&cardstyle=glass1&digits=latin', 'clocksize=large&panel=year&cardstyle=glass3&yearstrip=1']) {
+        const a = await shot(base, hash, w, h), b = await shot('tv.html', hash, w, h), d = a.equals(b) ? { n: 0, max: 0 } : await pixelDiff(a, b);
+        check(`large clock ${w}x${h} «${hash || 'default'}»: pixel for pixel the page of ${BASE_REF} (${d.n} px of renderer noise, at most ${d.max}/255)`,
+          d.n >= 0 && d.max <= NOISE, JSON.stringify(d));
+      }
+      const d = await pixelDiff(await shot(base, 'teams=136013&panel=verse', w, h), await shot('tv.html', 'teams=136013&panel=verse&clocksize=medium', w, h));
+      check(`large clock ${w}x${h}: the comparison sees a real change (the medium clock is far from it)`, d.max > 4 * NOISE && d.n > 1000, JSON.stringify(d));
+    }
+  }
 }
 
 await browser.close();

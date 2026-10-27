@@ -208,6 +208,18 @@ final class Prefs {
     }
     void setPanel(String v) { sp.edit().putString("panel", v).apply(); }
 
+    /** The screensaver's choices for a card beside the clock: PANELS without the home-only ones («لا شيء» included). */
+    static final String[][] SAVER_PANELS = saverPanels();
+    private static String[][] saverPanels() {
+        List<String[]> out = new ArrayList<>();
+        for (String[] p : PANELS) if (!homeOnly(p[0])) out.add(p);
+        return out.toArray(new String[0][]);
+    }
+
+    /** «بطاقة ثانية» beside the small clock (SecondCard): none by default, never the first card again nor the next prayer. */
+    String panel2() { return SecondCard.read(sp.getString("panel2", "none"), panel(), SAVER_PANELS); }
+    void setPanel2(String v) { sp.edit().putString("panel2", v).apply(); }
+
     // One plain line about each card, in the words of docs/FEATURES.md (tests/check.py compares them): the pickers show it under the name
     static final String[][] PANEL_ABOUT = {
         {"shows", "حلقات هذا الأسبوع"},
@@ -398,7 +410,7 @@ final class Prefs {
      * panel= and cardstyle= are taken out of the fragment first: the page reads the first one it finds.
      */
     String previewUrl(Context c, String panel, String cardStyle) {
-        String frag = fragment().replaceAll("(^|&)(panel|week|cardstyle|home_panel)=[^&]*", "");
+        String frag = fragment().replaceAll("(^|&)(panel|panel2|week|cardstyle|home_panel)=[^&]*", "");
         return pageBase(c) + "#" + frag + "&panel=" + panel + "&cardstyle=" + cardStyle + "&widget=1";
     }
 
@@ -428,6 +440,7 @@ final class Prefs {
             + "&events=" + join(list("events"), ",")
             + "&leagues=" + Uri.encode(join(leagues(), ","))
             + "&panel=" + panel()
+            + SecondCard.fragment(panel2(), SAVER_PANELS)
             + "&week=" + ("none".equals(panel()) ? "0" : "1")   // for a page older than #panel
             + "&genres=" + Uri.encode(join(list("genres"), ","))
             + "&langs=" + Uri.encode(join(list("langs"), ","))

@@ -20,7 +20,7 @@ import java.util.Locale;
  *   am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.CITIES
  *   am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.SET
  *       [--es city 'الرس'] [--es lat 25.86 --es lon 43.49 --es tz Asia/Kuwait]   (tz is needed for a place that is not in the list) [--es teams '136013:Al-Hilal,150643:Al-Zulfi']
- *       [--es panel prayers] [--es home_panel prayers,hourly,verse|none] [--es greeting on|off] [--es adhanbar on|off] [--es yearstrip on|off] [--es minrating 7] [--es genres Drama,Comedy] [--es langs English]
+ *       [--es panel prayers] [--es panel2 hourly|none] [--es home_panel prayers,hourly,verse|none] [--es greeting on|off] [--es adhanbar on|off] [--es yearstrip on|off] [--es minrating 7] [--es genres Drama,Comedy] [--es langs English]
  *       [--es photos 30] [--es idle 10] [--es digits hindi|latin] [--es hijrioffset -2..2] [--es clock24 on|off]
  *       [--es cardstyle current|dark1|glass1|dark3|glass3] [--es national auto|off]
  *       [--es markets tasi,gold,btc] [--es mkstyle arrows|prices] [--es mkbar on|off] [--es clocksize large|medium|small] [--es stocks 2222,1120,AAPL]
@@ -45,6 +45,8 @@ import java.util.Locale;
  * "clear"; cdname = its name (up to 40 characters).
  * national = auto (as always from now: the quiet green look on National Day, 21-25 September, and Founding Day, 20-24 February) or off.
  * cardstyle = the look of the card beside the clock (Prefs.CARD_STYLES; current is the plain card).
+ * panel2 = «بطاقة ثانية», a second card beside the clock while it is small (SecondCard): one of the screensaver's cards but the
+ * first one, or none (the default). Kept with any clock size; the page shows it only beside the small clock.
  * mkbar = the markets line at the top, on (default) or off (the weather stays; the list is kept); clocksize = the screensaver's clock.
  * markets = up to four of Prefs.MARKETS at the top left, in order; mkstyle = arrows only (as always) or the price and the day's change.
  * stocks = the watchlist of the stocks card (panel stocks): up to Prefs.MAX_STOCKS Tadawul codes (4 digits) or US tickers.
@@ -159,6 +161,11 @@ public class SaverReceiver extends BroadcastReceiver {
         String panel = i.getStringExtra("panel"), home = i.getStringExtra("home_panel");
         if (panel != null && Prefs.homeOnly(panel)) return "error: " + panel + " is a home-screen card only (the screensaver's panel already shows it): optimize/saver.sh home-card " + panel;
         if (panel != null && !isPanel(panel)) return "error: panel is one of " + panels();
+        String panel2 = i.getStringExtra("panel2");   // checked against the first card it will sit beside: this one's new one, else today's
+        if (panel2 != null) {
+            String why = SecondCard.refuse(panel2, panel != null ? panel : p.panel(), Prefs.SAVER_PANELS);
+            if (why != null) return why;
+        }
         List<String> homeCards = null;
         if (home != null) {
             homeCards = new ArrayList<>();
@@ -291,6 +298,7 @@ public class SaverReceiver extends BroadcastReceiver {
         if (city != null) p.setCity(city[0], city[1], city[2], tz == null ? "" : tz);
         if (teams != null) p.setList("teams", teams);
         if (panel != null) p.setPanel(panel);
+        if (panel2 != null) p.setPanel2(panel2);
         if (homeCards != null) p.setHomePanels(homeCards);
         if (greeting != null) p.setGreeting("on".equals(greeting));
         if (adhanBar != null) p.setAdhanBar("on".equals(adhanBar));
@@ -413,7 +421,8 @@ public class SaverReceiver extends BroadcastReceiver {
             + "\ncity: " + city[0] + " (" + city[1] + ", " + city[2] + ")"
             + "\ntimezone: " + p.cityTz()
             + "\nteams: " + Prefs.join(p.teams(), ", ")
-            + "\npanel: " + p.panel() + "\nhome_panel: " + p.homePanel()
+            + "\npanel: " + p.panel() + "\npanel2: " + p.panel2()
+            + "\nhome_panel: " + p.homePanel()
             + "\ngreeting: " + (p.greeting() ? "on" : "off")
             + "\nadhanbar: " + (p.adhanBar() ? "on" : "off")
             + "\nyearstrip: " + (p.yearStrip() ? "on" : "off")

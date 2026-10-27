@@ -188,6 +188,9 @@ public class SettingsActivity extends Activity {
 
         header("بجانب الساعة");
         row("المحتوى", Prefs.panelLabel(prefs.panel()), R.drawable.ic_eye, new Runnable() { public void run() { pickPanel(-1); } });
+        // «بطاقة ثانية»: only beside the small clock (there is room for two cards there), and only with a first card (SecondCard)
+        if (SecondCard.rowShown(prefs.clockSize(), prefs.panel(), Prefs.SAVER_PANELS))
+            row("بطاقة ثانية", Prefs.panelLabel(prefs.panel2(), "بدون"), R.drawable.ic_eye, new Runnable() { public void run() { pickPanel2(); } });
         row("شكل البطاقة", Prefs.cardStyleLabel(prefs.cardStyle()), R.drawable.ic_eye,
             new Runnable() { public void run() { pickCardStyle(); } });
 
@@ -590,6 +593,25 @@ public class SettingsActivity extends Activity {
         pickWithPreview(home ? HOME_CARD_NAMES[place] : "بجانب الساعة", values, labels, about, sel,
             v -> prefs.previewUrl(this, v, prefs.cardStyle()),
             v -> { if (home) prefs.setHomePanelAt(place, v); else prefs.setPanel(v); });
+    }
+
+    /**
+     * «بطاقة ثانية» beside the small clock: the screensaver's cards but the first one («بدون» = none). The preview is that card in
+     * today's style, alone, as the other pickers draw it.
+     */
+    private void pickPanel2() {
+        List<String[]> rows = new ArrayList<>();
+        for (String[] p : Prefs.SAVER_PANELS) if (!p[0].equals(prefs.panel())) rows.add(p);
+        String[] values = new String[rows.size()], labels = new String[rows.size()], about = new String[rows.size()];
+        int sel = 0;
+        for (int i = 0; i < values.length; i++) {
+            values[i] = rows.get(i)[0];
+            labels[i] = "none".equals(values[i]) ? "بدون" : rows.get(i)[1];
+            about[i] = "none".equals(values[i]) ? "بطاقة واحدة بجانب الساعة" : Prefs.about(Prefs.PANEL_ABOUT, values[i]);
+            if (values[i].equals(prefs.panel2())) sel = i;
+        }
+        pickWithPreview("بطاقة ثانية", values, labels, about, sel,
+            v -> prefs.previewUrl(this, v, prefs.cardStyle()), v -> prefs.setPanel2(v));
     }
 
     private interface Url { String of(String value); }
