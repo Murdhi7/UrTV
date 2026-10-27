@@ -216,6 +216,8 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { openDockSettings(); } });
         row("أسماء المصادر", "غيّر اسم كل مصدر، مثل PS5", R.drawable.ic_settings,
             new Runnable() { public void run() { openInputNames(); } });
+        row("تعديل المفضلة", "تحريك التطبيقات على الشاشة الرئيسية وحذفها", R.drawable.ic_star,
+            new Runnable() { public void run() { openDockEdit(); } });
         row("تحديث تلفزيوني", "يعرض الإصدار ويتحقق من التحديث", R.drawable.ic_sync,
             new Runnable() { public void run() { openUpdate(); } });
         row("تحكم من الجوال", "متوقف حتى تشغّله أنت", R.drawable.ic_settings,
@@ -610,6 +612,16 @@ public class SettingsActivity extends Activity {
             startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.InputNamesActivity"));
         } catch (RuntimeException e) {   // not installed, or an older launcher without the screen
             toast("حدّث الواجهة الرئيسية «تلفزيونك» أو ثبّتها أولاً");
+        }
+    }
+
+    /** «تعديل المفضلة» is a mode of the launcher's home screen (it owns the row); the extra asks it to start in it. */
+    private void openDockEdit() {
+        try {
+            startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setClassName("sa.urtv.home", "sa.urtv.home.MainActivity")
+                .putExtra("edit_favourites", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
         }
     }
 

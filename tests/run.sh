@@ -89,6 +89,7 @@ python3 tests/unsplash_header_test.py
 python3 tests/bounded_test.py
 python3 tests/adhan_bar_test.py
 python3 tests/adhan_keys_test.py
+python3 tests/fav_edit_test.py
 python3 tests/remote_keys_test.py
 python3 tests/dpad_rtl_test.py
 python3 tests/adhan_reply_test.py
