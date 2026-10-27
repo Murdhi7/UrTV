@@ -103,6 +103,7 @@ python3 tests/dpad_rtl_test.py
 python3 tests/home_grid_test.py
 python3 tests/spring_test.py
 python3 tests/look_test.py
+python3 tests/tv_rows_test.py
 python3 tests/adhan_reply_test.py
 python3 tests/clock_zone_test.py
 python3 tests/phone_test.py

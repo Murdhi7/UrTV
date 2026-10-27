@@ -274,6 +274,8 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { prefs.setListenPill(!prefs.listenPill()); render(); } });
         row("ترتيب التطبيقات المفضلة", "قائمة ترتّب فيها المفضلة بالأسهم", R.drawable.ic_star,
             new Runnable() { public void run() { openDockSettings(); } });
+        row("صفوف القنوات", "«أكمل المشاهدة» وصفوف التطبيقات تحت المفضلة: أيها يظهر وترتيبها", R.drawable.ic_star,
+            new Runnable() { public void run() { openChannelRows(); } });
         row("أسماء المصادر", "غيّر اسم كل مصدر، مثل PS5", R.drawable.ic_settings,
             new Runnable() { public void run() { openInputNames(); } });
         row("تعديل المفضلة", "تحريك التطبيقات على الشاشة الرئيسية وحذفها", R.drawable.ic_star,
@@ -796,6 +798,15 @@ public class SettingsActivity extends Activity {
             startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.DockActivity"));
         } catch (RuntimeException e) {
             toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
+    /** «صفوف القنوات» lives in the launcher (it reads the TV's lists and shows the rows). */
+    private void openChannelRows() {
+        try {
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.ChannelsActivity"));
+        } catch (RuntimeException e) {   // not installed, or an older launcher without the screen
+            toast("حدّث الواجهة الرئيسية «تلفزيونك» أو ثبّتها أولاً");
         }
     }
 
