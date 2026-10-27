@@ -550,7 +550,6 @@
     <div class="markets">
       <div class="wxline"><span class="wxt" id="wx-temp"></span><span class="wxd" id="wx-desc"></span><span class="wxdust" id="wx-dust"></span></div>
       <div class="wxsub"><span id="wx-city">الرياض</span><span class="wxr" id="wx-range"></span></div>
-      <div class="wxmore" id="wx-more" hidden></div>
       <div class="wxsrc" id="wx-src"></div>
       <div class="rule l"></div>
       <div class="mk">
@@ -583,7 +582,6 @@
       <div class="label" id="prayer-label">الصلاة القادمة</div>
       <div class="big"><span id="prayer-name">—</span><span class="num" id="prayer-time"></span></div>
       <div class="sub" id="prayer-count">—</div>
-      <div class="pbar" id="pbar" hidden><i id="pbar-fill"></i></div>
     </div>
 
     <div class="panel p-mid">
@@ -1089,8 +1087,7 @@ function tickPrayer(){
   if(!PRAYERS.length) return;
   const p = riyadhParts();
   const mins = p.h*60 + p.mi + p.s/60;
-  const bar = document.getElementById('pbar'), fill = document.getElementById('pbar-fill');
-  if(bar) bar.hidden = !CONFIG.prayerBar;
+  const fill = document.getElementById('pbar-fill');
   const progress = f => { if(CONFIG.prayerBar && fill) fill.style.width = (Math.max(0, Math.min(1, f)) * 100).toFixed(1) + '%'; };
 
   // between adhan and iqama: show the iqama countdown
@@ -3398,6 +3395,9 @@ function boot(){
   setTimeout(saveSnap, 15*1000);   // the dream can be killed before pagehide
   setInterval(saveSnap, 60*1000);
   addEventListener('pagehide', saveSnap);
+  // the parts of the choices that are off by default are made only when chosen: off, the page is as it was, element for element
+  if(CONFIG.prayerBar) document.getElementById('prayer-count').insertAdjacentHTML('afterend', '<div class="pbar" id="pbar"><i id="pbar-fill"></i></div>');
+  if(CONFIG.wxMore) document.getElementById('wx-src').insertAdjacentHTML('beforebegin', '<div class="wxmore" id="wx-more" hidden></div>');
   const wxCity = document.getElementById('wx-city');
   if(wxCity) wxCity.textContent = CONFIG.city;
   const cs = document.getElementById('clock-sub');

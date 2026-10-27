@@ -4079,7 +4079,7 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
   const TIMES = "buildPrayers({Fajr:'04:50',Sunrise:'06:05',Dhuhr:'11:40',Asr:'15:00',Maghrib:'17:45',Isha:'19:15'});";
   const panel = p => p.evaluate(() => { tickPrayer(); return { l: document.getElementById('prayer-label').textContent, n: document.getElementById('prayer-name').textContent,
     t: document.getElementById('prayer-time').textContent, c: document.getElementById('prayer-count').textContent,
-    bar: !document.getElementById('pbar').hidden, w: parseFloat(document.getElementById('pbar-fill').style.width || '0') }; });
+    bar: !!document.getElementById('pbar'), w: document.getElementById('pbar-fill') ? parseFloat(document.getElementById('pbar-fill').style.width || '0') : 0 }; });
   // Riyadh is UTC+3. Fajr 04:50, its iqama 25 minutes later (05:15), the sunrise 06:05
   for (const [when, on, want, why] of [
       ['2026-10-22T02:40:00Z', true, { l: 'الشروق', n: 'الشروق', t: '٦:٠٥ ص', c: 'بعد ٢٥ دقيقة' }, '05:40, after the iqama: the time to the sunrise'],
@@ -4100,9 +4100,10 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     await p.clock.setFixedTime(new Date('2026-10-22T13:40:00Z'));
     await p.evaluate(TIMES);
     const r = await panel(p);
-    const box = await p.evaluate(() => { const b = document.getElementById('pbar').getBoundingClientRect(), q = document.querySelector('.p-prayer').getBoundingClientRect();
+    const box = await p.evaluate(() => { const e = document.getElementById('pbar'); if (!e) return { h: 0, none: true };
+      const b = e.getBoundingClientRect(), q = document.querySelector('.p-prayer').getBoundingClientRect();
       return { h: b.height, inside: b.left >= q.left - 1 && b.right <= q.right + 1 && b.bottom <= innerHeight }; });
-    check(`prayer bar, ${why}`, !errors.length && (want === null ? !r.bar && box.h === 0 : r.bar && Math.abs(r.w - want) < 1 && box.h > 0 && box.inside), JSON.stringify({ r, box }) + errors.join('; '));
+    check(`prayer bar, ${why}`, !errors.length && (want === null ? !r.bar && box.none : r.bar && Math.abs(r.w - want) < 1 && box.h > 0 && box.inside), JSON.stringify({ r, box }) + errors.join('; '));
     await ctx.close();
   }
   {   // the bar between adhan and iqama: Maghrib 17:45, its iqama 10 minutes later; at 17:50 half of it
@@ -4127,13 +4128,14 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     seen.length = 0;
     const { p, ctx, errors } = await open('tv.html', `${hash}&digits=${digits}&markets=tasi,gold,silver,oil&mkstyle=prices`, { width: w, height: h, net: wxNet, now: new Date('2026-10-22T13:40:00Z') });
     await p.waitForTimeout(700);
-    const r = await p.evaluate(() => { const m = document.getElementById('wx-more'), b = m.getBoundingClientRect(), c = document.querySelector('.clockwrap').getBoundingClientRect(),
+    const r = await p.evaluate(() => { const m = document.getElementById('wx-more'); if (!m) return { shown: false, none: true };
+      const b = m.getBoundingClientRect(), c = document.querySelector('.clockwrap').getBoundingClientRect(),
       d = document.querySelector('.dates').getBoundingClientRect();
       return { text: m.textContent, shown: !m.hidden && b.height > 0, clear: b.right <= d.left && b.bottom <= c.top, inside: b.left >= 0 && b.right <= innerWidth }; });
     const want = digits === 'latin' ? 'رطوبة 45٪، رياح 12 كم/س' : 'رطوبة ٤٥٪، رياح ١٢ كم/س';
     const asked = seen.length && /relative_humidity_2m,wind_speed_10m/.test(seen[0]);
     check(`humidity and wind ${on ? 'on' : 'off'} at ${w}x${h} (${digits}): ${on ? '«' + want + '» under the city, clear of the date and the clock, asked in the one request' : 'not drawn, not asked'}`,
-      !errors.length && (on ? r.shown && r.text === want && r.clear && r.inside && asked && seen.length === 1 : !r.shown && !asked), JSON.stringify({ r, seen }) + errors.join('; '));
+      !errors.length && (on ? r.shown && r.text === want && r.clear && r.inside && asked && seen.length === 1 : r.none && !asked), JSON.stringify({ r, seen }) + errors.join('; '));
     await ctx.close();
   }
   // the Levant's month names: the date at the top, the matches' dates, the countdown; the Hijri date unchanged
