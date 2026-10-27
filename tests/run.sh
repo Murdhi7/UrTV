@@ -6,6 +6,8 @@ cd "$(dirname "$0")/.."
 python3 tests/check.py
 python3 tests/tilawah_test.py
 python3 tests/prayer_math_test.py
+python3 tests/prayer_crosscheck_test.py
+python3 tests/hijri_crosscheck_test.py
 python3 tests/prayer_method_test.py
 python3 tests/prayer_adj_test.py
 python3 tests/hijri_offset_test.py
@@ -85,4 +87,6 @@ python3 tests/pin_store_test.py
 python3 tests/parental_policy_test.py
 python3 tests/parental_wiring_test.py
 python3 tests/dock_pin_test.py
+node tests/prayer_crosscheck_page.mjs
+node tests/hijri_crosscheck_page.mjs
 node tests/page.test.mjs
