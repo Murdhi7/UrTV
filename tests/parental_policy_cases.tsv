@@ -18,7 +18,9 @@ ask	PILL_LISTEN		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 ask	PARENTAL_SCREEN		GO
 visible	a,b,c			a,b,c
 kidsstart			false
@@ -42,7 +44,9 @@ ask	PILL_LISTEN		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 ask	PARENTAL_SCREEN		GO
 visible	a,app,c			a,app,c
 # 2. a PIN and nothing locked: only the parental screen asks
@@ -64,7 +68,9 @@ ask	PILL_LISTEN		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 ask	PARENTAL_SCREEN		ASK
 # 3. one app locked: only the paths that open that app ask (its tile, its row, a pill that opens it)
 state	1	0	app		-
@@ -99,7 +105,9 @@ ask	PILL_LISTEN		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 state	1	0	@inputs		-
 ask	MENU_KEY		ASK
 ask	TILE	app	GO
@@ -118,7 +126,9 @@ ask	PILL_LISTEN		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 state	1	0	@wifi		-
 ask	PILL_WIFI	settings.pkg	ASK
 ask	TILE	app	GO
@@ -137,7 +147,9 @@ ask	PILL_LISTEN		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 state	1	0	@tvsettings		-
 ask	PILL_TV_SETTINGS	settings.pkg	ASK
 ask	TILE	app	GO
@@ -156,7 +168,9 @@ ask	PILL_LISTEN		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 state	1	0	@tvsettings		-
 ask	SLEEP_ACCESSIBILITY	settings.pkg	ASK
 ask	TILE	app	GO
@@ -175,7 +189,9 @@ ask	PILL_LISTEN		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 state	1	0	@tasks		-
 ask	PILL_TASKS		ASK
 ask	TILE	app	GO
@@ -194,7 +210,9 @@ ask	PILL_LISTEN		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 state	1	0	@tasks		-
 ask	CARD_TASKS		ASK
 ask	TILE	app	GO
@@ -213,7 +231,9 @@ ask	PILL_LISTEN		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 state	1	0	@saver		-
 ask	PILL_SAVER	sa.urtv.screensaver	ASK
 ask	TILE	app	GO
@@ -232,7 +252,9 @@ ask	PILL_LISTEN		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 state	1	0	@saver		-
 ask	PILL_SAVER_SETTINGS	sa.urtv.screensaver	ASK
 ask	TILE	app	GO
@@ -251,7 +273,9 @@ ask	PILL_LISTEN		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 state	1	0	@listen		-
 ask	PILL_LISTEN		ASK
 ask	TILE	app	GO
@@ -270,7 +294,9 @@ ask	CARD_TASKS		GO
 ask	PILL_SLEEP		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 state	1	0	@sleep		-
 ask	PILL_SLEEP		ASK
 ask	TILE	app	GO
@@ -289,18 +315,24 @@ ask	CARD_TASKS		GO
 ask	PILL_LISTEN		GO
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 # 5. «قفل الإعدادات»: the long-press menu, its arrange row and the arrange screen
 state	1	0	@urtv		-
 ask	MENU		ASK
 ask	MENU_ARRANGE		ASK
+ask	MENU_UPDATE		ASK
 ask	ARRANGE_SCREEN		ASK
+ask	UPDATE_SCREEN		ASK
 ask	TILE	app	GO
 ask	PILL_TV_SETTINGS	settings.pkg	GO
 state	1	0			-
 ask	MENU		GO
 ask	MENU_ARRANGE		GO
+ask	MENU_UPDATE		GO
 ask	ARRANGE_SCREEN		GO
+ask	UPDATE_SCREEN		GO
 # 6. the parental screen always asks once a PIN is set (it has no toggle), and once opened with the PIN not again until the home screen is back
 state	1	0			-
 ask	PARENTAL_SCREEN		ASK
@@ -369,4 +401,4 @@ state	1	1	a,,b c, @x ,a;rm	x y,z	-
 visible	a,b,x,z,y			z
 ask	TILE	a	ASK
 ask	TILE	b	GO
-paths				ARRANGE_SCREEN,CARD_TASKS,GRID,INPUT_LIVE_TV,INPUT_PICKER,MENU,MENU_ARRANGE,MENU_KEY,PARENTAL_SCREEN,PILL_INPUTS,PILL_LISTEN,PILL_SAVER,PILL_SAVER_SETTINGS,PILL_SLEEP,PILL_TASKS,PILL_TV_SETTINGS,PILL_WIFI,SLEEP_ACCESSIBILITY,TILE
+paths				ARRANGE_SCREEN,CARD_TASKS,GRID,INPUT_LIVE_TV,INPUT_PICKER,MENU,MENU_ARRANGE,MENU_KEY,MENU_UPDATE,PARENTAL_SCREEN,PILL_INPUTS,PILL_LISTEN,PILL_SAVER,PILL_SAVER_SETTINGS,PILL_SLEEP,PILL_TASKS,PILL_TV_SETTINGS,PILL_WIFI,SLEEP_ACCESSIBILITY,TILE,UPDATE_SCREEN

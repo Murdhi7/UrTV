@@ -783,7 +783,7 @@ public class MainActivity extends Activity {
             if (sa.urtv.home.phone.PhoneUpdater.isBusy()) return;   // an update running in this very process: its own screen says how it goes
             long mine = sa.urtv.home.phone.PhoneUpdater.installedCode(this, getPackageName());
             if (sa.urtv.home.phone.UpdateRecords.peek(new sa.urtv.home.phone.UpdateStore(this), mine).kind != sa.urtv.home.phone.UpdateRecords.Kind.NONE) {
-                launch(new Intent(this, UpdateActivity.class));
+                launchGuarded(ParentalPolicy.UPDATE_SCREEN, new Intent(this, UpdateActivity.class), "تحديث تلفزيوني");   // the result of an update: behind «قفل الإعدادات» like the rest of the screen
             }
         } catch (RuntimeException ignored) { }
     }
