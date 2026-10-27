@@ -4158,10 +4158,12 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     const o = await openSaver(`clocksize=small&panel=${pair[0]}&panel2=${pair[1]}&digits=${digits}`, w, h);
     await o.p.evaluate(() => { renderPanel(false); fitCards(); });
     const r = await o.p.evaluate(() => {
+      // under its floor: smaller than the floor, and smaller than it is at full size (a text designed smaller is not shrunk at all)
       const vh = innerHeight, px = e => parseFloat(getComputedStyle(e).fontSize), low = [];
       for (const c of CARDS) {
-        for (const li of c.ul.children) if (li.textContent.trim() && px(li) < .021 * vh - .05) low.push(c.eff + ' row ' + px(li).toFixed(1));
-        for (const e of c.el.querySelectorAll('.hd, li *')) if (!e.children.length && e.textContent.trim() && px(e) < .0145 * vh - .05) low.push(c.eff + ' ' + (e.className || e.tagName) + ' ' + px(e).toFixed(1));
+        const under = (e, f) => px(e) < Math.min(f * vh, px(e) / c.z) - .05;
+        for (const li of c.ul.children) if (li.textContent.trim() && under(li, .021)) low.push(c.eff + ' row ' + px(li).toFixed(1) + ' z' + c.z);
+        for (const e of c.el.querySelectorAll('.hd, li *')) if (!e.children.length && e.textContent.trim() && under(e, .0145)) low.push(c.eff + ' ' + (e.className || e.tagName) + ' ' + px(e).toFixed(1) + ' z' + c.z);
       }
       return { low, dots: CARDS.some(c => c.el.innerText.includes('…')), kinds: CARDS.map(c => c.eff) };
     });

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- the build: UTC time (YYYYMMDDHHMMSS) of the newest commit of the page's sources, put in by src/build.py. The app loads the page with the newer stamp (its own
      copy or a downloaded one), never by file time, and does not keep a download whose stamp is older than its own (Updater, PageStamp). -->
-<meta name="urtv-build" content="20261027075740">
+<meta name="urtv-build" content="20261027080106">
 <title>شاشة تلفزيونك</title>
 <style>
   @font-face{font-family:'Thmanyah';font-weight:300;font-style:normal;font-display:block;src:url("https://raw.githubusercontent.com/tshi-dev/UrTV/master/assets/fonts/Thmanyah-Light.woff2") format("woff2")}
@@ -2552,10 +2552,12 @@ function cardCut(card){   // a name or a cell wider than its place: it would end
 // The screensaver's pair is read from the sofa: its text never goes below a floor (a row's text 2.1vh, every other line 1.45vh);
 // at the floor a verse or a dhikr takes a shorter text and a list fewer rows, as the home screen's cards do, instead of a smaller size.
 const PAIR_FLOOR = {row: .021, small: .0145};
+// (a text that is smaller than its floor at full size is not made smaller at all)
 function aboveFloor(c){
-  const vh = innerHeight, px = e => parseFloat(getComputedStyle(e).fontSize);
-  for(const li of c.ul.children) if(li.textContent.trim() && px(li) < PAIR_FLOOR.row * vh - .05) return false;
-  for(const e of c.el.querySelectorAll('.hd, li *')) if(e.children.length === 0 && e.textContent.trim() && px(e) < PAIR_FLOOR.small * vh - .05) return false;
+  const vh = innerHeight, z = parseFloat(c.el.style.getPropertyValue('--z')) || 1, px = e => parseFloat(getComputedStyle(e).fontSize);
+  const under = (e, floor) => { const now = px(e); return now < Math.min(floor * vh, now / z) - .05; };
+  for(const li of c.ul.children) if(li.textContent.trim() && under(li, PAIR_FLOOR.row)) return false;
+  for(const e of c.el.querySelectorAll('.hd, li *')) if(e.children.length === 0 && e.textContent.trim() && under(e, PAIR_FLOOR.small)) return false;
   return true;
 }
 function shrinkCard(c, tooWide){   // false when there is no step left
