@@ -26,14 +26,43 @@ def check(name, ok, detail=""):
     failed += not ok
 
 
+# Exactly the file, but for the time-zone data: a node with other data (Morocco left UTC+1 in tzdata 2026c) writes a zone's rows at
+# another offset, its times shifted by just that much. Those rows are drift, told apart; any other difference is a real one.
+def drift_only(new, old):
+    a, b = new.splitlines(), old.splitlines()
+    if len(a) != len(b):
+        return None
+    drift, zones = 0, set()
+    for x, y in zip(a, b):
+        if x == y:
+            continue
+        if x.startswith("# Written with the time-zone data") and y.startswith("# Written with the time-zone data"):
+            continue
+        fx, fy = x.split("\t"), y.split("\t")
+        if len(fx) != 9 or len(fy) != 9 or fx[:7] != fy[:7]:
+            return None
+        shift = int(fx[7]) - int(fy[7])
+        mx = [int(t[:2]) * 60 + int(t[3:]) for t in fx[8].split()]
+        my = [int(t[:2]) * 60 + int(t[3:]) for t in fy[8].split()]
+        if not shift or any(u - v != shift for u, v in zip(mx, my)):
+            return None
+        drift += 1
+        zones.add(fx[0])
+    return drift, zones
+
+
 if shutil.which("node"):
     run = subprocess.run(["node", str(ROOT / "tests/adhan_port_test.mjs")], capture_output=True, text=True)
     print(run.stdout, end="")
     check("adhan port: self-test", run.returncode == 0, run.stderr)
     gen = subprocess.run(["node", str(ROOT / "tests/prayer_crosscheck_gen.mjs")], capture_output=True, text=True)
     stored = (ROOT / "tests/prayer_crosscheck.tsv").read_text(encoding="utf-8")
-    check("prayer_crosscheck.tsv is exactly what tests/prayer_crosscheck_gen.mjs writes (a new city or a changed date needs it run again)",
-          gen.returncode == 0 and gen.stdout == stored, gen.stderr[:300] or "differs")
+    same = gen.returncode == 0 and gen.stdout == stored
+    tz = drift_only(gen.stdout, stored) if gen.returncode == 0 and not same else None
+    if tz:
+        print(f"NOTE prayer_crosscheck.tsv: {tz[0]} rows differ only by this node's time-zone data ({', '.join(sorted(tz[1]))}), not by a formula")
+    check("prayer_crosscheck.tsv is what tests/prayer_crosscheck_gen.mjs writes, but for the time-zone data (a new city or a changed date needs it run again)",
+          same or bool(tz), gen.stderr[:300] or "differs beyond the time-zone data")
 else:
     print("SKIP port and generator: no node here")
 
@@ -47,7 +76,7 @@ for r in rows:
 missing = [n for n, _, _, z in cities if len(have.get((n, z or "Asia/Riyadh"), ())) < 12]
 check(f"every one of the {len(cities)} cities of Cities.java has at least 12 dates in the file", not missing and len(cities) > 300, missing[:5])
 check("the dates include both Ramadans, the days the clocks change in Egypt, Lebanon, Palestine and Morocco, and 2026 and 2027",
-      {"2026-02-20", "2027-02-09", "2026-04-24", "2026-03-29", "2026-03-28", "2026-02-15", "2026-10-29"} <= {r[4] for r in rows}
+      {"2026-02-20", "2027-02-09", "2026-04-24", "2026-03-29", "2026-03-28", "2026-02-15", "2026-10-29", "2026-09-20"} <= {r[4] for r in rows}
       and any(r[4].startswith("2027") for r in rows) and any(r[4].startswith("2026") for r in rows), "")
 
 if shutil.which("javac"):
@@ -59,6 +88,32 @@ if shutil.which("javac"):
             out = run.stdout.decode("utf-8")
             print(out, end="")
             check(cls + " exit code", run.returncode == 0 and "FAIL" not in out, run.stderr.decode("utf-8", "replace")[-300:])
+        # The file as a machine with Morocco's new rule (tzdata 2026c: UTC+0 from 20 September 2026) writes it, against this machine's data:
+        # every such row is re-based and reported as time-zone drift, never as a formula error; one minute more than the drift still fails
+        def as_new_rule(extra=0):
+            out = []
+            for l in (ROOT / "tests/prayer_crosscheck.tsv").read_text(encoding="utf-8").splitlines():
+                f = l.split("\t")
+                if not l.startswith("#") and f[0] == "Africa/Casablanca" and f[4] >= "2026-09-20" and f[7] == "60":
+                    ms = [int(t[:2]) * 60 + int(t[3:]) - 60 + extra for t in f[8].split()]
+                    f[7], f[8] = "0", " ".join(f"{m // 60:02d}:{m % 60:02d}" for m in ms)
+                out.append("\t".join(f))
+            return "\n".join(out) + "\n"
+        drifted, wrong = Path(tmp) / "drifted.tsv", Path(tmp) / "wrong.tsv"
+        drifted.write_text(as_new_rule(), encoding="utf-8")
+        wrong.write_text(as_new_rule(extra=2), encoding="utf-8")
+        moved = sum(1 for a, b in zip(as_new_rule().splitlines(), (ROOT / "tests/prayer_crosscheck.tsv").read_text(encoding="utf-8").splitlines()) if a != b)
+        for path, want_ok in ((drifted, True), (wrong, False)):
+            run = subprocess.run(["java", "-Dfile.encoding=UTF-8", "-cp", tmp, "sa.urtv.home.tilawah.PrayerCrosscheckRun", str(path)], capture_output=True)
+            out = run.stdout.decode("utf-8")
+            if want_ok:
+                check(f"time-zone drift: the file as Morocco's new rule writes it ({moved} rows at UTC+0) passes, its rows re-based and reported as drift",
+                      run.returncode == 0 and f"{moved} rows re-based" in out and "Africa/Casablanca" in out, out[-400:])
+            else:
+                check("time-zone drift is not a blind spot: the same rows two minutes further off still fail as a formula error", run.returncode != 0, out[-300:])
+        check("the generator check tells the new rule's file apart as drift only",
+              drift_only(as_new_rule(), (ROOT / "tests/prayer_crosscheck.tsv").read_text(encoding="utf-8")) == (moved, {"Africa/Casablanca"})
+              and drift_only(as_new_rule(extra=2), (ROOT / "tests/prayer_crosscheck.tsv").read_text(encoding="utf-8")) is None and moved > 50, str(moved))
 else:
     print("SKIP launcher crosscheck: no javac here")
 sys.exit(1 if failed else 0)

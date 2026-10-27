@@ -34,7 +34,8 @@ public final class PrayerCrosscheckRun {
 
     public static void main(String[] args) throws Exception {
         int tolerance = args.length > 1 ? Integer.parseInt(args[1]) : 1;
-        int rows = 0, skipped = 0, bad = 0, wrongMethod = 0, exact = 0, off1 = 0;
+        int rows = 0, skipped = 0, bad = 0, wrongMethod = 0, exact = 0, off1 = 0, rebased = 0;
+        java.util.TreeSet<String> driftZones = new java.util.TreeSet<>();
         int[] worst = new int[6];
         int[][] hist = new int[6][5];   // signed difference -2..+2 and beyond clipped
         StringBuilder detail = new StringBuilder();
@@ -46,14 +47,18 @@ public final class PrayerCrosscheckRun {
             int y = Integer.parseInt(ymd[0]), mo = Integer.parseInt(ymd[1]), d = Integer.parseInt(ymd[2]);
             int method = Integer.parseInt(f[6]);
             long noon = PrayerMath.midnight(y, mo, d, tz) + 12 * 3600_000L;
-            if (TimeZone.getTimeZone(tz).getOffset(noon) / 60000 != Integer.parseInt(f[7])) { skipped++; continue; }
+            if (!TimeZone.getTimeZone(tz).getID().equals(tz)) { skipped++; continue; }   // a zone this machine does not know at all
+            // this machine's time-zone data gives the zone another offset that day than the data that wrote the file (Morocco left UTC+1 in
+            // tzdata 2026c): the sun is the same, only the clock moved, so the reference is re-based by the difference, counted apart
+            int shift = TimeZone.getTimeZone(tz).getOffset(noon) / 60000 - Integer.parseInt(f[7]);
+            if (shift != 0) { rebased++; driftZones.add(tz); }
             if (method != 0 && PrayerMath.methodFor(tz, null) != method) { wrongMethod++; System.out.println("FAIL method " + f[1] + " " + tz + ": app picks " + PrayerMath.methodFor(tz, null) + ", reference " + method); }
             long[] g = PrayerMath.compute(y, mo, d, Double.parseDouble(f[2]), Double.parseDouble(f[3]), tz, "1".equals(f[5]), method);
             String[] want = f[8].split(" ");
             rows++;
             boolean rowBad = false;
             for (int i = 0; i < 6; i++) {
-                int diff = wallMinutes(g[i], tz, y, mo, d) - minutes(want[i]);
+                int diff = wallMinutes(g[i], tz, y, mo, d) - (minutes(want[i]) + shift);
                 hist[i][Math.max(-2, Math.min(2, diff)) + 2]++;
                 worst[i] = Math.max(worst[i], Math.abs(diff));
                 if (Math.abs(diff) > tolerance) { rowBad = true; if (bad < 40) detail.append("  ").append(f[1]).append(' ').append(tz).append(' ').append(f[4]).append(" m").append(method).append(' ').append(NAMES[i]).append(' ').append(diff > 0 ? "+" : "").append(diff).append(" min (app ").append(String.format("%02d:%02d", wallMinutes(g[i], tz, y, mo, d) / 60, wallMinutes(g[i], tz, y, mo, d) % 60)).append(", reference ").append(want[i]).append(")\n"); }
@@ -62,7 +67,9 @@ public final class PrayerCrosscheckRun {
         }
         StringBuilder sum = new StringBuilder();
         for (int i = 0; i < 6; i++) sum.append(NAMES[i]).append(" max ").append(worst[i]).append(" [-2or less ").append(hist[i][0]).append(", -1 ").append(hist[i][1]).append(", 0 ").append(hist[i][2]).append(", +1 ").append(hist[i][3]).append(", +2or more ").append(hist[i][4]).append("]; ");
-        System.out.println("rows " + rows + ", skipped for another time-zone database " + skipped + "; " + sum);
+        System.out.println("rows " + rows + ", skipped for a zone this machine does not know " + skipped + "; " + sum);
+        System.out.println("time-zone data: this machine " + java.time.zone.ZoneRulesProvider.getVersions("UTC").lastEntry().getKey() + "; "
+                + (rebased == 0 ? "every row at the offset the file was written with" : rebased + " rows re-based for this machine's own offsets (" + String.join(", ", driftZones) + "), not formula errors"));
         System.out.print(detail);
         System.out.println((bad == 0 && wrongMethod == 0 ? "PASS " : "FAIL ") + "launcher PrayerMath vs the reference: every time of " + rows + " city-days within " + tolerance + " minute" + (bad > 0 ? " -> " + bad + " rows differ more" : ""));
         System.out.println((skipped * 50 <= rows ? "PASS " : "FAIL ") + "launcher crosscheck: at most 2% of the rows skipped for time-zone data (" + skipped + " of " + (rows + skipped) + ")");

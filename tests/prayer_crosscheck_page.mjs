@@ -20,7 +20,8 @@ const check = (name, ok, detail = '') => { console.log((ok ? 'PASS ' : 'FAIL ') 
 // one page per zone and method kind (the Ja'fari rows are the same zone with #pm=jafari)
 const groups = new Map();
 for (const r of rows) { const k = r[0] + (r[6] === '0' ? '|jafari' : ''); (groups.get(k) || groups.set(k, []).get(k)).push(r); }
-let done = 0, skipped = 0, badRows = 0, wrongMethod = 0, wrongRamadan = 0;
+let done = 0, skipped = 0, badRows = 0, wrongMethod = 0, wrongRamadan = 0, rebased = 0;
+const driftZones = new Set();
 const worst = [0, 0, 0, 0, 0, 0], detail = [];
 for (const [key, list] of groups) {
   const [zone, kind] = key.split('|');
@@ -38,14 +39,18 @@ for (const [key, list] of groups) {
     const got = await p.evaluate(([la, lo]) => {
       CONFIG.latitude = +la; CONFIG.longitude = +lo;
       const d = riyadhParts(), n = Date.UTC(d.y, d.mo - 1, d.d, 12), t = computePrayers();
-      return { m: CONFIG.prayerMethod, off: Math.round(tzOffsetMs(n - tzOffsetMs(n)) / 60000), ram: hijriMonthNow(true) === 9,
+      return { m: CONFIG.prayerMethod, zone: CONFIG.timezone, off: Math.round(tzOffsetMs(n - tzOffsetMs(n)) / 60000), ram: hijriMonthNow(true) === 9,
                t: [t.Fajr, t.Sunrise, t.Dhuhr, t.Asr, t.Maghrib, t.Isha].join(' ') };
     }, [lat, lon]);
-    if (got.off !== +noon) { skipped++; continue; }                 // another time-zone database than the one that wrote the file
+    if (got.zone !== zone) { skipped++; continue; }                 // a zone this browser does not know at all (the page falls back to Riyadh)
+    // this browser's time-zone data gives the zone another offset than the data that wrote the file (Morocco left UTC+1 in tzdata 2026c):
+    // the sun is the same, only the clock moved, so the reference is re-based by the difference, and counted apart from formula errors
+    const shift = got.off - +noon;
+    if (shift) { rebased++; driftZones.add(zone); }
     done++;
     if (+method !== 0 && got.m !== +method) { wrongMethod++; detail.push(`${name} ${zone}: page picks method ${got.m}, reference ${method}`); }
     if (+method === 4 && got.ram !== (ram === '1')) { wrongRamadan++; detail.push(`${name} ${date}: page says Ramadan=${got.ram}, file ${ram}`); }
-    const a = mins(got.t), b = mins(want);
+    const a = mins(got.t), b = mins(want).map(m => m + shift);
     let bad = false;
     a.forEach((m, i) => { const dm = Math.abs(m - b[i]); worst[i] = Math.max(worst[i], dm); if (dm > TOLERANCE) { bad = true; if (detail.length < 40) detail.push(`${name} ${zone} ${date} m${method} ${NAMES[i]}: page ${got.t.split(' ')[i]} vs reference ${want.split(' ')[i]}`); } });
     if (bad) badRows++;
@@ -53,7 +58,8 @@ for (const [key, list] of groups) {
   if (errors.length) { badRows++; detail.push(zone + ': ' + errors.join('; ')); }
   await ctx.close();
 }
-console.log(`rows ${done}, skipped for another time-zone database ${skipped}; worst difference in minutes: ` + NAMES.map((n, i) => `${n} ${worst[i]}`).join(', '));
+console.log(`rows ${done}, skipped for a zone this browser does not know ${skipped}; worst difference in minutes: ` + NAMES.map((n, i) => `${n} ${worst[i]}`).join(', '));
+console.log(`time-zone data: this browser ${rebased ? `re-based ${rebased} rows for its own offsets (${[...driftZones].join(', ')}), not formula errors` : 'gives every row the offset the file was written with'}`);
 detail.slice(0, 40).forEach(l => console.log('  ' + l));
 check(`page computePrayers vs the reference: every time of ${done} city-days within ${TOLERANCE} minute`, badRows === 0 && wrongMethod === 0, `${badRows} rows differ more, ${wrongMethod} wrong methods`);
 check('page: Umm al-Qura Ramadan (Isha +30) is on exactly the days of the official Ramadan', wrongRamadan === 0, String(wrongRamadan));

@@ -3135,15 +3135,19 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'nex
 
   // those countries' cities offline: the page's own formula against the independent reference (tests/prayer_gold_countries.tsv), one minute of slack
   {
-    const ref = readFileSync(path.join(ROOT, 'tests/prayer_gold_countries.tsv'), 'utf8').split('\n').filter(l => l && !l.startsWith('#')).map(l => l.split('\t'));
+    const ref = readFileSync(path.join(ROOT, 'tests/prayer_gold_countries.tsv'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#')).map(l => l.split('\t'));
     const mins = t => t.split(' ').map(x => +x.slice(0, 2) * 60 + +x.slice(3));
     const bad = [];
     for (const tz of Object.keys(zones)) {
       const { p, ctx, errors } = await open('tv.html', 'tz=' + encodeURIComponent(tz), { now: new Date('2026-10-23T09:00:00Z') });
-      for (const [name, date, lat, lon, z, want] of ref.filter(r => r[4] === tz)) {
+      for (const [name, date, lat, lon, z, want, written] of ref.filter(r => r[4] === tz)) {
         await p.clock.setFixedTime(new Date(date + 'T09:00:00Z'));
-        const t = await p.evaluate(([la, lo]) => { CONFIG.latitude = +la; CONFIG.longitude = +lo; const r = computePrayers(); return [r.Fajr, r.Sunrise, r.Dhuhr, r.Asr, r.Maghrib, r.Isha].join(' '); }, [lat, lon]);
-        if (mins(t).some((m, i) => Math.abs(m - mins(want)[i]) > 1)) bad.push(`${name} ${date}: ${t} vs ${want}`);
+        const [t, off] = await p.evaluate(([la, lo]) => { CONFIG.latitude = +la; CONFIG.longitude = +lo; const r = computePrayers(), d = riyadhParts(), n = Date.UTC(d.y, d.mo - 1, d.d, 12);
+          return [[r.Fajr, r.Sunrise, r.Dhuhr, r.Asr, r.Maghrib, r.Isha].join(' '), Math.round(tzOffsetMs(n - tzOffsetMs(n)) / 60000)]; }, [lat, lon]);
+        // written at `written` minutes from UTC: this browser's time-zone data may say another (Morocco left UTC+1 in tzdata 2026c); the
+        // sun is the same, so the reference is re-based by the difference, not failed
+        const shift = off - +written;
+        if (mins(t).some((m, i) => Math.abs(m - (mins(want)[i] + shift)) > 1)) bad.push(`${name} ${date}: ${t} vs ${want} (+${shift} min for this browser's zone data)`);
       }
       if (errors.length) bad.push(errors.join('; '));
       await ctx.close();
@@ -3152,7 +3156,7 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'nex
   }
 
   // a Saudi city keeps exactly the times it had (tests/prayer_gold.tsv is what the page computed before the Gulf methods)
-  const gold = readFileSync(path.join(ROOT, 'tests/prayer_gold.tsv'), 'utf8').split('\n').filter(l => l && !l.startsWith('#')).map(l => l.split('\t'));
+  const gold = readFileSync(path.join(ROOT, 'tests/prayer_gold.tsv'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#')).map(l => l.split('\t'));   // a Windows checkout may bring CRLF
   const { p, ctx, errors } = await open('tv.html', 'tz=Asia%2FRiyadh', { now: new Date('2026-10-23T09:00:00Z') });
   const bad = [];
   for (const [name, date, lat, lon, , want] of gold) {
