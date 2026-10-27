@@ -51,7 +51,7 @@ case "$1" in
 esac
 case "$1" in
   *launcherx*) echo "package:com.google.android.apps.tv.launcherx" ;;
-  "settings get global verifier_verify_adb_installs") cat "$T/verifier" 2>/dev/null || echo null ;;
+  "settings get global verifier_verify_adb_installs") [ "$VERIFIER_EMPTY" = yes ] && exit 0; cat "$T/verifier" 2>/dev/null || echo null ;;
   "settings put global verifier_verify_adb_installs"*) log "put-${1##* }"; echo "${1##* }" > "$T/verifier" ;;
   "settings delete global verifier_verify_adb_installs") log delete; rm -f "$T/verifier" ;;
   "pm install -i com.android.vending"*) log vending; touch "$T/stays"; echo Success ;;
@@ -106,7 +106,7 @@ while [ $# -gt 0 ]; do [ "$1" = -o ] && : > "$2"; shift; done
 
 
 def run(name, fail_switches, first_drop, down_polls=0, verify="", verifier=None, curl_mode="", vanish="", illegal="", wraith_home="", wifi="", nohome="", install_mode="",
-        watchdog="", restore_fail="", tcltv="", dialog="", seed=None, seed_home="", seed_marker=False, role="", script="install.sh", args=("launcher",)):
+        watchdog="", restore_fail="", tcltv="", dialog="", verifier_empty="", seed=None, seed_home="", seed_marker=False, role="", script="install.sh", args=("launcher",)):
     t = Path(tempfile.mkdtemp())
     tree, bin_ = t / "tree", t / "bin"
     (tree / "optimize" / "lists").mkdir(parents=True); bin_.mkdir()
@@ -130,7 +130,7 @@ def run(name, fail_switches, first_drop, down_polls=0, verify="", verifier=None,
         (bin_ / f).write_text(body); (bin_ / f).chmod(0o755)
     if verifier is not None:
         (t / "verifier").write_text(verifier + "\n")
-    env = dict(os.environ, DIALOG=dialog, TCLTV=tcltv, RESTORE_FAIL=restore_fail, WATCHDOG=watchdog, ROLE=role, INSTALL_MODE=install_mode, NOHOME=nohome, WRAITH_HOME=wraith_home, WIFI=wifi, ILLEGAL=illegal, VERIFY=verify, VANISH=vanish, CURL_MODE=curl_mode, PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), T=str(t),
+    env = dict(os.environ, VERIFIER_EMPTY=verifier_empty, DIALOG=dialog, TCLTV=tcltv, RESTORE_FAIL=restore_fail, WATCHDOG=watchdog, ROLE=role, INSTALL_MODE=install_mode, NOHOME=nohome, WRAITH_HOME=wraith_home, WIFI=wifi, ILLEGAL=illegal, VERIFY=verify, VANISH=vanish, CURL_MODE=curl_mode, PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), T=str(t),
                FAIL_SWITCHES=str(fail_switches), FIRST_DROP=first_drop, DOWN_POLLS=str(down_polls))
     r = subprocess.run(["bash", str(tree / "optimize" / script), *args], env=env, capture_output=True, text=True)
     log = (t / "log").read_text().split() if (t / "log").exists() else []
@@ -208,6 +208,9 @@ cases = [
      lambda c, o, l: c == 0 and "put-0" not in l and "Play Protect refused" not in o),
 ]
 cases += [
+    ("Play Protect refuses and the TV does not say what its ADB check is set to (empty answer): it is NOT switched off, a !! line says so, exit 1",
+     run("pv", 0, "", verify="once", verifier_empty="yes"),
+     lambda c, o, l: c == 1 and "!! Play Protect refused the install over ADB, but the TV did not say" in o and "put-0" not in l and "refused" in l),
     ("a TCL (com.tcl.tv is there): its TV app is stopped BEFORE the home app is installed over, once",
      run("tc", 0, "", tcltv="yes"),
      lambda c, o, l: c == 0 and l.count("force-stop") == 1 and l.index("force-stop") < l.index("installed")),

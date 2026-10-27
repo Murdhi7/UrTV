@@ -45,10 +45,12 @@ verifier_old=; verifier_set=0
 restore_verifier() {
   [ "$verifier_set" = 1 ] || return 0
   verifier_set=0
-  if [ -z "$verifier_old" ] || [ "$verifier_old" = null ]; then
-    "$PY" -I optimize/tv.py "settings delete global $VERIFIER" > /dev/null 2>&1 || true
+  if [ "$verifier_old" = null ]; then
+    "$PY" -I optimize/tv.py "settings delete global $VERIFIER" > /dev/null 2>&1 \
+      || echo "!! Play Protect's ADB check could not be put back (the connection dropped): it was not set before; run optimize/venv/bin/python -I optimize/tv.py \"settings delete global $VERIFIER\""
   else
-    "$PY" -I optimize/tv.py "settings put global $VERIFIER $verifier_old" > /dev/null 2>&1 || true
+    "$PY" -I optimize/tv.py "settings put global $VERIFIER $verifier_old" > /dev/null 2>&1 \
+      || echo "!! Play Protect's ADB check could not be put back (the connection dropped): it was $verifier_old before; run optimize/venv/bin/python -I optimize/tv.py \"settings put global $VERIFIER $verifier_old\""
   fi
 }
 trap restore_verifier EXIT
@@ -92,6 +94,10 @@ push_install() {   # $1 apk name, $2 package
   out=$(pm_install "$1" "$2")
   if grep -q INSTALL_FAILED_VERIFICATION_FAILURE <<< "$out"; then
     verifier_old=$("$PY" -I optimize/tv.py "settings get global $VERIFIER" | tr -d '\r\n' || true)
+    if [ -z "$verifier_old" ]; then   # only the word «null» means «not set»; an empty answer is «the TV did not say»
+      echo "!! Play Protect refused the install over ADB, but the TV did not say what its ADB check is set to, so it was not changed. Run the same command again."
+      exit 1
+    fi
     echo "Play Protect refused the install over ADB: its ADB check is off for this install only, and put back right after (was: ${verifier_old:-not set})."
     echo "للشخص: لو طلعت على التلفزيون رسالة من Play Protect (التطبيق «غير آمن» أو «مبني لإصدار قديم»)، اضغط «تثبيت على أي حال» (Install anyway) بالريموت. هذا تطبيق تلفزيونك، والرسالة تطلع لأن الشاشة الرئيسية مبنية لإصدار أندرويد أقدم."
     verifier_set=1
