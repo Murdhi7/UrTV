@@ -212,6 +212,11 @@ public class SettingsActivity extends Activity {
         }
         row("التحية والطقس", prefs.greeting() ? "تعمل" : "متوقفة", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setGreeting(!prefs.greeting()); render(); } });
+        // «المظهر»: OK goes on to the next, داكن → فاتح → تلقائي (the home takes it at its next minute)
+        row("المظهر", Prefs.appearanceLabel(prefs.appearance()), R.drawable.ic_eye,
+            new Runnable() { public void run() {
+                int at = java.util.Arrays.asList(Prefs.APPEARANCES).indexOf(prefs.appearance());
+                prefs.setAppearance(Prefs.APPEARANCES[(at + 1) % Prefs.APPEARANCES.length]); render(); } });
         // the adhan's settings (on or off, the voice, the Fajr voice, short, any key stops it, the volume): the same screen as the player's adhan tab,
         // opened through the home (behind its family lock), so they are reachable with the «تلاوة وأذان» button hidden too
         row("الأذان", "تشغيله وصوته وصوت الفجر والمختصر والإيقاف بأي زر والمستوى", R.drawable.ic_settings,

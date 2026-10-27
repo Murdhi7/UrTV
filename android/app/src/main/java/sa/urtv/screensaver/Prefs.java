@@ -660,6 +660,14 @@ final class Prefs {
         setHomePanels(v);
     }
 
+    /** «المظهر» of the launcher's home screen: dark (the default, as it always was), light, or auto (light from sunrise until Maghrib). */
+    static final String[] APPEARANCES = {"dark", "light", "auto"};
+    String appearance() { String v = sp.getString("appearance", "dark"); return java.util.Arrays.asList(APPEARANCES).contains(v) ? v : "dark"; }
+    void setAppearance(String v) { if (java.util.Arrays.asList(APPEARANCES).contains(v)) sp.edit().putString("appearance", v).apply(); }
+    static String appearanceLabel(String v) {
+        return "light".equals(v) ? "فاتح" : "auto".equals(v) ? "تلقائي · فاتح من الشروق إلى المغرب، وداكن بعده" : "داكن";
+    }
+
     /** The greeting and the weather line on the launcher's home screen (default on). Off: the plain good-morning it had. */
     boolean greeting() { return sp.getBoolean("greeting", true); }
     void setGreeting(boolean v) { sp.edit().putBoolean("greeting", v).apply(); }
