@@ -410,14 +410,27 @@ await T('themes', async () => {
     check(`${scheme}: main text vs background >= 4.5`, ratio(c.text, c.bg) >= 4.5, ratio(c.text, c.bg).toFixed(2));
     check(`${scheme}: secondary text and headings >= 4.5`, ratio(c.dim, c.bg) >= 4.5 && ratio(c.h2, c.bg) >= 4.5 && ratio(c.famDim, c.card) >= 4.5, [ratio(c.dim, c.bg), ratio(c.h2, c.bg), ratio(c.famDim, c.card)].map(x => x.toFixed(2)).join('/'));
     check(`${scheme}: gold button label >= 4.5`, ratio(c.ink, c.gold) >= 4.5, ratio(c.ink, c.gold).toFixed(2));
-    const isLight = lum(c.bg) > 0.5;
-    check(`${scheme}: the page follows the phone`, isLight === (scheme === 'light'));
-    // the toggle flips it and remembers it
+    check(`phone set to ${scheme}: the page is dark by default (one look on every screen, whatever the phone is set to)`, lum(c.bg) < 0.1);
+    // every screen has the very same colours
+    const looks = [];
+    for (const name of ['remote', 'apps', 'now', 'settings']) {
+      await tab(S, name);
+      looks.push(await S.p.evaluate(() => { const g = e => getComputedStyle(e).backgroundColor + '|' + getComputedStyle(e).color; return g(document.body) + '|' + g(document.querySelector('button')); }));
+    }
+    check(`phone set to ${scheme}: the four screens share one look`, new Set(looks).size === 1, looks.join(' / '));
+    // the toggle switches ALL screens together and remembers it
     await S.p.click('#theme'); await sleep(100);
     const flipped = await S.p.evaluate(() => [document.documentElement.getAttribute('data-theme'), localStorage.getItem('urtvTheme')]);
-    check(`${scheme}: the toggle flips and remembers`, flipped[0] === (scheme === 'light' ? 'dark' : 'light') && flipped[1] === flipped[0], flipped.join());
-    const bg2 = await S.p.evaluate(() => getComputedStyle(document.body).backgroundColor.match(/[\d.]+/g).slice(0, 3).map(Number));
-    check(`${scheme}: after the flip the other theme is on`, (lum(bg2) > 0.5) === (scheme === 'dark'));
+    check(`phone set to ${scheme}: the toggle goes to light and remembers it`, flipped[0] === 'light' && flipped[1] === 'light', flipped.join());
+    const lights = [];
+    for (const name of ['remote', 'apps', 'now', 'settings']) {
+      await tab(S, name);
+      lights.push(await S.p.evaluate(() => getComputedStyle(document.body).backgroundColor));
+    }
+    check(`phone set to ${scheme}: after the toggle all four screens are light together`, new Set(lights).size === 1 && lum(lights[0].match(/[\d.]+/g).slice(0, 3).map(Number)) > 0.5, lights.join(' / '));
+    const lc = await S.p.evaluate(() => { const rgb = e => getComputedStyle(e).color.match(/[\d.]+/g).slice(0, 3).map(Number); const bg = getComputedStyle(document.body).backgroundColor.match(/[\d.]+/g).slice(0, 3).map(Number); return { bg, text: rgb(document.body), dim: rgb(document.querySelector('#t-settings p')), h2: rgb(document.querySelector('#t-settings h2')) }; });
+    check(`light after the toggle: text, secondary text and headings >= 4.5`, ratio(lc.text, lc.bg) >= 4.5 && ratio(lc.dim, lc.bg) >= 4.5 && ratio(lc.h2, lc.bg) >= 4.5, [ratio(lc.text, lc.bg), ratio(lc.dim, lc.bg), ratio(lc.h2, lc.bg)].join());
+    await S.p.reload(); await sleep(300);
     await S.ctx.close();
   }
 });

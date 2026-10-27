@@ -8,7 +8,6 @@
 <title>تحكم من الجوال</title>
 <style>
 :root { --bg:#04120c; --card:#0d2418; --line:#2f4d39; --gold:#d6af6b; --gt:#d6af6b; --text:#f6efe0; --dim:#c6bba4; --red:#ee8b70; --ink:#04120c; --tile:#1a4030; --bar:#08190f; }
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg:#f7f3ea; --card:#ffffff; --line:#b9ae94; --gold:#c99a3e; --gt:#775210; --text:#1d2b22; --dim:#4a574d; --red:#a63a1f; --ink:#04120c; --tile:#e6dcc3; --bar:#ffffff; } }
 :root[data-theme="light"] { --bg:#f7f3ea; --card:#ffffff; --line:#b9ae94; --gold:#c99a3e; --gt:#775210; --text:#1d2b22; --dim:#4a574d; --red:#a63a1f; --ink:#04120c; --tile:#e6dcc3; --bar:#ffffff; }
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html,body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif; }
@@ -187,12 +186,11 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x !== undefined) e.textContent = x; return e; }
   try { sess = sessionStorage.getItem('urtv'); } catch (e) { sess = null; }
 
-  // ---- theme: follows the phone, a press remembers the other one
+  // ---- theme: dark on every screen by default (whatever the phone is set to); the ◐ button switches ALL screens together and the phone remembers it
   function theme(t) { if (t) document.documentElement.setAttribute('data-theme', t); }
   try { theme(localStorage.getItem('urtvTheme')); } catch (e) { }
   $('theme').onclick = function () {
-    var dark = document.documentElement.getAttribute('data-theme') === 'dark' ||
-      (!document.documentElement.getAttribute('data-theme') && !(window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches));
+    var dark = document.documentElement.getAttribute('data-theme') !== 'light';
     var n = dark ? 'light' : 'dark'; theme(n);
     try { localStorage.setItem('urtvTheme', n); } catch (e) { }
   };
