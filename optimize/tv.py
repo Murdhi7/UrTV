@@ -132,7 +132,13 @@ def load_identity():
     try:
         with open(ID_FILE, encoding="utf-8") as f:
             ident = json.load(f)
-        return ident if isinstance(ident, dict) else None
+        if not isinstance(ident, dict):
+            return None
+        # a record from an older version can hold a placeholder as the serial (it only rejected «unknown» and «null»): that was never an id
+        for k in ("serial", "android_id"):
+            if k in ident and is_placeholder(str(ident[k])):
+                ident[k] = ""
+        return ident
     except (OSError, ValueError):
         return None
 
@@ -165,7 +171,10 @@ def check_identity(out):
             save_identity(merged)
     if not same_tv(saved, now):
         was, is_now = tv_name(saved), tv_name(now)
-        if was.lower() == is_now.lower():
+        no_id = (saved.get("serial") or saved.get("android_id")) and not any(saved.get(k) and now.get(k) for k in ("serial", "android_id"))
+        if no_id:   # the saved TV had an id this answer does not show: not downgraded to a model match
+            is_now += " (that did not show its serial this time)"
+        elif was.lower() == is_now.lower():
             is_now += " (another one of the same model)"
         sys.exit(f"!! This is not the TV the setup started on: that was a {was}, and a {is_now} answers now. Nothing was "
                  "changed. If two devices are on this Wi-Fi, run optimize/find-tv.sh and pick the TV (or set TV_HOST), then "

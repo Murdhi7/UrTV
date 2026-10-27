@@ -21,48 +21,49 @@ nonce=$(jget nonce)
 RUN="${URTV_RUN_DIR:-optimize/run}"
 LEDGER="$RUN/disabled-by-us.txt"
 problems=""
-# A list's packages, one per line. No match (an empty file, only comments) is a valid empty set; a file that cannot be read (a read error, not a
-# missing match) is a problem, said at the end: the home recovery below never depends on the package part, and an error here must not stop it.
-words_of() {   # file -> its first words, comments and blank lines dropped; sets $problems when the file cannot be read
-  local txt
+RESULT=""
+# A list's packages, one per line, in $RESULT (no subshell: a file that cannot be read is added to $problems, said at the end). No match (an
+# empty file, only comments) is a valid empty set; only a read error is a problem. The home recovery below never depends on any of this.
+words_of() {   # file -> its first words, comments and blank lines dropped
+  local txt; RESULT=""
   txt=$(cat "$1" 2> /dev/null) || { problems="$problems $1"; return 0; }
-  { grep -vE '^[[:space:]]*(#|$)' <<< "$txt" || true; } | awk '{print $1}'
+  RESULT=$({ grep -vE '^[[:space:]]*(#|$)' <<< "$txt" || true; } | awk '{print $1}')
 }
 ledger_pkgs() {   # the ledger's package names (anything else on a line is dropped)
-  local txt
+  local txt; RESULT=""
   txt=$(cat "$1" 2> /dev/null) || { problems="$problems $1"; return 0; }
-  { grep -E '^[A-Za-z0-9_.]+$' <<< "$txt" || true; } | sort -u
+  RESULT=$({ grep -E '^[A-Za-z0-9_.]+$' <<< "$txt" || true; } | sort -u)
 }
-# What to turn back on. With a ledger (what our disable runs turned off, installed and not already off before): only that, so a package the maker
-# or the owner had off before UrTV stays off. The stock home's helpers (lists/home-replaced.txt) are part of the home recovery and always come.
-# Without one (an install from before the ledger): the lists given, minus what the backup shows was off before UrTV; with no backup either, all of
-# them, and it says so. (Called without $(…) where they set $problems: a subshell would lose it.)
+minus() {   # $1 without the lines of $2 (awk, not grep -f: an empty pattern file matches everything on some greps)
+  awk 'NR==FNR { if ($0 != "") s[$0] = 1; next } !($0 in s)' <(printf '%s\n' "$2") <(printf '%s\n' "$1")
+}
+legacy=""
+for LIST in "$@"; do words_of "$LIST"; legacy="$legacy"$'\n'"$RESULT"; done
+words_of optimize/lists/home-replaced.txt; home_helpers=$RESULT
+# What the TV had off before UrTV, from a real backup (a saved package list of 20 or more): those stay off.
+backup="$RUN/backup.txt"; backup_ok=no; before_off=""
+if [ -r "$backup" ] && [ "$(grep -c '^package:' "$backup" || true)" -ge 20 ]; then
+  backup_ok=yes
+  before_off=$(awk '/^== disabled packages/{s=1; next} /^== /{s=0} s' "$backup" | tr -d '\r' | sed -n 's/^package://p')
+fi
+# What to turn back on. The ledger lists what our disable runs turned off (installed, and not already off before them). An install from before
+# the ledger turned its first packages off without it, and a later run then found them already off: so with a real backup the lists count too,
+# minus what the TV had off before UrTV. With no ledger: the same lists, and with no backup either every package of them, and it says so.
+# The stock home's helpers (lists/home-replaced.txt) are part of the home recovery and always come.
 enable=""
-scratch=$(mktemp)
-trap 'rm -f "$scratch"' EXIT
 if [ -e "$LEDGER" ]; then
-  ledger_pkgs "$LEDGER" > "$scratch" || true
-  enable=$(cat "$scratch")
-else
-  for LIST in "$@"; do
-    words_of "$LIST" > "$scratch" || true
-    enable="$enable"$'\n'"$(cat "$scratch")"
-  done
-  if [ "$#" -gt 0 ]; then
-    backup="$RUN/backup.txt"
-    if [ -r "$backup" ] && [ "$(grep -c '^package:' "$backup" || true)" -ge 20 ]; then
-      before_off=$(awk '/^== disabled packages/{s=1; next} /^== /{s=0} s' "$backup" | tr -d '\r' | sed -n 's/^package://p')
-      enable=$(grep -Fxvf <(printf '%s\n' "$before_off") <<< "$enable" || true)
-    else
-      echo "Note: there is no record of what our setup turned off and no backup of what the TV had off before it, so every package of the lists is turned on (including any the TV itself had off)."
-    fi
+  ledger_pkgs "$LEDGER"; enable=$RESULT
+  if [ "$backup_ok" = yes ] && [ "$#" -gt 0 ]; then enable="$enable"$'\n'"$(minus "$legacy" "$before_off")"; fi
+elif [ "$#" -gt 0 ]; then
+  if [ "$backup_ok" = yes ]; then enable=$(minus "$legacy" "$before_off")
+  else
+    enable=$legacy
+    echo "Note: there is no record of what our setup turned off and no backup of what the TV had off before it, so every package of the lists is turned on (including any the TV itself had off)."
   fi
 fi
-words_of optimize/lists/home-replaced.txt > "$scratch" || true
-home_helpers=$(cat "$scratch")
 {
-  # the package part: the lines that build it can fail or be empty without costing the home recovery below
-  { printf '%s\n' "$home_helpers" "$enable" | { grep -E '^[A-Za-z0-9_.]+$' || true; } | sort -u | awk '{print "pm enable " $1}'; } || true
+  # 1. the home recovery first: it never waits for, or depends on, the package part
+  { printf '%s\n' "$home_helpers" | { grep -E '^[A-Za-z0-9_.]+$' || true; } | sort -u | awk '{print "pm enable " $1}'; } || true
   echo "pm enable com.google.android.tungsten.setupwraith"
   if [ -n "$STOCK_LAUNCHER" ]; then   # the safety switch is stopped only when the home really is put back by hand
     echo "touch /data/local/tmp/home_ok"
@@ -73,6 +74,8 @@ home_helpers=$(cat "$scratch")
     echo "cmd role add-role-holder --user 0 android.app.role.HOME ${STOCK_LAUNCHER%%/*}"
     echo "cmd package set-home-activity --user 0 $STOCK_LAUNCHER"
   fi
+  # 2. then the packages
+  { printf '%s\n' "$enable" | { grep -E '^[A-Za-z0-9_.]+$' || true; } | sort -u | awk '{print "pm enable " $1}'; } || true
   echo "input keyevent KEYCODE_HOME"
 } | "$PY" -I optimize/tv.py --batch
 [ -z "$STOCK_LAUNCHER" ] || jstate restored

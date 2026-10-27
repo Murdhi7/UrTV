@@ -89,13 +89,28 @@ def build(run, lists):
     backup = read(run / "backup.txt")
     apps = []
     ledger = read(run / "disabled-by-us.txt")
+    real_backup = backup is not None and len(package_lines(section(backup, "all"))) >= 20   # a saved package list, not an empty answer
+
+    def from_lists():
+        """The lists, minus what the TV had off before the setup, and minus what the TV never had."""
+        before_off = set(package_lines(section(backup, "disabled")))   # «== disabled packages»
+        before_all = set(package_lines(section(backup, "all")))
+        ours = []
+        for name in ("tcl-safe.txt", "mine.txt"):
+            ours += listed(lists / name)
+        ours += listed(run / "community-applied.txt")
+        return [p for p in dict.fromkeys(ours) if p not in before_off and (not before_all or p in before_all)]
+
     if ledger is not None:
-        # what our disable runs recorded (installed on the TV, not already off before): only those, once each, whatever the lists say now
+        # what our disable runs recorded (installed on the TV, not already off before): once each, whatever the lists say now. An install from
+        # before the ledger turned its first packages off without it (a later run saw them already off), so with a real backup the lists count too
         names = []
         for line in ledger.splitlines():
             line = line.strip()
             if re.fullmatch(r"[A-Za-z0-9_.]+", line) and line not in names:
                 names.append(line)
+        if real_backup:
+            names += [p for p in from_lists() if p not in names]
         apps += [f"pm enable {p}" for p in names if ok(p)]
         if not names:
             apps += ["# the record of what the setup turned off is empty: no app was turned off by it"]
@@ -103,19 +118,7 @@ def build(run, lists):
         apps += ["# no backup.txt here: the apps that were turned off are not listed"]
     else:
         # an install from before the record: the lists, minus what the TV had off before the setup
-        before_off = set(package_lines(section(backup, "disabled")))   # «== disabled packages»
-        before_all = set(package_lines(section(backup, "all")))
-        ours = []
-        for name in ("tcl-safe.txt", "mine.txt"):
-            ours += listed(lists / name)
-        ours += listed(run / "community-applied.txt")
-        seen = set()
-        for p in ours:
-            if p in seen or p in before_off or (before_all and p not in before_all):
-                continue
-            seen.add(p)
-            if ok(p):
-                apps.append(f"pm enable {p}")
+        apps += [f"pm enable {p}" for p in from_lists() if ok(p)]
     out.append(("Apps the setup turned off", apps))
 
     # 3. the speed tweaks

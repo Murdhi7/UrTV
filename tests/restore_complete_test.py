@@ -115,4 +115,16 @@ check("legacy, no ledger and no backup: every package of the lists, and a plain 
 backup = "== all packages\n" + "".join(f"package:com.p{i}\n" for i in range(25)) + "== disabled packages\npackage:com.pre.off\n== screensaver\nnull\n"
 r, b = rtree(ledger=None, lists={"l.txt": "com.x.one\ncom.pre.off\n"}, backup=backup)
 check("legacy, no ledger but a backup: a package the TV had off before UrTV (the backup's «disabled packages») stays off", "pm enable com.x.one" in b and "pm enable com.pre.off" not in b and has_home(b), str(b))
+backup25 = "== all packages\n" + "".join(f"package:com.p{i}\n" for i in range(25)) + "== disabled packages\npackage:com.pre.off\n== screensaver\nnull\n"
+r, b = rtree(ledger="com.led.new\n", lists={"l.txt": "com.old.a\ncom.pre.off\n"}, backup=backup25)
+check("older install: a ledger that only has the later run + a real backup: the ledger PLUS the lists minus what was off before UrTV",
+      "pm enable com.led.new" in b and "pm enable com.old.a" in b and "pm enable com.pre.off" not in b and has_home(b), str(b))
+r, b = rtree(ledger="com.led.new\n", lists={"l.txt": "com.old.a\n"})
+check("a ledger and no backup: the ledger alone", "pm enable com.led.new" in b and "pm enable com.old.a" not in b, str(b))
+r, b = rtree(ledger="com.led.new\n", backup=backup25, lists={"l.txt": "com.old.a\n"})
+i_home, i_pkg, i_key = b.index("cmd package set-home-activity --user 0 com.google.android.tvlauncher/.MainActivity"), b.index("pm enable com.led.new"), b.index("input keyevent KEYCODE_HOME")
+check("order: the helpers, the setup app, home_ok, the stock enable, role and set-home come BEFORE the package enables, and KEYCODE_HOME is last",
+      b.index("pm enable com.tcl.helper") < b.index("touch /data/local/tmp/home_ok") < b.index("pm enable com.google.android.tvlauncher") < i_home < i_pkg < i_key and b[-1] == "input keyevent KEYCODE_HOME", str(b))
+r, b = rtree(ledger="")
+check("an empty backup 'disabled' section does not drop everything (no grep -f with an empty pattern file)", has_home(b), str(b))
 sys.exit(1 if failed else 0)

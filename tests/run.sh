@@ -36,6 +36,7 @@ python3 tests/restore_scripts_test.py
 python3 tests/power_fixes_test.py
 python3 tests/settle_test.py
 python3 tests/restore_complete_test.py
+python3 tests/reset_restore_rc_test.py
 python3 tests/failclosed_test.py
 python3 tests/key_home_test.py
 python3 tests/dock_names_test.py

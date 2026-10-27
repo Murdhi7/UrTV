@@ -45,7 +45,8 @@ installed=$(tvlist "pm list packages") || known=no
 was_off=$(tvlist "pm list packages -d") || known=no
 intended=""
 if [ "$known" = yes ] && grep -qx android <<< "$installed"; then
-  intended=$(printf '%s\n' "$pkgs" | grep -Fxf <(printf '%s\n' "$installed") | grep -vxFf <(printf '%s\n' "$was_off") || true)
+  intended=$(printf '%s\n' "$pkgs" | awk 'NR==FNR { s[$0] = 1; next } ($0 in s)' <(printf '%s\n' "$installed") - \
+    | awk 'NR==FNR { if ($0 != "") s[$0] = 1; next } !($0 in s)' <(printf '%s\n' "$was_off") -)   # (awk, not grep -f: an empty pattern file matches everything on some greps)
 else
   # without these two lists a restore could not be exact (a package the TV itself had off would be turned ON): nothing is turned off, and it can be run again
   echo "!! disable.sh: the TV did not say which packages it has or which were already off, so NOTHING was turned off (a restore could not be exact). Run the same command again." >&2
@@ -57,6 +58,6 @@ remember "$intended"   # written BEFORE the batch: a batch that dies half way is
 printf '%s\n' "$pkgs" | awk '{print "pm disable-user --user 0 " $1}' | "$PY" -I optimize/tv.py --batch
 # confirmed by what the TV says is off now (read from the package manager, which is up to date at once)
 if now_off=$(tvlist "pm list packages -d"); then
-  remember "$(printf '%s\n' "$intended" | grep -Fxf <(printf '%s\n' "$now_off") || true)"
+  remember "$(printf '%s\n' "$intended" | awk 'NR==FNR { s[$0] = 1; next } ($0 in s)' <(printf '%s\n' "$now_off") -)"
 fi
 optimize/settle.sh mark 2> /dev/null || true
