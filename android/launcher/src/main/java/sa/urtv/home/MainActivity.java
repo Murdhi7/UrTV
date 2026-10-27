@@ -109,6 +109,11 @@ public class MainActivity extends Activity {
     private final Runnable rotateWallpaper = this::nextWallpaper;
     static final long WALLPAPER_INTERVAL_MS = 10 * 60 * 1000;
     private TextView greeting, weatherLine, clock, ampm, date, zoneLine, title, appsLabel;
+    // «المظهر» (Look): the parts a light look recolours; built in the dark look's colours, so dark is exactly as it was
+    private View scrim;
+    private GradientDrawable dockBand;
+    private final List<TextView> gridLabels = new ArrayList<>();
+    private boolean lightNow;   // the look on screen now: dark until a light one is asked for
     private Pill tilawahPill;       // «تلاوة وأذان»: in the row only while the setting shows it (applyListenPill)
     private LinearLayout pillRow;    // the top row of pills
     private Pill wifiPill;   // the network's name shows while it has the focus
@@ -279,7 +284,7 @@ public class MainActivity extends Activity {
         root.addView(wallBack, new FrameLayout.LayoutParams(-1, -1));
         root.addView(wallFront, new FrameLayout.LayoutParams(-1, -1));
         // Scrim: darker at the top (clock, pills) and bottom (dock) so text stays readable.
-        View scrim = new View(this);
+        scrim = new View(this);
         scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{0xB3000000, 0x40000000, 0x26000000, 0x8C000000, 0xE6000000}));
         root.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
@@ -358,7 +363,7 @@ public class MainActivity extends Activity {
         dockRow.setClipChildren(false);
         dockRow.setClipToPadding(false);
         dockRow.setPadding(dp(20), dp(22), dp(20), dp(22));
-        GradientDrawable band = new GradientDrawable();
+        GradientDrawable band = dockBand = new GradientDrawable();
         band.setCornerRadius(dp(26));
         band.setColor(0x1FFFFFFF);
         band.setStroke(dp(1), 0x14FFFFFF);
@@ -625,6 +630,7 @@ public class MainActivity extends Activity {
         grid.removeAllViews();
         dockCards.clear();
         gridCards.clear();
+        gridLabels.clear();
 
         for (int i = 0; i < dock.size(); i++) {
             View tile = tile(dock.get(i), true);
@@ -743,7 +749,11 @@ public class MainActivity extends Activity {
         label.setSingleLine(true);
         label.setGravity(Gravity.CENTER);
         label.setAlpha(0f);
-        if (!inDock) box.addView(label, llp(-1, -2, 0, dp(10), 0, 0));
+        if (!inDock) {
+            box.addView(label, llp(-1, -2, 0, dp(10), 0, 0));
+            gridLabels.add(label);
+            if (lightNow) label.setTextColor(Look.LIGHT_LOOK.ink);
+        }
 
         card.setOnClickListener(v -> guarded(inDock ? ParentalPolicy.TILE : ParentalPolicy.GRID, app.pkg, app.label, () -> launch(new Intent(Intent.ACTION_MAIN)
                 .addCategory(app.category)
@@ -1413,6 +1423,34 @@ public class MainActivity extends Activity {
     private SimpleDateFormat gregFormat;
     private String formatZone = "";
 
+    /** Between sunrise and Maghrib in the screensaver's city (the prayer times', as the line under the greeting); null when not known. */
+    private Boolean dayBySun(ConfigSnapshot cfg) {
+        if (!Look.AUTO.equals(cfg.appearance())) return null;   // only the automatic look asks
+        try {
+            return "الغروب".equals(sa.urtv.home.tilawah.DayParts.now(this, cfg.fragment).sunLabel);   // «الغروب» is next: the sun is up
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** The home in the light or the dark look; nothing is touched while the look stays the same. */
+    private void applyLook(boolean light) {
+        if (light == lightNow) return;
+        lightNow = light;
+        Look.Palette p = Look.of(light);
+        clock.setTextColor(p.text);
+        title.setTextColor(p.ink);
+        title.setShadowLayer(dp(18), 0, 0, p.titleShadow);
+        for (TextView t : new TextView[]{weatherLine, date}) t.setTextColor(p.soft);
+        for (TextView t : new TextView[]{greeting, ampm, zoneLine, appsLabel}) t.setTextColor(p.gold);
+        for (TextView t : new TextView[]{greeting, weatherLine, clock, ampm, date, zoneLine}) t.setShadowLayer(dp(3), 0, dp(1), p.shadow);
+        for (TextView t : gridLabels) t.setTextColor(p.ink);
+        scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, p.scrim));
+        gridShade.setBackgroundColor(p.shade);
+        dockBand.setColor(p.band);
+        dockBand.setStroke(dp(1), p.bandStroke);
+    }
+
     private void updateClock() {
         long ms = System.currentTimeMillis();
         String tvTz = java.util.TimeZone.getDefault().getID();
@@ -1424,6 +1462,7 @@ public class MainActivity extends Activity {
         Calendar now = ClockZone.at(ms, tz);   // the city's time, like the prayer times beside it
         int h = now.get(Calendar.HOUR_OF_DAY);
         greetingLine.update(h, cfg);
+        applyLook(Look.light(cfg.appearance(), dayBySun(cfg), h * 60 + now.get(Calendar.MINUTE)));
         boolean h24 = cfg.clock24();   // «ساعة ٢٤»: off (12-hour with the ص or م) unless the owner turned it on
         clock.setText(ClockText.face(h, now.get(Calendar.MINUTE), h24, Digits.latin()));
         ampm.setText(ClockText.suffix(h, h24));

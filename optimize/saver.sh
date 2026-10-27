@@ -20,6 +20,7 @@
 #   optimize/saver.sh greeting off                 home screen: the greeting (by prayer time) and the weather line under it: on (default) or off
 #   optimize/saver.sh listenpill off               home screen: the «تلاوة وأذان» button: on (default) or off. Off removes only the button: the adhan, its alarm and bar, the
 #                                                  any-key stop, the «يُتلى الآن» card and the Quran stay; the screen opens from the app menu (long OK on an app) or the card
+#   optimize/saver.sh appearance auto              home screen: «المظهر», dark (default), light, or auto (light from sunrise until Maghrib in the city)
 #   optimize/saver.sh adhanbar off                 the slim bar before the adhan (last 10 minutes, then until the iqama) on the screensaver and the home screen: on (default) or off
 #   optimize/saver.sh updatechannel next          TESTING ONLY (agents; no screen shows it): «تحديث تلفزيوني» reads the version and the APKs from the apk-next release instead
 #                                                  of apk-latest: next or latest (default). Same signature, newer-version and permission checks. Put it back to latest after
@@ -184,6 +185,7 @@ case "${1:-}" in
   home-card)set1 home_panel "${2?usage: optimize/saver.sh home-card verse,hourly,year | none}" ;;
   greeting) set1 greeting "${2:?usage: optimize/saver.sh greeting on|off}" ;;
   listenpill) set1 listenpill "${2:?usage: optimize/saver.sh listenpill on|off}" ;;
+  appearance) set1 appearance "${2:?usage: optimize/saver.sh appearance dark|light|auto}" ;;
   adhanbar) set1 adhanbar "${2:?usage: optimize/saver.sh adhanbar on|off}" ;;
   updatechannel) set1 updatechannel "${2:?usage: optimize/saver.sh updatechannel next|latest   (testing only)}" ;;
   yearstrip)set1 yearstrip "${2:?usage: optimize/saver.sh yearstrip on|off}" ;;
