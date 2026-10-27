@@ -95,7 +95,7 @@ final class ControlCenter {
         Tile net = tile("الشبكة", "", R.drawable.ic_wifi, () -> { dismiss(); host.launchGuarded(ParentalPolicy.PILL_WIFI, new Intent(Settings.ACTION_WIFI_SETTINGS), "واي فاي"); });
         networkLines(net);
         tiles.add(net);
-        Tile test = tile("اختبار السرعة", "اضغط OK للبدء", R.drawable.ic_speed, null);
+        Tile test = tile("اختبار السرعة", "اضغط اختيار للبدء", R.drawable.ic_speed, null);
         test.action = () -> speedTest(test);
         tiles.add(test);
         tiles.add(tile("مخرج الصوت", outputLine(), R.drawable.ic_sound, () -> { dismiss(); host.launchGuarded(ParentalPolicy.PILL_TV_SETTINGS, soundIntent(), "إعدادات الصوت"); }));
@@ -345,7 +345,7 @@ final class ControlCenter {
         if (speed != null) {
             speed.cancel();
             speed = null;
-            t.setValue("أُلغي · اضغط OK للبدء");
+            t.setValue("أُلغي · اضغط اختيار للبدء");
             return;
         }
         final SpeedTest test = new SpeedTest();
@@ -362,7 +362,7 @@ final class ControlCenter {
             ui.post(() -> {
                 if (speed != test || !showing()) return;   // cancelled, or the panel closed meanwhile
                 speed = null;
-                t.setValue(result + "\nاضغط OK للإعادة");
+                t.setValue(result + "\nاضغط اختيار للإعادة");
             });
         }, "speed-test").start();
     }
