@@ -632,7 +632,7 @@ for (const [width, height] of [[1920, 1080], [960, 540], [720, 405]]) {
 const chart = (price, closes, prevClose) => JSON.stringify({ chart: { result: [{ meta: { regularMarketPrice: price, chartPreviousClose: prevClose },
   indicators: { quote: [{ close: closes }] } }] } });
 const MOCK = { '^TASI.SR': chart(11500.4, [11400, 11450, 11500.4]), '2222.SR': chart(26.3, [26, 26.2, 26.3]), '^GSPC': chart(6800.2, [6850, 6900, 6800.2]),
-               'GC=F': chart(4000, [3950, 3980, 4000]), 'SI=F': chart(50, [49, 50, 50]) };
+               'GC=F': chart(4000, [3950, 3980, 4000]), 'SI=F': chart(50, [49, 50, 50]), 'BZ=F': chart(82.34, [80, 82.34]) };
 const marketNet = state => r => {
   const u = r.request().url();
   if (state.off) { r.abort(); return true; }
@@ -673,6 +673,15 @@ const mk = p => p.evaluate(() => [...document.querySelectorAll('.mk .m')].map(m 
   await ctx.close();
 }
 {
+  const { p, ctx, errors } = await open('tv.html', 'markets=oil,spx,gold&mkstyle=prices', { net: marketNet({}) });
+  await p.waitForTimeout(800);
+  const r = await mk(p);
+  check('markets prices: Brent oil, S&P 500 and gold are shown in the selected order', !errors.length && r.map(x => x.n).join() === 'نفط برنت,S&P 500,الذهب', JSON.stringify(r) + errors.join('; '));
+  check('markets prices: the Brent quote uses dollars per barrel; gold remains SAR per gram',
+    r[0].px === '٨٢٫٣٤|دولار/برميل' && r[0].ch === '▲ ٢٫٩٣٪' && r[1].px === '٦٬٨٠٠|' && r[2].px === '٤٨٢٫٢٦|ر.س', JSON.stringify(r));
+  await ctx.close();
+}
+{
   const { p, ctx } = await open('tv.html', 'markets=spx,gold&digits=latin&mkstyle=prices', { net: marketNet({}) });
   await p.waitForTimeout(800);
   const r = await mk(p);
@@ -688,7 +697,7 @@ for (const [hash, want, price] of [['', 'تاسي,S&P 500,بيتكوين', false
   await ctx.close();
 }
 for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
-  for (const hash of ['markets=tasi,aramco,gold,silver&mkstyle=prices', 'markets=btc,xrp&mkstyle=prices']) {
+  for (const hash of ['markets=tasi,aramco,gold,silver&mkstyle=prices', 'markets=btc,xrp&mkstyle=prices', 'markets=oil,aramco,gold,silver&mkstyle=prices']) {   // the last: Brent's long unit beside three more
     const { p, ctx } = await open('tv.html', hash, { width, height, net: marketNet({}) });
     await p.waitForTimeout(800);
     const r = await p.evaluate(() => {

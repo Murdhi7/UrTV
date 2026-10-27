@@ -59,7 +59,7 @@ something about the screensaver, the home screen or the TV, find it in the table
 | what the bottom-left shows | الخانة اليسرى | `optimize/saver.sh slot <matches, weather, fasting, countdown, markets, none>` |
 | the next voluntary fast | الصيام | `optimize/saver.sh slot fasting` |
 | days left to a date (a trip, a wedding) | العدّ التنازلي | `optimize/saver.sh countdown <YYYY-MM-DD> '<name>'` and `optimize/saver.sh slot countdown` (`countdown clear` removes it) |
-| markets at the top left | الأسواق | `optimize/saver.sh markets <up to 4 of tasi, aramco, spx, btc, gold, silver, xrp>` |
+| markets at the top left | الأسواق | `optimize/saver.sh markets <up to 4 of tasi, aramco, spx, btc, gold, silver, oil, xrp>` (`oil` = Brent, in dollars per barrel) |
 | hide the markets line at the top (the weather stays) | شريط الأسواق | `optimize/saver.sh markets off` (`markets on` brings it back; the saved list is kept, nothing is fetched for the line while it is off; choosing markets turns it on; if the bottom-left slot is `markets` its prices are still fetched for the slot) |
 | the screensaver's clock bigger or smaller | حجم الساعة | `optimize/saver.sh clocksize <large, medium, small>` (`large` is the default and today's look; only the clock changes size) |
 | prices, not just arrows | عرض الأسواق | `optimize/saver.sh mkstyle prices` (`arrows` is the default) |
