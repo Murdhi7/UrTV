@@ -15,7 +15,8 @@ import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const page = name => 'file://' + (path.isAbsolute(name) ? name : path.join(ROOT, 'dist', name));   // a page of dist/, or one elsewhere (the base to compare with)
-// the branch the large clock is compared with, pixel for pixel (fetched, one commit deep, when this checkout does not have it)
+// the branch the large clock is compared with, pixel for pixel, at the commit this checkout left it (git merge-base; fetched one commit
+// deep when this checkout does not have it)
 const BASE_REF = process.env.URTV_BASE_REF || 'origin/next';
 const INDEX = readFileSync(path.join(ROOT, 'photos/index.json'), 'utf8');
 let failed = 0;
@@ -4199,8 +4200,12 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     const git = (...a) => execFileSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 << 20 });
     try { git('rev-parse', '--verify', '-q', BASE_REF + '^{commit}'); }
     catch (e) { git('fetch', '-q', '--depth=1', 'origin', BASE_REF.replace(/^origin\//, '') + ':refs/remotes/' + BASE_REF); }   // a shallow CI checkout
+    // where this branch left next, not next as it is now: a large layout changed on purpose on next later (or on master's own
+    // fixes) is not this branch's change. A shallow checkout has no history to look in: next itself, then.
+    let at = BASE_REF;
+    try { at = git('merge-base', 'HEAD', BASE_REF).trim() || BASE_REF; } catch (e) {}
     base = path.join(mkdtempSync(path.join(tmpdir(), 'urtv-base-')), 'tv.html');
-    writeFileSync(base, git('show', BASE_REF + ':dist/tv.html'));
+    writeFileSync(base, git('show', at + ':dist/tv.html'));
   } catch (e) { base = null; why = String(e.message).split('\n')[0]; }
   check(`large clock: the page of ${BASE_REF} to compare with`, !!base, why);
   // the pixels that differ and by how much at most (0-255 a channel). Two loads of one page are not always the same to the last
