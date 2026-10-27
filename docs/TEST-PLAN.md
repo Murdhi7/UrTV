@@ -144,7 +144,8 @@ Use the TV's clock or wait for the real moment; take a screenshot at each.
 | L4 | On the home screen, look at the top bar and the app rows, then press ▶ and ◀ on the pills and on the favourites | Everything reads from the right (المصادر، واي فاي، الإعدادات، شاشة التوقف، تلاوة; the first app of a row on the right); the right arrow always moves the highlight to the right and the left arrow to the left |
 | L6 | Look at the clock in the top corner | The time on the right and the «ص» / «م» on its left (١٢:٣٣ ص) |
 | L7 | Build the launcher with another key (a test build) and press Home | The card on the home screen falls back to «مواقيت اليوم» for the default city, because the screensaver's settings cannot be read |
-| L8 | Long-press OK on any app → «ترتيب المفضلة…» (also: screensaver settings → «ترتيب التطبيقات المفضلة») | List of favourites, numbered, first one focused |
+| L8 | Screensaver settings → «ترتيب التطبيقات المفضلة» (the long-press menu no longer has it) | List of favourites, numbered, first one focused |
+| L8b | Long-press OK on a favourite → «تعديل المفضلة» (also: settings → «تعديل المفضلة»); OK picks up, ◀▶ move (in Arabic ▶ goes toward the right end), ▲ to the start, OK drops, Back puts back; ▼ then OK on «×» removes, «تراجع» for 5 s; Back leaves | Hint line on top, × on each tile, lifted tile with a gold outline; the order stays after leaving and in `dock.sh show`; the adhan stops on any key; with a PIN and «قفل الإعدادات» the PIN is asked first |
 | L9 | OK on the 3rd app, ▲ twice, OK; then Back | It turns gold, moves to the top, drops; home row shows it first |
 | L10 | «إزالة» beside an app (▶/◀ to reach it); then «+» on an app under «إضافة تطبيق» | Removed / added at the end; never below 5 or above 10 (a message says so) |
 | L12 | `optimize/saver.sh tasks add 'اشتري خبز'`, then press Home and the «المهام» pill | The pill is there; the list shows «اشتري خبز» with a gold dot; OK on it → «تم: اشتري خبز», it turns to ✓ |

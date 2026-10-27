@@ -78,6 +78,7 @@ python3 tests/unsplash_header_test.py
 python3 tests/bounded_test.py
 python3 tests/adhan_bar_test.py
 python3 tests/adhan_keys_test.py
+python3 tests/fav_edit_test.py
 python3 tests/adhan_reply_test.py
 python3 tests/clock_zone_test.py
 python3 tests/countdown_text_test.py

@@ -12,6 +12,7 @@ Newest first. `next` is where changes land first; a release is what was tested t
 - «أذان من ملفي»: the person's own adhan; the old one stays until the new one is in.
 
 **Home screen and screensaver**
+- «تعديل المفضلة»: press a favourite to pick it up and move it along the row, × to remove it with «تراجع»; «ترتيب التطبيقات المفضلة» is now in the settings only.
 - Prayer times as boxes, new pills (icons only, the name shows on focus), glass panels, softer glow on the focused app.
 - «يُتلى الآن» card while تلاوة plays; the screen is now «تلاوة وأذان».
 - A year strip under the clock, the date beside the clubs, club crests when fetch is refused, fixes to the league card.
