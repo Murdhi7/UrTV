@@ -31,7 +31,9 @@ check("`saver.sh show` says it", '"\\nupdatechannel: " + p.updateChannel()' in r
 check("the provider tells the home app in its own column, at the end", '"adhan_bar", "update_channel"}' in prov and 'p.updateChannel()});' in prov)
 check("the home app asks the provider and treats anything but next as latest", '"next".equals(cur.getString(i))' in text(HOME + "UpdateChannel.java") and 'return "latest"' in text(HOME + "UpdateChannel.java"))
 pu = text(HOME + "PhoneUpdater.java")
-check("version.txt and every APK (size, download) come from the channel's release", 'readVersion(base(c) + "version.txt")' in pu and pu.count("base(c) + ") >= 3 and "UpdateRules.BASE +" not in pu and "UpdateRules.VERSION_URL" not in pu)
+check("version.txt, the sizes and the files all come from the channel's release (read once)", 'readVersion(base + "version.txt")' in pu and 'sizeOf(base + ' in pu and 'fetch(base + ' in pu and "UpdateRules.BASE +" not in pu and "UpdateRules.VERSION_URL" not in pu)
+check("the channel is read once per run and kept (a flip mid-run cannot mix releases)", pu.count("UpdateChannel.read(c)") == 1 and "final String base = releaseBase;" in pu and "base(c)" not in pu, "")
+check("no unused VERSION_URL in the rules", "VERSION_URL" not in text(HOME + "UpdateRules.java"))
 check("the signature, newer-version and permission checks are untouched (verify still runs on every file, the install permission is still asked)", "verify(c, pkg, f)" in pu and "canInstall(c)" in pu)
 up = text(APP + "Updater.java")
 check("the newest-version line follows the channel, and the next channel never falls back to the latest's redirect", 'latestFromAsset(next ? NEXT_VERSION_URL : VERSION_URL)' in up and 'if (v == null && !next)' in up)
@@ -56,6 +58,7 @@ for wf in sorted((ROOT / ".github/workflows").glob("*.yml")):
                 if nxt.strip():
                     block.append(nxt.strip())
             check(f"{wf.name}:{n + 1} files block: every line a bare file name, no comment", bool(block) and all(re.fullmatch(r"[A-Za-z0-9_.\-*/]+", b) for b in block), block)
+            check(f"{wf.name}:{n + 1} the publish step fails when a listed file matches nothing", "fail_on_unmatched_files: true" in "\n".join(lines[max(0, n - 2):n]), lines[max(0, n - 2):n])
             if "apk-next" in "\n".join(lines[max(0, n - 6):n]):
                 check("the apk-next release uploads exactly the two APKs and version.txt", block == ["urtv-screensaver.apk", "urtv-home.apk", "version.txt"], block)
 

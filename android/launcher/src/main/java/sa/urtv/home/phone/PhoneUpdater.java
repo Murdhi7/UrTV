@@ -32,7 +32,7 @@ import java.util.Set;
 
 /**
  * «تحديث تلفزيوني», the one engine: the TV's own screen (UpdateActivity) and the phone page's button call the same code. check: reads
- * version.txt of the apk-latest release (the one optimize/install.sh uses) and decides (UpdateFlow); when there is a newer version and the
+ * version.txt of the apk-latest release (the one optimize/install.sh uses; the apk-next test release when an agent set `saver.sh updatechannel next`, see UpdateChannel) and decides (UpdateFlow); when there is a newer version and the
  * permission is given, it downloads the APKs and refuses any that is not the same app, not newer, or signed with another certificate than the
  * installed one (UpdateRules.verify), so «available» means every check passed. install: hands the files, the screensaver app first and the
  * launcher last (UpdateOrder), one after the other to Android's own installer (PackageInstaller sessions, their status callbacks): its confirm
@@ -126,12 +126,18 @@ public final class PhoneUpdater {
         return status();
     }
 
-    /** The release the files come from: the latest, unless an agent set the test channel on the screensaver (UpdateChannel). */
-    private static String base(Context c) { return UpdateRules.baseFor(UpdateChannel.read(c)); }
+    /**
+     * The release the files come from: the latest, unless an agent set the test channel on the screensaver (UpdateChannel). Read ONCE per check
+     * and kept, so the version, the sizes and the files of one run (the check, then the install that follows it) come from the same release even if the
+     * channel is changed meanwhile.
+     */
+    private static volatile String releaseBase = UpdateRules.BASE;
 
     private static void prepare(Context c, boolean download) throws Exception {
         clearReady();
-        Version ver = readVersion(base(c) + "version.txt");
+        final String base = UpdateRules.baseFor(UpdateChannel.read(c));
+        releaseBase = base;
+        Version ver = readVersion(base + "version.txt");
         int newest = UpdateRules.buildOf(ver.text);
         synchronized (PhoneUpdater.class) { if (newest > 0) build = newest; }
         UpdateFlow.Verdict v = UpdateFlow.versionRead(ver.reached, ver.code, newest);
@@ -154,12 +160,13 @@ public final class PhoneUpdater {
      * it stopped on an error (already set).
      */
     private static boolean downloadAndVerify(Context c, boolean thenInstall) throws Exception {
+        final String base = releaseBase;
         List<String> have = new ArrayList<>();
         for (String[] apk : UpdateRules.APKS) if (installedCode(c, apk[0]) >= 0) have.add(apk[0]);
         List<String> order = UpdateOrder.order(have);
         long[] sizes = new long[order.size()];
         for (int i = 0; i < sizes.length; i++) {
-            long n = sizeOf(base(c) + fileOf(order.get(i)));
+            long n = sizeOf(base + fileOf(order.get(i)));
             sizes[i] = n > 0 ? n : UpdateRules.MAX_APK_BYTES;   // unknown: the most a file may be
         }
         File dir = new File(c.getFilesDir(), "phone-update");
@@ -176,7 +183,7 @@ public final class PhoneUpdater {
             File f = new File(dir, fileOf(pkg));
             boolean got;
             try {
-                got = fetch(base(c) + fileOf(pkg), f);
+                got = fetch(base + fileOf(pkg), f);
             } catch (java.io.IOException e) {
                 Log.w(TAG, "download failed: " + e);
                 got = false;

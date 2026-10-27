@@ -96,6 +96,7 @@ jobs:
           tag_name: apk-latest
           name: Latest APKs
           body: "Both apps at version 3.${{ github.run_number }}, built from ${{ github.sha }}"
+          fail_on_unmatched_files: true   # a name that matches nothing (a typo) must stop the publish, not publish without it
           files: |
             urtv-screensaver.apk
             urtv-home.apk
@@ -110,6 +111,7 @@ jobs:
           tag_name: v3.${{ github.run_number }}
           name: UrTV 3.${{ github.run_number }}
           body: "Both apps at version 3.${{ github.run_number }}, built from ${{ github.sha }}"
+          fail_on_unmatched_files: true   # a name that matches nothing (a typo) must stop the publish, not publish without it
           files: |
             urtv-screensaver.apk
             urtv-home.apk
@@ -124,6 +126,7 @@ jobs:
           tag_name: apk-next
           name: Test build from next
           body: "Both apps at version 3.${{ github.run_number }}, built from next at ${{ github.sha }}. For testing only."
+          fail_on_unmatched_files: true   # a name that matches nothing (a typo) must stop the publish, not publish without it
           files: |
             urtv-screensaver.apk
             urtv-home.apk

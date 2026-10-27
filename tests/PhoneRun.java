@@ -377,6 +377,8 @@ public final class PhoneRun {
             && UpdateRules.baseFor("next").equals("https://github.com/tshi-dev/UrTV/releases/download/apk-next/"), "");
         check("a download is only ever a file of our two releases",
             UpdateRules.isReleaseUrl(UpdateRules.BASE + "urtv-home.apk") && UpdateRules.isReleaseUrl(UpdateRules.NEXT_BASE + "urtv-home.apk")
+            && UpdateRules.isReleaseUrl(UpdateRules.NEXT_BASE + "version.txt") && UpdateRules.isReleaseUrl(UpdateRules.BASE + "urtv-screensaver.apk")
+            && !UpdateRules.isReleaseUrl(UpdateRules.BASE + "other.apk") && !UpdateRules.isReleaseUrl(UpdateRules.NEXT_BASE + "../apk-latest/urtv-home.apk.evil") && !UpdateRules.isReleaseUrl(UpdateRules.BASE)
             && !UpdateRules.isReleaseUrl("https://github.com/tshi-dev/UrTV/releases/download/v3.1/urtv-home.apk") && !UpdateRules.isReleaseUrl("https://example.org/") && !UpdateRules.isReleaseUrl(null), "");
     }
 

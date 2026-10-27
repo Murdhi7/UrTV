@@ -5,6 +5,7 @@
 # usage: tests/android_compile.sh [checkout]      (default: this one)
 #   PASS ...  both compile        FAIL ...  javac's errors follow (exit 1)
 #   SKIP ...  no javac, or the jar is not cached and cannot be fetched (offline): not a failure (exit 0)
+#   FAIL ...  also a jar whose sha1 is not the pinned one (a corrupt or swapped download is never silently skipped, and never used)
 # The jar (about 130 MB) is fetched once from Maven Central's Google mirror, checked against the sha1 below, and kept OUTSIDE the repo in
 # ${URTV_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/urtv}. URTV_ANDROID_JAR=/path/to.jar uses a jar you already have (the sha1 is still checked).
 set -uo pipefail
@@ -19,14 +20,14 @@ sha1_of() { if command -v sha1sum >/dev/null 2>&1; then sha1sum "$1" | cut -d' '
 
 command -v javac >/dev/null 2>&1 || { echo "SKIP android compile: no javac on this machine"; exit 0; }
 if [ ! -f "$JAR" ] || [ "$(sha1_of "$JAR")" != "$SHA1" ]; then
-  [ -z "${URTV_ANDROID_JAR:-}" ] || { echo "SKIP android compile: URTV_ANDROID_JAR is not the expected android-all $VER (sha1 differs)"; exit 0; }
+  [ -z "${URTV_ANDROID_JAR:-}" ] || { echo "::error::URTV_ANDROID_JAR is not the expected android-all $VER (sha1 differs)"; echo "FAIL android compile: URTV_ANDROID_JAR is not the expected android-all $VER (sha1 differs)"; exit 1; }
   mkdir -p "$CACHE" 2>/dev/null || { echo "SKIP android compile: cannot make the cache folder"; exit 0; }
   TMPJ=$(mktemp -p "$CACHE" jar.XXXXXX 2>/dev/null) || { echo "SKIP android compile: cannot write to the cache folder"; exit 0; }
   if ! curl -fsSL --retry 2 --connect-timeout 15 --max-time 600 -o "$TMPJ" "$URL" 2>/dev/null; then
     rm -f "$TMPJ"; echo "SKIP android compile: android-all $VER is not cached and could not be downloaded (offline?)"; exit 0
   fi
   if [ "$(sha1_of "$TMPJ")" != "$SHA1" ]; then
-    rm -f "$TMPJ"; echo "SKIP android compile: the downloaded jar does not match the expected sha1 (not used)"; exit 0
+    rm -f "$TMPJ"; echo "::error::the downloaded android-all $VER does not match the pinned sha1; it was not used"; echo "FAIL android compile: the downloaded android-all $VER does not match the pinned sha1 (not used)"; exit 1
   fi
   mv "$TMPJ" "$JAR"
 fi
