@@ -139,12 +139,19 @@ for shown, want in [("REQUEST_INSTALL_PACKAGES: default; rejectTime=+1d\n", "def
                     ("No operations.\n", "default")]:
     with tempfile.TemporaryDirectory() as tmp:
         rc, sent, err = run_install(tmp, shown)
-        check(f"install.sh: «{shown.strip()[:40]}» is recorded as «{want}» and the permission is given", rc == 0 and record(tmp) == want and ALLOW in sent, f"{rc} {record(tmp)} {sent} {err}")
+        given = (ALLOW in sent) == (want == "default")   # only Android's own default is replaced: an explicit deny/ignore/foreground (or an allow) stays
+        check(f"install.sh: «{shown.strip()[:40]}» is recorded as «{want}»" + (" and the permission is given" if want == "default" else " and left as it is"), rc == 0 and record(tmp) == want and given, f"{rc} {record(tmp)} {sent} {err}")
 with tempfile.TemporaryDirectory() as tmp:
     rc, sent, err = run_install(tmp, "REQUEST_INSTALL_PACKAGES: ignore\n")
     rc, sent, err = run_install(tmp, "REQUEST_INSTALL_PACKAGES: allow\n")   # a second run: «allow» is ours now
-    check("install.sh: a second run keeps the mode from before our change, it does not record our own «allow»", record(tmp) == "ignore" and ALLOW in sent
+    check("install.sh: a second run keeps the mode from before our change, it does not record our own «allow»", record(tmp) == "default" and ALLOW in sent
           and not any(l.startswith("appops get") for l in sent), f"{record(tmp)} {sent}")
+with tempfile.TemporaryDirectory() as tmp:
+    run_install(tmp, "REQUEST_INSTALL_PACKAGES: deny\n")
+    rc, sent, err = run_install(tmp, "REQUEST_INSTALL_PACKAGES: deny\n")
+    check("install.sh: a second run over an explicit «deny» still leaves it", record(tmp) == "deny" and ALLOW not in sent, f"{record(tmp)} {sent}")
+check("install.sh reads the record with sed -nE and (a|b): «\\|» is GNU-only and macOS would record nothing",
+      "sed -nE 's/^REQUEST_INSTALL_PACKAGES:" in inst and "\\|" not in inst.split("appop_mode=$(")[1].split("\n")[0], inst[:600])
 with tempfile.TemporaryDirectory() as tmp:
     rc, sent, err = run_install(tmp, "", fail_get=True)
     check("install.sh: when the TV doesn't answer, nothing is recorded and nothing is changed (the TV's screen asks for it when needed)", rc == 0 and record(tmp) is None and ALLOW not in sent, f"{rc} {sent} {err}")
@@ -153,15 +160,16 @@ with tempfile.TemporaryDirectory() as tmp:
     check("install.sh: an answer that isn't a mode changes nothing", rc == 0 and record(tmp) is None and ALLOW not in sent, f"{rc} {sent}")
 
 
-def run_reset(tmp, recorded, fail=False):
-    run = Path(tmp) / "optimize" / "run"
+def run_reset(tmp, recorded, fail=False, run_dir=None):
+    run = Path(run_dir) if run_dir else Path(tmp) / "optimize" / "run"
     run.mkdir(parents=True, exist_ok=True)
     if recorded is not None:
         (run / "install-appop.txt").write_text(recorded)
     out = Path(tmp) / "sent.txt"
     out.write_text("")
     script = 'tv() { echo "$1" >> "%s"; %s; }\nset -euo pipefail\ncd "%s"\n%s\n' % (out, "return 1" if fail else "true", tmp, res)
-    r = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    env = dict(os.environ, URTV_RUN_DIR=str(run_dir)) if run_dir else {k: v for k, v in os.environ.items() if k != "URTV_RUN_DIR"}
+    r = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env=env)
     return r.returncode, out.read_text().splitlines(), (run / "install-appop.txt").exists(), r.stderr
 
 
@@ -169,6 +177,11 @@ for mode in ["default", "ignore", "deny", "allow", "foreground"]:
     with tempfile.TemporaryDirectory() as tmp:
         rc, sent, still, err = run_reset(tmp, mode + "\n")
         check(f"reset.sh puts back exactly «{mode}» and forgets the record", rc == 0 and sent == [f"appops set sa.urtv.home REQUEST_INSTALL_PACKAGES {mode}"] and not still, f"{rc} {sent} {still} {err}")
+with tempfile.TemporaryDirectory() as tmp:
+    other = Path(tmp) / "elsewhere"
+    rc, sent, still, err = run_reset(tmp, "deny\n", run_dir=other)
+    check("reset.sh reads the record where install.sh keeps it: URTV_RUN_DIR, not a fixed optimize/run",
+          rc == 0 and sent == ["appops set sa.urtv.home REQUEST_INSTALL_PACKAGES deny"] and not still, f"{rc} {sent} {still} {err}")
 with tempfile.TemporaryDirectory() as tmp:
     rc, sent, still, err = run_reset(tmp, None)
     check("reset.sh with no record (a TV set up before this) changes nothing", rc == 0 and sent == [], f"{sent}")
