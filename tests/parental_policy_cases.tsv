@@ -401,7 +401,24 @@ state	1	1	a,,b c, @x ,a;rm	x y,z	-
 visible	a,b,x,z,y			z
 ask	TILE	a	ASK
 ask	TILE	b	GO
-paths				ARRANGE_SCREEN,CARD_TASKS,GRID,INPUT_LIVE_TV,INPUT_PICKER,MENU,MENU_ARRANGE,MENU_KEY,MENU_UPDATE,PARENTAL_SCREEN,PILL_INPUTS,PILL_LISTEN,PILL_SAVER,PILL_SAVER_SETTINGS,PILL_SLEEP,PILL_TASKS,PILL_TV_SETTINGS,PILL_WIFI,SLEEP_ACCESSIBILITY,TILE,UPDATE_SCREEN
+# 11. the remote's shortcut keys (YouTube, Netflix, Settings): nothing set goes straight through; a locked app or the locked «الإعدادات» pill still asks
+nothing				-
+ask	REMOTE_APP	yt	GO
+ask	REMOTE_SETTINGS	settings.pkg	GO
+state	1	0	yt		-
+ask	REMOTE_APP	yt	ASK
+ask	REMOTE_APP	nf	GO
+ask	REMOTE_SETTINGS	settings.pkg	GO
+unlock	TILE	yt	-
+ask	REMOTE_APP	yt	GO
+state	1	0	@tvsettings		-
+ask	REMOTE_SETTINGS	settings.pkg	ASK
+ask	REMOTE_APP	yt	GO
+state	1	0	settings.pkg		-
+ask	REMOTE_SETTINGS	settings.pkg	ASK
+targets	REMOTE_APP	yt	yt
+targets	REMOTE_SETTINGS	s	@tvsettings,s
+paths				ARRANGE_SCREEN,CARD_TASKS,GRID,INPUT_LIVE_TV,INPUT_PICKER,MENU,MENU_ARRANGE,MENU_KEY,MENU_UPDATE,PARENTAL_SCREEN,PILL_INPUTS,PILL_LISTEN,PILL_SAVER,PILL_SAVER_SETTINGS,PILL_SLEEP,PILL_TASKS,PILL_TV_SETTINGS,PILL_WIFI,REMOTE_APP,REMOTE_SETTINGS,SLEEP_ACCESSIBILITY,TILE,UPDATE_SCREEN
 # `dock.sh pin lock/unlock`: what may be named, and what `pin status` says about a kept list
 state	1	0	com.netflix.ninja,@wifi		-
 lockedline					@wifi,com.netflix.ninja

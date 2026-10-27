@@ -62,6 +62,7 @@ public class PhoneActivity extends Activity implements PrivateScreen {
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(0, dp(28), 0, dp(40));
         frame.addView(col, new FrameLayout.LayoutParams(dp(640), -2, Gravity.CENTER_HORIZONTAL));
+        scroll.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // its buttons and D-pad ids are right-to-left: pinned, so a TV set to English does not mirror them
         setContentView(scroll);
     }
 

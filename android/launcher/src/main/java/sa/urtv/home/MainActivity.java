@@ -54,9 +54,11 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Apple TV style home screen: clock top-left, pills top-right, the focused dock app's name over an
@@ -1553,6 +1555,13 @@ public class MainActivity extends Activity {
     public boolean dispatchKeyEvent(KeyEvent e) {
         // while the adhan plays: OK on its bar stops it, and with «إيقاف الأذان بأي زر» any key does; that press is consumed whole
         if (adhanTakes(e)) return true;
+        // the remote's shortcut keys (YouTube, Netflix, Settings, the star): with the stock launcher off nothing else answers them
+        RemoteKeys.Decision key = remoteKeys.decide(e.getKeyCode(), e.getScanCode(), e.getAction(), e.getRepeatCount(),
+                RemoteKeys.opensApp(e.getKeyCode()) ? remoteInstalled() : Collections.<String>emptySet());
+        if (key.kind != RemoteKeys.PASS) {
+            if (key.kind != RemoteKeys.EAT) openRemoteKey(key);
+            return true;
+        }
         // Menu key on the remote opens the Inputs dropdown.
         if (e.getKeyCode() == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP && !pills.isEmpty()) {
             showInputs(pills.get(0), ParentalPolicy.MENU_KEY);
@@ -1583,6 +1592,41 @@ public class MainActivity extends Activity {
             }
         }
         return super.dispatchKeyEvent(e);
+    }
+
+    private final RemoteKeys remoteKeys = new RemoteKeys();
+
+    /** The apps a shortcut key opens that are installed, and that kids mode shows (one it hides counts as not there: the key then does nothing). */
+    private Set<String> remoteInstalled() {
+        Set<String> out = new HashSet<>();
+        ParentalPolicy.State family = Parental.state(this);
+        for (String pkg : RemoteKeys.PACKAGES) if (isInstalled(pkg) && ParentalPolicy.visible(family, pkg)) out.add(pkg);
+        return out;
+    }
+
+    private String labelOf(String pkg) {
+        try {
+            return String.valueOf(getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg, 0)));
+        } catch (PackageManager.NameNotFoundException e) {
+            return pkg;
+        }
+    }
+
+    /** Opens what a shortcut key asked for, behind the same family lock as the tile, the pill or the Menu key it stands for. */
+    private void openRemoteKey(RemoteKeys.Decision key) {
+        switch (key.kind) {
+            case RemoteKeys.OPEN_APP:
+                guarded(ParentalPolicy.REMOTE_APP, key.pkg, labelOf(key.pkg), () -> openPackage(key.pkg));
+                break;
+            case RemoteKeys.OPEN_SETTINGS:
+                launchGuarded(ParentalPolicy.REMOTE_SETTINGS, new Intent(Settings.ACTION_SETTINGS), "إعدادات التلفزيون");
+                break;
+            case RemoteKeys.OPEN_INPUTS:
+                if (!pills.isEmpty()) showInputs(pills.get(0), ParentalPolicy.MENU_KEY);
+                break;
+            default:
+                break;
+        }
     }
 
     /** While a left/right key is held, the highlight moves one item per this many ms (the pill opens in 150). */
