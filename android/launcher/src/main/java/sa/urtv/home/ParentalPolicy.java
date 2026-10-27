@@ -35,7 +35,7 @@ final class ParentalPolicy {
     /** Where the home screen can be asked to open something from. */
     static final int TILE = 0, GRID = 1, MENU_ARRANGE = 2, MENU = 3, PILL_INPUTS = 4, PILL_WIFI = 5, PILL_TV_SETTINGS = 6, PILL_TASKS = 7,
             CARD_TASKS = 8, PILL_SAVER = 9, PILL_SAVER_SETTINGS = 10, PILL_LISTEN = 11, PILL_SLEEP = 12, INPUT_LIVE_TV = 13,
-            INPUT_PICKER = 14, SLEEP_ACCESSIBILITY = 15, MENU_KEY = 16, PARENTAL_SCREEN = 17, ARRANGE_SCREEN = 18;
+            INPUT_PICKER = 14, SLEEP_ACCESSIBILITY = 15, MENU_KEY = 16, PARENTAL_SCREEN = 17, ARRANGE_SCREEN = 18, MENU_UPDATE = 19, UPDATE_SCREEN = 20;
 
     /**
      * The targets a launch path asks about. pkg: the app it opens, where it knows it (a tile, a row, a package the pill opens); the TV's
@@ -50,6 +50,8 @@ final class ParentalPolicy {
             case MENU:
             case MENU_ARRANGE:
             case ARRANGE_SCREEN:
+            case MENU_UPDATE:
+            case UPDATE_SCREEN:
                 t.add(OWN_SETTINGS);
                 break;
             case PARENTAL_SCREEN:

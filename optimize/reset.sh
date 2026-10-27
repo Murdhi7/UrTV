@@ -76,6 +76,13 @@ fi
 echo "3/4 Removing our apps (old and new names; missing ones are skipped)…"
 # the appop the launcher was given for the adhan (it vanishes with the app anyway)
 tv "appops set sa.urtv.home SCHEDULE_EXACT_ALARM default" > /dev/null 2>&1 || true
+# and «install unknown apps» (the TV's own update): put back exactly the mode install.sh found, then forget it
+if [ -s optimize/run/install-appop.txt ]; then   # APPOP-BEGIN
+  appop_mode=$(tr -d '\r\n ' < optimize/run/install-appop.txt)
+  if [[ "$appop_mode" =~ ^(allow|ignore|deny|default|foreground)$ ]]; then
+    tv "appops set sa.urtv.home REQUEST_INSTALL_PACKAGES $appop_mode" > /dev/null 2>&1 && rm -f optimize/run/install-appop.txt || true
+  fi
+fi   # APPOP-END
 for p in sa.urtv.home sa.urtv.screensaver sa.urtv.listening sa.yourtv.home sa.yourtv.screensaver com.abdullah.tvhome com.abdullah.tvsaver; do
   tv "pm uninstall $p" | grep -q Success && echo "   removed $p" || true
 done

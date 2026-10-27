@@ -191,6 +191,8 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { prefs.setGreeting(!prefs.greeting()); render(); } });
         row("ترتيب التطبيقات المفضلة", "قائمة ترتّب فيها المفضلة بالأسهم", R.drawable.ic_star,
             new Runnable() { public void run() { openDockSettings(); } });
+        row("تحديث تلفزيوني", "يعرض الإصدار ويتحقق من التحديث", R.drawable.ic_sync,
+            new Runnable() { public void run() { openUpdate(); } });
         row("تحكم من الجوال", "متوقف حتى تشغّله أنت", R.drawable.ic_settings,
             new Runnable() { public void run() { openPhoneControl(); } });
 
@@ -516,6 +518,15 @@ public class SettingsActivity extends Activity {
     private void openDockSettings() {
         try {
             startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.DockActivity"));
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
+    /** «تحديث تلفزيوني» lives in the launcher (it is the app that gets replaced last). */
+    private void openUpdate() {
+        try {
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.UpdateActivity"));
         } catch (RuntimeException e) {
             toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
         }

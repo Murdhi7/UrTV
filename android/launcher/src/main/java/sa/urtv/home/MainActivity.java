@@ -189,6 +189,7 @@ public class MainActivity extends Activity {
         updateWifi();
         updateNowPlaying();
         homeCard.refresh();
+        showUpdateResult();
         wireFocus();   // the «المهام» card may have come or gone with the settings
         View last = lastFocusedId == View.NO_ID ? null : findViewById(lastFocusedId);
         if (last == null && !dockCards.isEmpty()) last = dockCards.get(0);
@@ -773,6 +774,20 @@ public class MainActivity extends Activity {
     static final int MIN_DOCK = Dock.MIN, MAX_DOCK = Dock.MAX;
 
     /** The user's dock if they edited it, else res/values/config.xml. */
+    /**
+     * After «تحديث تلفزيوني» replaced this app, the first start finds the «update in progress» record: the update screen opens once and says how it
+     * went (it removes the record). Nothing happens without a record, so a normal start costs one missing-file check.
+     */
+    private void showUpdateResult() {
+        try {
+            if (sa.urtv.home.phone.PhoneUpdater.isBusy()) return;   // an update running in this very process: its own screen says how it goes
+            long mine = sa.urtv.home.phone.PhoneUpdater.installedCode(this, getPackageName());
+            if (sa.urtv.home.phone.UpdateRecords.peek(new sa.urtv.home.phone.UpdateStore(this), mine).kind != sa.urtv.home.phone.UpdateRecords.Kind.NONE) {
+                launch(new Intent(this, UpdateActivity.class));
+            }
+        } catch (RuntimeException ignored) { }
+    }
+
     /** The launcher's settings file, shared with DockReceiver. */
     private android.content.SharedPreferences prefs() { return Dock.prefs(this); }
 
@@ -805,6 +820,8 @@ public class MainActivity extends Activity {
         List<Runnable> actions = new ArrayList<>();
         labels.add("ترتيب المفضلة…");
         actions.add(() -> launchGuarded(ParentalPolicy.MENU_ARRANGE, new Intent(this, DockActivity.class), "ترتيب المفضلة"));
+        labels.add("تحديث تلفزيوني…");
+        actions.add(() -> launchGuarded(ParentalPolicy.MENU_UPDATE, new Intent(this, UpdateActivity.class), "تحديث تلفزيوني"));
         if (inDock) {
             if (dock.size() > MIN_DOCK) {
                 labels.add("إزالة من المفضلة");

@@ -54,7 +54,7 @@ check("the screen is in the manifest, and nothing says it should start at boot",
 check("nothing is advertised on the network (no mDNS / NSD / jmdns / UPnP)", not any(re.search(r"NsdManager|registerService|jmdns|MulticastSocket|SSDP", text(f)) for f in all_java if "/launcher/" in str(f)), "")
 check("nothing in the phone code runs a command, a shell, SQL or deletes files",
       not any(re.search(r"Runtime\.getRuntime|ProcessBuilder|\.exec\(|rawQuery|execSQL|pm uninstall|\.uninstall|deletePackage|factory.?reset|\.delete\(\)", text(f).replace("f.delete()", "").replace("file.delete()", "")) for f in phone_java), "")
-check("only the update's own downloaded files are deleted (inside its own folder)", len(re.findall(r"\.delete\(\)", text(PHONE / "PhoneUpdater.java"))) == 2, "")
+check("only the update's own downloaded files are deleted (inside its own folder)", len(re.findall(r"\.delete\(\)", text(PHONE / "PhoneUpdater.java"))) == 1, "")
 check("the update asks Android's installer and never installs silently (no INSTALL_PACKAGES permission, no pm install)",
       "android.permission.INSTALL_PACKAGES" not in manifest and "pm install" not in text(PHONE / "PhoneUpdater.java") and "STATUS_PENDING_USER_ACTION" in text(PHONE / "PhoneUpdater.java")
       and "REQUEST_INSTALL_PACKAGES" in manifest, "")
