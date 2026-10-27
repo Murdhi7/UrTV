@@ -170,22 +170,26 @@ const atRiyadh = (p, hhmm) => p.evaluate(([hhmm, sample]) => {
   const { p, ctx, errors } = await open('tv.html', 'panel=adhkar');
   const m = await atRiyadh(p, '06:00'), e = await atRiyadh(p, '16:00'), noon = await atRiyadh(p, '13:00'), dusk = await atRiyadh(p, '18:30');
   const edge = [await atRiyadh(p, '04:39'), await atRiyadh(p, '04:40'), await atRiyadh(p, '11:39'), await atRiyadh(p, '11:40'),
-                await atRiyadh(p, '14:59'), await atRiyadh(p, '15:00'), await atRiyadh(p, '17:29'), await atRiyadh(p, '17:30')].map(r => /^(أذكار|الآيتان)/.test(r.hd));
-  const n = await atRiyadh(p, '22:00'), after = await atRiyadh(p, '03:00');
+                await atRiyadh(p, '14:59'), await atRiyadh(p, '15:00'), await atRiyadh(p, '17:29'), await atRiyadh(p, '17:30')].map(r => /^(أذكار|الآيتان).*حتى/.test(r.hd));   // a window's head says until when
+  const n = await atRiyadh(p, '22:00'), after = await atRiyadh(p, '03:00'), BOTH = ADHKAR_SAMPLE.filter(d => d.when === 'both');
   const nightEdge = [await atRiyadh(p, '18:59'), await atRiyadh(p, '19:00'), await atRiyadh(p, '23:59'), await atRiyadh(p, '00:00'), await atRiyadh(p, '04:39')].map(r => r.hd);
   check('adhkar morning (6:00): title, sun icon, «حتى الظهر», first dhikr, one timer',
     m.hd === 'أذكار الصباححتى الظهر' && m.icon && m.timer && m.text.replace(/[\u064B-\u065F]/g, '').startsWith('أصبحنا') && m.dots === '1000', JSON.stringify(m));
   check('adhkar evening (16:00): title, icon, «حتى المغرب», the evening ones only',
     e.hd === 'أذكار المساءحتى المغرب' && e.icon && e.timer && e.text.replace(/[\u064B-\u065F]/g, '').startsWith('بسم') && e.dots === '1000', JSON.stringify(e));
-  check('adhkar outside the windows (13:00, 18:30): the verse or hadith of the day, no footer, no timer',
-    [noon, dusk].every(r => /^(آية|حديث) اليوم$/.test(r.hd) && !r.icon && !r.timer && !r.foot && r.text), JSON.stringify([noon, dusk]));
+  // the owner's report: alone, between the windows, the card showed «حديث اليوم». It is the adhkar card: a dhikr said morning and
+  // evening alike, under when the next adhkar begin, its footer and its timer as in a window; never the verse or hadith of the day
+  check('adhkar between the windows (13:00, 18:30): a dhikr said morning and evening («both»), under «أذكار المساء · مع العصر ٣:٠٠ م» / «الآيتان من آخر سورة البقرة · بعد العشاء ٧:٠٠ م», footer and timer, never the verse or hadith',
+    noon.hd === 'أذكار المساءمع العصر ٣:٠٠ م' && dusk.hd === 'الآيتان من آخر سورة البقرةبعد العشاء ٧:٠٠ م'
+    && [noon, dusk].every(r => r.icon && r.timer && r.foot && r.dots === BOTH.map((_, k) => +!k).join('') && r.text.replace(/[\u064B-\u065F]/g, '') === BOTH[0].text.replace(/[\u064B-\u065F]/g, '')),
+    JSON.stringify([noon, dusk]));
   check('adhkar windows: from Fajr up to Dhuhr, from Asr up to Maghrib (and the night before Fajr)', edge.join() === 'true,true,true,false,false,true,true,false', edge.join());
   check('adhkar night (22:00, and 03:00 after midnight): «الآيتان من آخر سورة البقرة» (the hadith\'s words, no invented name), moon icon, «حتى الفجر», only that verse (not the «both» ones), the hadith\'s own words as its source line',
     [n, after].every(r => r.hd === 'الآيتان من آخر سورة البقرةحتى الفجر' && r.icon && r.timer && r.text.replace(/[\u064B-\u065F]/g, '').replace(/﴿/g, '').startsWith('آمن') && r.dots === '1' &&
       r.foot.replace(/[\u064B-\u065F]/g, '').startsWith('من قرأ بهما في ليلة كفتاه · صحيح البخاري ٥٠٠٩')),
     JSON.stringify([n, after]));
-  check('adhkar night: from Isha (19:00) until Fajr (04:40), the card in between is the verse card',
-    /^(آية|حديث) اليوم$/.test(nightEdge[0]) && nightEdge.slice(1).every(h => h === 'الآيتان من آخر سورة البقرةحتى الفجر'), nightEdge.join('|'));
+  check('adhkar night: from Isha (19:00) until Fajr (04:40); just before Isha the card says the night verses come after Isha',
+    nightEdge[0] === 'الآيتان من آخر سورة البقرةبعد العشاء ٧:٠٠ م' && nightEdge.slice(1).every(h => h === 'الآيتان من آخر سورة البقرةحتى الفجر'), nightEdge.join('|'));
   const r = await p.evaluate(() => {
     const out = [], st = window.setTimeout, ms = [];
     window.setTimeout = (f, t) => { ms.push(t); return st(f, t); };
@@ -208,13 +212,25 @@ const atRiyadh = (p, hhmm) => p.evaluate(([hhmm, sample]) => {
     && r.out.map(x => x[2]).join() === '1000,0100,0010,0001,1000' && feet[0].includes('صحيح مسلم · ٢٧٢٣'), JSON.stringify(r.out));
   check('adhkar timer: 20 s + 0.1 s per character, at most 60 s', r.ms.length === 6 &&
     r.ms.every((t, i) => t === Math.min(60, 20 + .1 * [0, 1, 3, 4, 0, 1].map(k => ADHKAR_SAMPLE[k].text.length)[i]) * 1000), JSON.stringify(r.ms));
-  const w = await p.evaluate(() => {   // the window closes while a dhikr is on screen: the next turn shows the verse card and stops the timer
+  const w = await p.evaluate(() => {   // the window closes while a dhikr is on screen: the next turn is a «both» one, from the first
     const T = Date.parse('2026-10-22T11:41:00+03:00'), Dt = window.Date;
     window.Date = class extends Dt { constructor(...a) { a.length ? super(...a) : super(T); } static now() { return T; } };
     adhkarNext(CARDS[0]);
-    return [document.getElementById('week-hd').textContent, CARDS[0].ad.t];
+    return [document.getElementById('week-hd').textContent, CARDS[0].ad.t !== 0, document.querySelector('#week-list .quote').textContent.replace(/[\u064B-\u065F]/g, '')];
   });
-  check('adhkar: when the window closes the card turns to the verse card and the timer stops', /^(آية|حديث) اليوم$/.test(w[0]) && w[1] === 0, JSON.stringify(w));
+  check('adhkar: when the window closes the card goes on with the «both» adhkar, from the first, under «مع العصر ٣:٠٠ م»',
+    w[0] === 'أذكار المساءمع العصر ٣:٠٠ م' && w[1] && w[2] === ADHKAR_SAMPLE.find(d => d.when === 'both').text.replace(/[\u064B-\u065F]/g, ''), JSON.stringify(w));
+  const none = await p.evaluate(() => {   // no dhikr at all (an empty set): the line on when the next adhkar begin, no timer, still no hadith
+    const T = Date.parse('2026-10-22T13:00:00+03:00'), Dt = window.Date;
+    window.Date = class extends Dt { constructor(...a) { a.length ? super(...a) : super(T); } static now() { return T; } };
+    const keep = ADHKAR.splice(0);
+    clearTimeout(CARDS[0].ad.t); CARDS[0].ad.t = 0; CARDS[0].ad.mode = ''; renderPanel(false);
+    const r = [document.getElementById('week-hd').textContent, document.querySelector('#week-list').innerText.trim(), CARDS[0].ad.t];
+    ADHKAR.push(...keep);
+    return r;
+  });
+  check('adhkar with an empty set between the windows: «أذكار المساء · مع العصر ٣:٠٠ م», no timer, not the verse or hadith',
+    none[0] === 'أذكار المساء' && none[1] === 'مع العصر ٣:٠٠ م' && none[2] === 0, JSON.stringify(none));
   check('adhkar: no script errors', !errors.length, errors.join('; '));
   await ctx.close();
 }
@@ -4315,7 +4331,7 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
 }
 
 // ---- a field report: with the adhkar card and the verse card on one page, outside the adhkar windows both showed the day's hadith.
-// Now the adhkar card says when the next adhkar begins; alone it still shows the verse of the day there, as documented.
+// Now the adhkar card shows a dhikr said morning and evening under when the next adhkar begin, beside the verse card or alone.
 {
   const TIMES = "buildPrayers({Fajr:'04:50',Sunrise:'06:05',Dhuhr:'11:40',Asr:'15:00',Maghrib:'17:45',Isha:'19:15'});";
   const read = p => p.evaluate(() => CARDS.map(c => ({ kind: c.kind, hd: c.hd.textContent.trim(), text: c.ul.innerText.trim() })));
@@ -4329,19 +4345,26 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
       if (why.includes('reload')) { await p.reload(); await p.waitForTimeout(400); }
       await p.evaluate(TIMES + ' renderPanel(false); fitCards();');
       const r = await read(p), ad = r.find(x => x.kind === 'adhkar'), vs = r.find(x => x.kind === 'verse');
-      check(`adhkar beside the verse card (${cards}), ${why}: not the same text twice; the adhkar card says «${title} · ${line}»`,
-        !errors.length && ad.text !== vs.text && ad.hd === title && ad.text === line && vs.text.length > 20, JSON.stringify(r) + errors.join('; '));
+      check(`adhkar beside the verse card (${cards}), ${why}: not the same text twice; the adhkar card is a dhikr under «${title} · ${line}»`,
+        !errors.length && ad.text !== vs.text && ad.hd === title + line && ad.text.length > 10 && !/^(آية|حديث) اليوم/.test(ad.hd) && vs.text.length > 20,
+        JSON.stringify(r) + errors.join('; '));
       await ctx.close();
     }
   }
-  {   // the adhkar card alone between the windows: the verse of the day, as before
-    const { p, ctx, errors } = await open('tv.html', 'home_panel=adhkar&widget=1', { width: 461, height: 250 });
-    await p.clock.setFixedTime(new Date('2026-10-22T10:00:00Z'));
-    await p.evaluate(TIMES + ' renderPanel(false);');
-    const r = await read(p);
-    check('adhkar alone between the windows: still the verse of the day', !errors.length && r[0].text.length > 20 && !r[0].text.startsWith('مع العصر'), JSON.stringify(r));
-    await ctx.close();
-  }
+  // the adhkar card alone between the windows (the owner's report: «saver.sh card adhkar» showed «حديث اليوم»), on a verse day and on
+  // a hadith day, in the home card and on the screensaver: a dhikr from the set, under when the next adhkar begin
+  for (const [hash, size] of [['home_panel=adhkar&widget=1', { width: 461, height: 250 }], ['panel=adhkar', {}]])
+    for (const when of ['2026-10-22T10:00:00Z', '2026-10-23T10:00:00Z']) {
+      const { p, ctx, errors } = await open('tv.html', hash, size);
+      await p.clock.setFixedTime(new Date(when));
+      await p.evaluate(TIMES + ' renderPanel(false);');
+      const r = await read(p), st = await p.evaluate(() => ({ mode: CARDS[0].ad.mode, n: CARDS[0].ad.n, both: ADHKAR.filter(d => d.when === 'both').length,
+        foot: !!CARDS[0].ul.querySelector('.adf'), hadith: !!CARDS[0].ul.querySelector('.hadith, .src') }));
+      check(`adhkar alone between the windows (${hash.split('&')[0]}, ${when.slice(0, 10)}): a dhikr of the set's «both» ones under «أذكار المساء · مع العصر ٣:٠٠ م», never «حديث اليوم» or «آية اليوم»`,
+        !errors.length && r[0].hd === 'أذكار المساءمع العصر ٣:٠٠ م' && st.mode === 'between' && st.both > 0 && st.n === st.both && st.foot && !st.hadith,
+        JSON.stringify([r, st]) + errors.join('; '));
+      await ctx.close();
+    }
   {   // inside a window both cards are their own: the adhkar and the verse
     const [bw, bh] = homeBox(2, 1920);
     const { p, ctx, errors } = await open('tv.html', 'home_panel=verse,adhkar&widget=1', { width: bw, height: bh });
