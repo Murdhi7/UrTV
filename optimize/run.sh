@@ -121,8 +121,11 @@ report() {
   echo "Features that must stay on:"
   for p in com.tcl.airplay2 com.google.android.apps.mediashell com.tcl.miracast com.google.android.katniss \
            com.tcl.tvinput com.android.vending com.google.android.gms; do
-    if tv "pm list packages -d $p" | grep -qx "package:$p"; then echo "- !! $p is DISABLED"
-    elif tv "pm list packages $p" | grep -qx "package:$p"; then echo "- ok: $p"
+    # one question with end markers: an empty answer without them is «the TV did not say», not «not installed»
+    pk=$(tv "pm list packages -d $p; echo D_END; pm list packages $p; echo I_END" 2> /dev/null | tr -d '\r') || pk=""
+    if awk '/^D_END$/{exit} {print}' <<< "$pk" | grep -qx "package:$p"; then echo "- !! $p is DISABLED"
+    elif awk '/^D_END$/{s=1; next} s' <<< "$pk" | grep -qx "package:$p"; then echo "- ok: $p"
+    elif ! grep -qx 'I_END' <<< "$pk" || ! grep -qx 'D_END' <<< "$pk"; then echo "- ?? $p: the TV did not answer"
     fi
   done
   echo
@@ -210,9 +213,17 @@ do_step() {
 }
 
 # The .done-* marks belong to one TV: a different one (its serial, else its address) starts from the top.
+is_placeholder() {   # a serial that cheap boxes all carry is not an id
+  case "$(tr 'A-Z' 'a-z' <<< "$1")" in unknown|null|0123456789abcdef|1234567890|0000000000|00000000|1234567890abcdef|none|n/a|"") return 0 ;; esac
+  return 1
+}
 tv_id=$(tv "getprop ro.serialno" 2> /dev/null | tr -d '\r\n ' || true)
-[ -n "$tv_id" ] || tv_id="${TV_HOST:-$(cat optimize/.tv_host 2> /dev/null || true)}"
-if [ -n "$tv_id" ] && [ "$(cat "$RUN/.tv" 2> /dev/null || true)" != "$tv_id" ]; then
+# a placeholder is not a serial: the address tells two such TVs apart
+if is_placeholder "$tv_id"; then tv_id="${TV_HOST:-$(cat optimize/.tv_host 2> /dev/null || true)}"; fi
+saved_id=$(cat "$RUN/.tv" 2> /dev/null || true)
+# an id saved by an older run that was a placeholder says nothing about which TV it was: it is replaced without wiping (as before this check)
+if [ -n "$saved_id" ] && is_placeholder "$saved_id" && [ -n "$tv_id" ]; then echo "$tv_id" > "$RUN/.tv"; saved_id=$tv_id; fi
+if [ -n "$tv_id" ] && [ "$saved_id" != "$tv_id" ]; then
   [ -f "$RUN/.tv" ] && echo "A different TV than the last run: starting from the first step."
   rm -f "$RUN"/.done-* "$RUN/steps.log"
   # what the last TV had is not this TV's (its backup, tweaks and home switch journals)

@@ -31,6 +31,7 @@ elif cmd.startswith("pm list packages "):
     if p in S["installed"]: out("package:%s\n" % p)
 elif cmd.startswith("appops get "):
     _, _, p, op = cmd.split()[:4]
+    if S.get("silent"): sys.exit(0)   # the TV says nothing at all
     if op in S["ops"] and p in S["ops"][op]: out("%s: %s; time=+1d\n" % (op, S["ops"][op][p]))
     else: out("Error: Unknown operation string: %s\n" % op if op not in S["ops"] else "No operations.\n")
 else:
@@ -70,5 +71,10 @@ rc, out, log, st = run("check", ops={"AUTO_START": {"sa.urtv.home": "ignore", "s
 check("check only reads: no appops set, and a refused app is reported", "appops set" not in log and "!! Auto-start (TCL)" in out and "sa.urtv.home(ignore)" in out, out + log)
 rc, out, log, st = run(installed=["sa.urtv.screensaver"], ops={"AUTO_START": {"sa.urtv.screensaver": "ignore"}, "APP_AUTO_START": {}})
 check("the home app is not installed (SKIP_LAUNCHER): only the screensaver", out == "Auto-start (TCL): sa.urtv.screensaver allow" and "appops set sa.urtv.home" not in log, out)
+rc, out, log, st = run("check", silent=True)
+check("the TV says nothing about either op: not «none», a !! line that says it did not answer",
+      "!! Auto-start (TCL): the TV did not answer" in out and "none" not in out, out)
+rc, out, log, st = run("check", ops={"AUTO_START": {}, "APP_AUTO_START": {"sa.urtv.home": "ignore", "sa.urtv.screensaver": "allow"}})
+check("an explicit «unknown operation» for one op and an answer for the other: the answer counts", "sa.urtv.home(ignore)" in out, out)
 print("\nall auto-start checks passed" if not failed else f"\n{failed} failed")
 sys.exit(1 if failed else 0)

@@ -84,10 +84,13 @@ active() {   # one line: which screensaver the TV uses now
   elif [[ "$comp" == sa.urtv.screensaver/* ]]; then echo "screensaver now: ours (شاشة تلفزيونك)"
   else echo "screensaver now: the TV's own, $comp"; fi
 }
-stock_dream() {   # a screensaver this TV lists besides ours: component, or nothing
-  local list
-  list=$("$PY" -I optimize/tv.py "(cmd package query-services --brief -a android.service.dreams.DreamService || pm query-services --brief -a android.service.dreams.DreamService) 2> /dev/null" \
-    | tr -d '\r' | grep -E '^[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+$' | grep -v '^sa\.urtv\.' || true)
+stock_dream() {   # a screensaver this TV lists besides ours: component, or nothing; returns 2 when the TV did not list its screensavers at all
+  local raw list
+  raw=$("$PY" -I optimize/tv.py "(cmd package query-services --brief -a android.service.dreams.DreamService || pm query-services --brief -a android.service.dreams.DreamService) 2> /dev/null" \
+    | tr -d '\r' | grep -E '^[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+$' || true)
+  # a TV that answered lists at least one screensaver (ours, if it is installed); an empty answer is «the TV did not say», not «it has none of its own»
+  [ -n "$raw" ] || return 2
+  list=$(grep -v '^sa\.urtv\.' <<< "$raw" || true)
   { grep -iE 'backdrop|dream|ambient|photo' <<< "$list" || true; echo "$list"; } | grep -m1 . || true
 }
 quote() {  # one shell-safe argument for the TV's shell
@@ -117,11 +120,18 @@ case "${1:-}" in
     fi
     prev="${prev%%,*}"
     case "$prev" in ""|null|sa.urtv.screensaver/*) prev= ;; esac   # none then, or a backup taken with ours already set
-    if [ -n "$prev" ]; then why="the one from before setup"; else why="a stock one"; prev=$(stock_dream); fi
+    if [ -n "$prev" ]; then why="the one from before setup"; else
+      why="a stock one"; prev=$(stock_dream) || {
+        echo "!! saver.sh off: the TV did not list its screensavers, so nothing was changed. Run the same command again."; exit 1; }
+    fi
     if [ -n "$prev" ] && [[ "$prev" =~ ^[A-Za-z0-9_.]+/[A-Za-z0-9_.\$]+$ ]]; then
-      case "$enabled" in 0|1) ;; *) enabled=1 ;; esac
-      printf '%s\n' "settings put secure screensaver_enabled $enabled" "settings put secure screensaver_components '$prev'" \
-        "settings delete secure screensaver_default_component" | "$PY" -I optimize/tv.py --batch > /dev/null
+      [ -f "$BACKUP" ] || enabled=1   # no backup at all: the stock screensaver is switched on, as before
+      case "$enabled" in 0|1) ;; "") ;; *) enabled=1 ;; esac   # a backup whose line is empty (it could not read it): the switch is left as it is
+      {
+        [ -z "$enabled" ] || echo "settings put secure screensaver_enabled $enabled"
+        echo "settings put secure screensaver_components '$prev'"
+        echo "settings delete secure screensaver_default_component"
+      } | "$PY" -I optimize/tv.py --batch > /dev/null
       echo "Ours is off ($why is back). It stays installed: optimize/saver.sh on turns it on again."
     else
       printf '%s\n' "settings put secure screensaver_enabled 0" "settings delete secure screensaver_components" \

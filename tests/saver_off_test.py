@@ -133,6 +133,13 @@ check("off, nothing else listed: screensavers off",
       puts(sent) == ["settings put secure screensaver_enabled 0", "settings delete secure screensaver_components",
                      "settings delete secure screensaver_default_component"] and "off" in out, str(sent))
 
+rc, out, sent = run("off", stock="")
+check("off, the TV listed no screensavers at all (not even ours): it did not say, so nothing is changed and a !! line says so",
+      rc == 1 and puts(sent) == [] and "!! saver.sh off: the TV did not list its screensavers" in out, out + str(sent))
+rc, out, sent = run("off", bk=backup(enabled=""))
+check("off: a backup whose enabled line is empty leaves the switch as it is (the component still comes back)",
+      puts(sent) == ["settings put secure screensaver_components 'com.google.android.apps.tv.dreamx/.service.Dream'", "settings delete secure screensaver_default_component"], str(sent))
+
 rc, out, sent = run("on")
 check("on: ours selected, as install.sh does",
       rc == 0 and puts(sent) == ["settings put secure screensaver_enabled 1", f"settings put secure screensaver_components {OURS}",

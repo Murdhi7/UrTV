@@ -25,6 +25,7 @@ def save(): open(os.environ["TVSTATE"], "w").write("\n".join(st) + "\n")
 def run(cmd):
     global st
     if cmd == "pm list packages -d":
+        if os.path.exists(os.environ["TVSTATE"] + ".fail"): sys.exit(1)   # the list cannot be read
         return "".join("package:%s\n" % p[1:].lstrip("!") for p in st if p.startswith("-"))
     m = re.fullmatch(r"pm list packages (\S+)", cmd)
     if m:
@@ -92,6 +93,13 @@ tvstate("-com.tcl.bi", "-!com.tcl.stubborn", "com.tcl.logkit")
 rc, out = sh("keep.sh", "restore", "com.tcl.stubborn")
 check("restore of one the TV will not turn on: says so, does not remember it", "!! com.tcl.stubborn is still off" in out
       and "com.tcl.stubborn" not in (home / "kept.txt").read_text(), out)
+tvstate("-com.tcl.bi", "-com.tcl.logkit")
+Path(str(state) + ".fail").write_text("")
+rc, out = sh("keep.sh", "restore", "com.tcl.logkit")
+Path(str(state) + ".fail").unlink()
+check("restore when the list of what is off cannot be read: not «on again», not remembered, a !! line",
+      "   on again: " not in out and "!! Could not ask the TV which packages are off, so «com.tcl.logkit on again» was not confirmed" in out
+      and "com.tcl.logkit" not in (home / "kept.txt").read_text().split(), out)
 rc, out = sh("keep.sh", "restore", "com.not.on.this.tv")
 check("restore of a package this TV does not have: skipped", "not on this TV" in out and "com.not.on.this.tv" not in (home / "kept.txt").read_text(), out)
 log.write_text("")

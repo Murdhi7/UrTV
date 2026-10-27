@@ -82,7 +82,9 @@ case "$1" in
        [ -n "$QUERY_EXTRA" ] && printf '    %s\n' $QUERY_EXTRA ;;
   "dumpsys wifi") case "$WIFI" in owned) echo "cname=com.google.android.tungsten.setupwraith" ;; other) echo "cname=android.uid.system" ;; esac ;;
   "pm disable-user --user 0 com.google.android.tungsten.setupwraith") log wraith-off ;;
-  *resolve-activity*) [ "$(cat "$T/home" 2>/dev/null)" = ours ] && echo sa.urtv.home/.MainActivity || echo stock/.Home ;;
+  *resolve-activity*) [ "$RESOLVE" = empty ] && exit 0
+       [ "$RESOLVE" = after ] && ls "$T"/marker.* > /dev/null 2>&1 && exit 0
+       [ "$(cat "$T/home" 2>/dev/null)" = ours ] && echo sa.urtv.home/.MainActivity || echo stock/.Home ;;
   "cmd role get-role-holders"*) echo "$ROLE" ;;
   *dumpsys*) n=$(( $(cat "$T/dumps" 2>/dev/null || echo 0) + 1 )); echo $n > "$T/dumps"
     if [ "$DIALOG" = yes ] && [ "$n" -le 4 ]; then echo "mResumedActivity: ActivityRecord{x u0 android/com.android.internal.app.ResolverActivity t5}"
@@ -114,7 +116,7 @@ while [ $# -gt 0 ]; do [ "$1" = -o ] && : > "$2"; shift; done
 
 
 def run(name, fail_switches, first_drop, down_polls=0, verify="", verifier=None, curl_mode="", vanish="", illegal="", wraith_home="", wifi="", nohome="", install_mode="",
-        watchdog="", restore_fail="", tcltv="", dialog="", verifier_empty="", pkgs="", stockless="", pkgextra="", query_extra="", seed=None, seed_home="", seed_marker=False, role="", script="install.sh", args=("launcher",)):
+        watchdog="", restore_fail="", tcltv="", dialog="", verifier_empty="", pkgs="", stockless="", pkgextra="", query_extra="", seed=None, seed_home="", seed_marker=False, role="", resolve="", script="install.sh", args=("launcher",)):
     t = Path(tempfile.mkdtemp())
     tree, bin_ = t / "tree", t / "bin"
     (tree / "optimize" / "lists").mkdir(parents=True); bin_.mkdir()
@@ -138,7 +140,7 @@ def run(name, fail_switches, first_drop, down_polls=0, verify="", verifier=None,
         (bin_ / f).write_text(body); (bin_ / f).chmod(0o755)
     if verifier is not None:
         (t / "verifier").write_text(verifier + "\n")
-    env = dict(os.environ, QUERY_EXTRA=query_extra, PKGS=pkgs, STOCKLESS=stockless, PKGEXTRA=pkgextra, VERIFIER_EMPTY=verifier_empty, DIALOG=dialog, TCLTV=tcltv, RESTORE_FAIL=restore_fail, WATCHDOG=watchdog, ROLE=role, INSTALL_MODE=install_mode, NOHOME=nohome, WRAITH_HOME=wraith_home, WIFI=wifi, ILLEGAL=illegal, VERIFY=verify, VANISH=vanish, CURL_MODE=curl_mode, PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), T=str(t),
+    env = dict(os.environ, QUERY_EXTRA=query_extra, PKGS=pkgs, STOCKLESS=stockless, PKGEXTRA=pkgextra, VERIFIER_EMPTY=verifier_empty, DIALOG=dialog, TCLTV=tcltv, RESTORE_FAIL=restore_fail, WATCHDOG=watchdog, ROLE=role, RESOLVE=resolve, INSTALL_MODE=install_mode, NOHOME=nohome, WRAITH_HOME=wraith_home, WIFI=wifi, ILLEGAL=illegal, VERIFY=verify, VANISH=vanish, CURL_MODE=curl_mode, PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), T=str(t),
                FAIL_SWITCHES=str(fail_switches), FIRST_DROP=first_drop, DOWN_POLLS=str(down_polls))
     r = subprocess.run(["bash", str(tree / "optimize" / script), *args], env=env, capture_output=True, text=True)
     log = (t / "log").read_text().split() if (t / "log").exists() else []
@@ -272,6 +274,15 @@ cases += [
     ("Home is ours but a switch was cut off (journal «switching»): it is not skipped, the switch is made and confirmed",
      run("ai", 0, "", seed=("switching", ""), seed_home="ours"),
      lambda c, o, l: c == 0 and "nothing to switch" not in o and "arm" in l and "disarm" in l and l[-1] == "journal-done"),
+    ("no role holder named and Home cannot be read either: the switch is not made (undoing it could not put the right app back)",
+     run("ra", 0, "", resolve="empty", role=""),
+     lambda c, o, l: c == 1 and "!! Could not tell which app is the TV's home now" in o and "arm" not in l and "switch" not in l),
+    ("no role holder named, but the app that answers Home is read: it is the «before» in the journal",
+     run("rb", 0, "", role=""),
+     lambda c, o, l: c == 0 and "rhb-stock" in l and "arm" in l),
+    ("Home cannot be read after the switch (empty each time): not called «restored», the journal stays «switching», and it says so",
+     run("rc", 0, "", resolve="after"),
+     lambda c, o, l: "!! The TV did not say what Home is now" in o and "journal-restored" not in l),
     ("restore-home.sh: from the journal, the role goes back to who held it, the helpers come back, the journal says restored, ADB is said",
      run("ad", 0, "", seed=("done", "other.launcher"), seed_home="ours", script="restore-home.sh", args=()),
      lambda c, o, l: c == 0 and "holder-other" in l and "helpers" in l and l[-1] == "journal-restored" and "needs ADB" in o.replace("this needs ADB", "needs ADB")),

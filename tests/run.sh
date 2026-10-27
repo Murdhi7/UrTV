@@ -19,6 +19,9 @@ python3 tests/install_versions_test.py
 python3 tests/install_retry_test.py
 python3 tests/deadman_test.py
 python3 tests/run_lock_test.py
+python3 tests/run_identity_test.py
+python3 tests/run_report_test.py
+python3 tests/type_test.py
 python3 tests/reboot_test.py
 python3 tests/tv_identity_test.py
 python3 tests/tv_read_only_test.py

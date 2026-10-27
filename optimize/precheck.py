@@ -124,7 +124,9 @@ def main(argv):
         return 0
     if argv[:1] == ["held"]:
         _, ver = webview(answers)
-        return 4 if ver is not None and ver < MIN_WEBVIEW else 0
+        if ver is None:   # the TV did not say which WebView it has: unknown is not «new enough»
+            return 5
+        return 4 if ver < MIN_WEBVIEW else 0
     return check(answers)
 
 

@@ -206,9 +206,12 @@ fi
 if [ "$what" = saver ] || [ "$what" = all ]; then
   push_install urtv-screensaver.apk sa.urtv.screensaver
   # a WebView older than 80 cannot run the page: the TV keeps its own screensaver (ours is installed, not selected) until
-  # the person updates «Android System WebView»; precheck.sh held exits 4 then, and says nothing when it cannot tell
-  held=0; PY="$PY" optimize/precheck.sh held > /dev/null 2>&1 || { [ "$?" != 4 ] || held=1; }
-  if [ "$held" = 1 ]; then
+  # the person updates «Android System WebView»; precheck.sh held exits 4 then, and 5 (or a failure) when the TV did not say: unknown holds too
+  held=0; held_rc=0; PY="$PY" optimize/precheck.sh held > /dev/null 2>&1 || held_rc=$?
+  if [ "$held_rc" = 4 ]; then held=1; elif [ "$held_rc" != 0 ]; then held=2; fi
+  if [ "$held" = 2 ]; then
+    echo "!! The screensaver is installed but NOT switched on: the TV did not say which «Android System WebView» it has, and an old one (older than 80) would not run the page. Run optimize/install.sh saver again; if it says this again, check the WebView in the TV's Play Store (optimize/precheck.sh webview-store opens it)."
+  elif [ "$held" = 1 ]; then
     echo "!! The screensaver is installed but NOT switched on: this TV's WebView is older than 80 and the page would not run, so the TV keeps its own screensaver. Update «Android System WebView» in the Play Store (optimize/precheck.sh webview-store opens it), then run optimize/install.sh saver again."
   else
     printf '%s\n' \
@@ -347,6 +350,12 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
       grep -qE '^[A-Za-z0-9_.]+$' <<< "$role" || role=""
       # a second run starts with ours as the holder: the earlier journal still knows who it was before
       if [ "$role" = sa.urtv.home ] || [ -z "$role" ]; then role=$(jget role_holder_before); fi
+      if [ -z "$role" ]; then   # no role holder named (older Android, or the TV said nothing): the app that answers Home now is "who it was before"
+        res=$("$PY" -I optimize/tv.py "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN" 2> /dev/null | tr -d '\r' | tail -n 1) || res=""
+        role=$(sed -n 's#^\([A-Za-z0-9_.]*\)/[A-Za-z0-9_.$]*$#\1#p' <<< "$res")
+        [ -n "$role" ] || return 9   # nothing says who has Home: undoing the switch could not put the right app back
+        [ "$role" != sa.urtv.home ] || role=""   # ours already (an interrupted switch): nobody earlier is known, a restore goes to the stock home
+      fi
       wiz=absent; stk=absent
       if disabled=$("$PY" -I optimize/tv.py "pm list packages -d" 2> /dev/null | tr -d '\r'); then
         grep -qx "package:$WRAITH" <<< "$disabled" && wiz=disabled || wiz=enabled
@@ -452,7 +461,16 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
     fi
     "$PY" -I optimize/tv.py "touch /data/local/tmp/home_ok.$NONCE" || return 1
     # the switch may have fired already if ADB was very slow: then the stock home is back
-    res=$("$PY" -I optimize/tv.py "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN") || return 1
+    # an empty answer is «the TV did not say», not «Home is not ours»: asked again; only a real answer that is not ours means the switch fired
+    res=""; for n in 1 2 3; do
+      res=$("$PY" -I optimize/tv.py "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN" 2> /dev/null | tr -d '\r' | grep -E '^[A-Za-z0-9_.]+/' | tail -n 1) || res=""
+      [ -z "$res" ] || break
+      sleep 3
+    done
+    if [ -z "$res" ]; then   # still nothing: the journal stays «switching» (not «restored»), so a later run or restore-home.sh looks again
+      echo "!! The TV did not say what Home is now; the safety switch is already off. Press Home on the remote; if it is not the new launcher, run optimize/restore-home.sh."
+      return 1
+    fi
     grep -q sa.urtv.home <<< "$res" || { jstate restored; return 3; }   # the safety switch fired: the stock home is back
     jstate done
   }
@@ -499,6 +517,8 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
        echo "Home switch skipped: this TV refuses to turn its own home screen off («This command is illegal», seen on a Nokia Streaming Box 8000). It keeps its own home; the stock home is back as it was. The screensaver and the rest of the setup work without it."
        mkdir -p "${URTV_RUN_DIR:-optimize/run}"
        echo "Home switch: skipped, this TV refuses to turn its own home screen off" > "${URTV_RUN_DIR:-optimize/run}/home-skipped.txt" ;;
+    9) echo "!! Could not tell which app is the TV's home now, so the home was NOT switched (undoing it could not put the right one back). Run the same command again."
+       exit 1 ;;
     8) echo "!! Could not read this TV's package list (it came back empty, or without the android package), so the home switch was not made and nothing was changed. Run the same command again."
        exit 1 ;;
     7) home_skipped=1
