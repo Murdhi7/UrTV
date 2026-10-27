@@ -4077,13 +4077,13 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
 // the wind, the Levant's month names. Off, the page is as before: the new parts are not drawn and the weather request is the same.
 {
   const TIMES = "buildPrayers({Fajr:'04:50',Sunrise:'06:05',Dhuhr:'11:40',Asr:'15:00',Maghrib:'17:45',Isha:'19:15'});";
-  const panel = p => p.evaluate(() => { tickPrayer(); return { l: document.getElementById('prayer-label').textContent, n: document.getElementById('prayer-name').textContent,
+  const panel = p => p.evaluate(() => { tickPrayer(); const nm = document.getElementById('prayer-name'); return { l: document.getElementById('prayer-label').textContent, n: nm.hidden ? '' : nm.textContent,
     t: document.getElementById('prayer-time').textContent, c: document.getElementById('prayer-count').textContent,
     bar: !!document.getElementById('pbar'), w: document.getElementById('pbar-fill') ? parseFloat(document.getElementById('pbar-fill').style.width || '0') : 0 }; });
   // Riyadh is UTC+3. Fajr 04:50, its iqama 25 minutes later (05:15), the sunrise 06:05
   for (const [when, on, want, why] of [
-      ['2026-10-22T02:40:00Z', true, { l: 'الشروق', n: 'الشروق', t: '٦:٠٥ ص', c: 'بعد ٢٥ دقيقة' }, '05:40, after the iqama: the time to the sunrise'],
-      ['2026-10-22T03:15:00Z', true, { l: 'الشروق', n: 'الشروق', t: '٦:٠٥ ص', c: 'قبل ١٠ دقائق' }, '06:15: ten minutes since the sunrise'],
+      ['2026-10-22T02:40:00Z', true, { l: 'الشروق', n: '', t: '٦:٠٥ ص', c: 'بعد ٢٥ دقيقة' }, '05:40, after the iqama: the time to the sunrise («الشروق» once)'],
+      ['2026-10-22T03:15:00Z', true, { l: 'الشروق', n: '', t: '٦:٠٥ ص', c: 'قبل ١٠ دقائق' }, '06:15: ten minutes since the sunrise'],
       ['2026-10-22T03:40:00Z', true, { l: 'الصلاة القادمة', n: 'الظهر', c: 'بعد ٥ ساعات' }, '06:40, past the half hour: the Dhuhr as always'],
       ['2026-10-22T02:00:00Z', true, { l: 'حان الآن', n: 'الفجر' }, '05:00, before the iqama is over: the iqama counts first'],
       ['2026-10-22T02:40:00Z', false, { l: 'الصلاة القادمة', n: 'الظهر' }, 'off (the default) at 05:40: the Dhuhr as always']]) {
@@ -4106,12 +4106,34 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     check(`prayer bar, ${why}`, !errors.length && (want === null ? !r.bar && box.none : r.bar && Math.abs(r.w - want) < 1 && box.h > 0 && box.inside), JSON.stringify({ r, box }) + errors.join('; '));
     await ctx.close();
   }
-  {   // the bar between adhan and iqama: Maghrib 17:45, its iqama 10 minutes later; at 17:50 half of it
-    const { p, ctx, errors } = await open('tv.html', 'prayerbar=1', { width: 1920, height: 1080 });
-    await p.clock.setFixedTime(new Date('2026-10-22T14:50:00Z'));
-    await p.evaluate(TIMES);
-    const r = await panel(p);
-    check('prayer bar between the adhan and the iqama: half full at 5 of 10 minutes', !errors.length && r.bar && Math.abs(r.w - 50) < 1 && r.l === 'حان الآن', JSON.stringify(r));
+  {   // one measure all day: the iqama is inside it (no jump back when it ends), and with the sunrise on, the sunrise is a point too
+    const at = async (hash, when) => { const { p, ctx, errors } = await open('tv.html', hash, { width: 1920, height: 1080 });
+      await p.clock.setFixedTime(new Date(when)); await p.evaluate(TIMES); const r = await panel(p); await ctx.close(); return { ...r, errors }; };
+    const iq = await at('prayerbar=1', '2026-10-22T14:50:00Z'), after = await at('prayerbar=1', '2026-10-22T14:56:00Z');   // 17:50 in the iqama, 17:56 after it
+    check('prayer bar in the iqama: Maghrib to Isha, 5 of 90 minutes, and it goes on growing when the iqama ends',
+      !iq.errors.length && iq.bar && Math.abs(iq.w - 5.6) < 1 && iq.l === 'حان الآن' && after.w > iq.w && Math.abs(after.w - 12.2) < 1, JSON.stringify([iq, after]));
+    const a = await at('prayerbar=1&sunrise=1', '2026-10-22T03:34:00Z'), b = await at('prayerbar=1&sunrise=1', '2026-10-22T03:36:00Z');   // 06:34 and 06:36
+    check('prayer bar with the sunrise: from the sunrise to Dhuhr, no jump when the sunrise panel gives way to Dhuhr at 06:35',
+      !a.errors.length && Math.abs(a.w - 8.7) < 1 && b.w > a.w && b.w - a.w < 1.5 && b.n === 'الظهر', JSON.stringify([a, b]));
+  }
+  {   // with the snapshot of the top left kept across starts: still one #wx-more after two restarts, and none when turned off
+    const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+    await ctx.route(/^https?:/, r => r.abort());
+    const pg = await ctx.newPage(), errors = [];
+    pg.on('pageerror', e => errors.push(e.message));
+    const counts = [];
+    for (let k = 0; k < 3; k++) {
+      if (k === 0) await pg.goto(page('tv.html') + '#wxmore=1&gap=0'); else await pg.reload();   // the same link: the same snapshot
+      await pg.waitForTimeout(400);
+      await pg.evaluate(() => { WX.at = Date.now(); WX.hum = 40; WX.wind = 9; wxSource(); saveSnap(); });
+      counts.push(await pg.evaluate(() => document.querySelectorAll('#wx-more').length));
+    }
+    await pg.goto(page('tv.html') + '#gap=0');
+    await pg.reload();   // a new hash alone does not load the page again
+    await pg.waitForTimeout(400);
+    const off = await pg.evaluate(() => document.querySelectorAll('#wx-more').length);
+    check('humidity and wind after restarts: one #wx-more each time (the saved copy does not add one), none when off', !errors.length && counts.join() === '1,1,1' && off === 0,
+      JSON.stringify({ counts, off }) + errors.join('; '));
     await ctx.close();
   }
   // the humidity and the wind: two more values in the same request, only when asked

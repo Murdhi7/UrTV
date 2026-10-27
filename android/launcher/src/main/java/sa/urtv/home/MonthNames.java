@@ -13,6 +13,9 @@ final class MonthNames {
         {"يوليو", "تموز"}, {"أغسطس", "آب"}, {"سبتمبر", "أيلول"}, {"أكتوبر", "تشرين الأول"}, {"نوفمبر", "تشرين الثاني"}, {"ديسمبر", "كانون الأول"},
     };
 
+    /** Other spellings a TV's Android may use for the same months (its locale data, not ours): each is the Levant's name too. */
+    static final String[][] VARIANTS = {{"إبريل", "نيسان"}, {"ابريل", "نيسان"}, {"يونيه", "حزيران"}, {"يوليه", "تموز"}, {"اغسطس", "آب"}};
+
     /** Does the screensaver's fragment ask for the Levant's names (months=levant)? */
     static boolean levant(String fragment) {
         if (fragment == null) return false;
@@ -24,6 +27,7 @@ final class MonthNames {
     static String of(String text, boolean levant) {
         if (!levant || text == null) return text;
         for (String[] m : LEVANT) text = text.replace(m[0], m[1]);
+        for (String[] m : VARIANTS) text = text.replace(m[0], m[1]);
         return text;
     }
 }
