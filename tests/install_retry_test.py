@@ -37,7 +37,9 @@ case "$1" in
           log drop; exit 1
         fi
         [ "$NOHOME" = yes ] && { echo stock > "$T/home"; exit 0; }   # firmware or the wizard keeps Home
+        [ "$NOHOME" = once ] && { echo stock > "$T/home"; exit 0; }   # Home only goes to ours at the second ask
         echo ours > "$T/home" ;;
+      *"add-role-holder --user 0 android.app.role.HOME sa.urtv.home"*"input keyevent KEYCODE_HOME"*) log retry; [ "$NOHOME" = once ] && echo ours > "$T/home" ;;
       *"pm enable"*"touch /data/local/tmp/home_ok"*) [ "$RESTORE_FAIL" = yes ] && { log restore-fail; exit 1; }
         log restore-stock; echo stock > "$T/home"
         case "$in" in *"add-role-holder --user 0 android.app.role.HOME other.launcher"*) log holder-other ;; esac
@@ -73,7 +75,12 @@ case "$1" in
   "dumpsys wifi") case "$WIFI" in owned) echo "cname=com.google.android.tungsten.setupwraith" ;; other) echo "cname=android.uid.system" ;; esac ;;
   "pm disable-user --user 0 com.google.android.tungsten.setupwraith") log wraith-off ;;
   *resolve-activity*) [ "$(cat "$T/home" 2>/dev/null)" = ours ] && echo sa.urtv.home/.MainActivity || echo stock/.Home ;;
-  *dumpsys*) [ "$(cat "$T/home" 2>/dev/null)" = ours ] && echo "mResumedActivity: sa.urtv.home" ;;
+  "cmd role get-role-holders"*) echo "$ROLE" ;;
+  *dumpsys*) n=$(( $(cat "$T/dumps" 2>/dev/null || echo 0) + 1 )); echo $n > "$T/dumps"
+    if [ "$DIALOG" = yes ] && [ "$n" -le 4 ]; then echo "mResumedActivity: ActivityRecord{x u0 android/com.android.internal.app.ResolverActivity t5}"
+    elif [ "$DIALOG" = yes ]; then echo ours > "$T/home"; echo "mResumedActivity: sa.urtv.home"
+    elif [ "$(cat "$T/home" 2>/dev/null)" = ours ]; then echo "mResumedActivity: sa.urtv.home"
+    else echo "mResumedActivity: ActivityRecord{x u0 com.google.android.apps.tv.launcherx/.home.HomeActivity t3}"; fi ;;
   "touch /data/local/tmp/home_ok."*)
     n=${1##*.}
     if [ "$n" = "$(cat "$T/nonce" 2>/dev/null)" ]; then log disarm; else log disarm-wrong; fi
@@ -99,7 +106,7 @@ while [ $# -gt 0 ]; do [ "$1" = -o ] && : > "$2"; shift; done
 
 
 def run(name, fail_switches, first_drop, down_polls=0, verify="", verifier=None, curl_mode="", vanish="", illegal="", wraith_home="", wifi="", nohome="", install_mode="",
-        watchdog="", restore_fail="", tcltv="", seed=None, seed_home="", seed_marker=False, role="", script="install.sh", args=("launcher",)):
+        watchdog="", restore_fail="", tcltv="", dialog="", seed=None, seed_home="", seed_marker=False, role="", script="install.sh", args=("launcher",)):
     t = Path(tempfile.mkdtemp())
     tree, bin_ = t / "tree", t / "bin"
     (tree / "optimize" / "lists").mkdir(parents=True); bin_.mkdir()
@@ -123,7 +130,7 @@ def run(name, fail_switches, first_drop, down_polls=0, verify="", verifier=None,
         (bin_ / f).write_text(body); (bin_ / f).chmod(0o755)
     if verifier is not None:
         (t / "verifier").write_text(verifier + "\n")
-    env = dict(os.environ, TCLTV=tcltv, RESTORE_FAIL=restore_fail, WATCHDOG=watchdog, ROLE=role, INSTALL_MODE=install_mode, NOHOME=nohome, WRAITH_HOME=wraith_home, WIFI=wifi, ILLEGAL=illegal, VERIFY=verify, VANISH=vanish, CURL_MODE=curl_mode, PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), T=str(t),
+    env = dict(os.environ, DIALOG=dialog, TCLTV=tcltv, RESTORE_FAIL=restore_fail, WATCHDOG=watchdog, ROLE=role, INSTALL_MODE=install_mode, NOHOME=nohome, WRAITH_HOME=wraith_home, WIFI=wifi, ILLEGAL=illegal, VERIFY=verify, VANISH=vanish, CURL_MODE=curl_mode, PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), T=str(t),
                FAIL_SWITCHES=str(fail_switches), FIRST_DROP=first_drop, DOWN_POLLS=str(down_polls))
     r = subprocess.run(["bash", str(tree / "optimize" / script), *args], env=env, capture_output=True, text=True)
     log = (t / "log").read_text().split() if (t / "log").exists() else []
@@ -177,9 +184,19 @@ cases = [
      lambda c, o, l: c == 0 and l.count("wraith-off") == 1 and "Launcher is home" in o),
     ("the wizard answers Home and owns the Wi-Fi: it stays on and the switch goes on without it", run("s", 0, "", wraith_home="yes", wifi="owned"),
      lambda c, o, l: c == 0 and "wraith-off" not in l and "Launcher is home" in o and "left on" in o and "!!" not in o),
-    ("Home never opens ours (the wizard owns the Wi-Fi and keeps Home): the stock home is put back at once, not in 5 minutes",
+    ("Home never opens ours and the wizard owns the Wi-Fi (it must stay on): the stock home is put back at once, and it says plainly that this TV keeps its own home (not an error)",
      run("u", 0, "", wraith_home="yes", wifi="owned", nohome="yes"),
-     lambda c, o, l: c == 1 and "wraith-off" not in l and "restore-stock" in l and "stock home was put back" in o),
+     lambda c, o, l: c == 0 and "wraith-off" not in l and "restore-stock" in l and "keeps its own home screen" in o and "!!" not in o and "Launcher is home" not in o),
+    ("Home does not open ours the first time and does at the second ask: no rollback, the switch is confirmed",
+     run("ua", 0, "", nohome="once"),
+     lambda c, o, l: c == 0 and "asking once more" in o and "retry" in l and "restore-stock" not in l and "Launcher is home" in o and l[-1] == "journal-done"),
+    ("Home never opens ours (no wizard in the way): the reason is in the !! line (role holder, what Home resolves to, what is on screen), two asks were made, the stock home is back",
+     run("ub", 0, "", nohome="yes", role="sa.urtv.home"),
+     lambda c, o, l: c == 1 and "!! Home did not open the new launcher" in o and "role holder: sa.urtv.home" in o and "Home resolves to: stock/.Home" in o
+     and "on screen after Home:" in o and "launcherx" in o and "retry" in l and "restore-stock" in l and "SKIP_LAUNCHER=1" in o),
+    ("an on-TV dialog is open: it says to choose with the remote, waits, and does not roll back when the person answers",
+     run("uc", 0, "", dialog="yes"),
+     lambda c, o, l: c == 0 and "An on-TV dialog is open" in o and "restore-stock" not in l and "Launcher is home" in o),
     ("the wizard answers Home but the TV does not say who owns the Wi-Fi: the wizard stays on", run("t", 0, "", wraith_home="yes", wifi=""),
      lambda c, o, l: c == 0 and "wraith-off" not in l),
     ("an app of the same name with another signature: never uninstalled, stops and says what is lost", run("u", 0, "", install_mode="incompatible"),

@@ -239,6 +239,18 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
     return 1
   }
 
+  WIZARD_KEPT=no   # yes: the switch went on with the setup wizard left on (it owns the Wi-Fi, or the TV did not say who does)
+  DIAG=
+  home_diag() {   # why Home does not open ours: who holds the role, what Home resolves to, what is on screen after Home
+    local holders res top
+    holders=$("$PY" -I optimize/tv.py "cmd role get-role-holders --user 0 android.app.role.HOME 2> /dev/null" 2> /dev/null | tr -d '\r' | sed -n 1p) || holders=""
+    res=$("$PY" -I optimize/tv.py "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN" 2> /dev/null | tr -d '\r' | tail -n 1) || res=""
+    top=$("$PY" -I optimize/tv.py "dumpsys activity activities | grep -E 'mResumedActivity|topResumedActivity'" 2> /dev/null | tr -d '\r' | head -n 1 | sed 's/^ *//') || top=""
+    DIAG="role holder: ${holders:-none}; Home resolves to: ${res:-unknown}; on screen after Home: ${top:-unknown}"
+  }
+  # an on-TV dialog (a Home chooser, a role request, a permission) is what is in front
+  dialog_open() { grep -qE 'ResolverActivity|ChooserActivity|RequestRoleActivity|permissioncontroller|GrantPermissions' <<< "$1"; }
+
   # Steps 2-4 as one function, so an ADB drop in the middle (TCL G08: Wi-Fi fell during the batch) can be retried.
   # "verify" as $1: only step 4 (the switch is armed already and the batch may have run).
   # Returns 0: the new home is on screen and the switch is disarmed; 1: tv.py failed (connection lost);
@@ -252,9 +264,9 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
         # check below and the safety switch catch a TV where it still wins). Stopping here blocked 13 of 39 setups on
         # 51b9680, and forgetting the network did not help on half of them.
         case "$(wifi_owner)" in
-          owned) echo "The setup wizard answers Home and owns the saved Wi-Fi network: it is left on (the network stays), and the switch goes on without turning it off." ;;
+          owned) WIZARD_KEPT=yes; echo "The setup wizard answers Home and owns the saved Wi-Fi network: it is left on (the network stays), and the switch goes on without turning it off." ;;
           other) wraith=listed ;;
-          *) echo "The setup wizard answers Home, but the TV did not say who owns its saved Wi-Fi: the wizard is left on, so the network is not lost." ;;
+          *) WIZARD_KEPT=yes; echo "The setup wizard answers Home, but the TV did not say who owns its saved Wi-Fi: the wizard is left on, so the network is not lost." ;;
         esac
       fi
       # 2. Arm the safety switch on the TV: it restores the stock home in 300 s unless we confirm (slow ADB needs time).
@@ -327,12 +339,40 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
       if [ "$wraith" = no ] && wraith_answers_home; then wraith=listed; wraith_off || true; fi
     done
     if [ "$ours" != yes ]; then
+      # An on-TV dialog may be waiting for the person (a Home chooser, a role request): wait for the answer before anything is undone.
+      if dialog_open "$top"; then
+        echo "An on-TV dialog is open ($(sed 's/^ *//' <<< "$top" | head -c 120)). Ask the person, in Arabic, to choose «تلفزيونك» then «دائماً» or «السماح» with the remote. Waiting up to 40 seconds for the answer."
+        for _ in 1 2 3 4 5 6 7 8; do
+          sleep 5
+          top=$("$PY" -I optimize/tv.py "dumpsys activity activities | grep -E 'mResumedActivity|topResumedActivity'") || return 1
+          if grep -q sa.urtv.home <<< "$top"; then ours=yes; break; fi
+          dialog_open "$top" || break
+        done
+      fi
+    fi
+    if [ "$ours" != yes ]; then
+      # One more try before the stock home goes back: the role and the home activity again, then Home (some firmware only takes
+      # it at the second ask).
+      echo "Home did not open the new launcher: asking once more."
+      printf '%s\n' "cmd role add-role-holder --user 0 android.app.role.HOME sa.urtv.home" \
+        "cmd package set-home-activity --user 0 sa.urtv.home/.MainActivity" "input keyevent KEYCODE_HOME" | "$PY" -I optimize/tv.py --batch > /dev/null || return 1
+      for _ in 1 2; do
+        sleep 6
+        top=$("$PY" -I optimize/tv.py "dumpsys activity activities | grep -E 'mResumedActivity|topResumedActivity'") || return 1
+        if grep -q sa.urtv.home <<< "$top"; then ours=yes; break; fi
+        "$PY" -I optimize/tv.py "input keyevent KEYCODE_HOME" > /dev/null || return 1
+      done
+    fi
+    if [ "$ours" != yes ]; then
+      home_diag   # the reason goes into the message below
       # the stock home back now, not in 5 minutes: a restart in between would stop the safety switch and could leave the
       # wizard's recovery screen as Home (seen on a TCL G07 with the stock home off and the wizard on)
       printf '%s\n' "pm enable ${STOCK%%/*}" "pm enable $WRAITH" \
         "cmd role add-role-holder --user 0 android.app.role.HOME ${STOCK%%/*}" "cmd package set-home-activity --user 0 $STOCK" \
         "touch /data/local/tmp/home_ok.$NONCE" "input keyevent KEYCODE_HOME" | "$PY" -I optimize/tv.py --batch > /dev/null \
         && jstate restored   # (see above: not «restored» if the batch did not go through)
+      # the setup wizard had to stay on (it owns the Wi-Fi password) and Home still goes to the stock home: this TV keeps its own home
+      [ "$WIZARD_KEPT" = yes ] && return 6
       return 2
     fi
     "$PY" -I optimize/tv.py "touch /data/local/tmp/home_ok.$NONCE" || return 1
@@ -372,7 +412,12 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
        echo "Home switch skipped: this TV refuses to turn its own home screen off («This command is illegal», seen on a Nokia Streaming Box 8000). It keeps its own home; the stock home is back as it was. The screensaver and the rest of the setup work without it."
        mkdir -p "${URTV_RUN_DIR:-optimize/run}"
        echo "Home switch: skipped, this TV refuses to turn its own home screen off" > "${URTV_RUN_DIR:-optimize/run}/home-skipped.txt" ;;
-    2) echo "!! Home did not open the new launcher. The stock home was put back."
+    6) home_skipped=1
+       echo "Home switch skipped: this TV keeps its own home screen. Its setup wizard must stay on to keep the saved Wi-Fi password, and Home still goes to the stock home ($DIAG). UrTV works as an app and as the screensaver; the stock home is back as it was. This is not an error, and trying again will not change it."
+       mkdir -p "${URTV_RUN_DIR:-optimize/run}"
+       echo "Home switch: skipped, this TV keeps its own home screen (the setup wizard must stay on to keep the Wi-Fi password)" > "${URTV_RUN_DIR:-optimize/run}/home-skipped.txt" ;;
+    2) echo "!! Home did not open the new launcher. The stock home was put back. ($DIAG)"
+       echo "   The role and the home activity were asked twice. Run the same command once more (a TV sometimes takes it at the second run); if the same line comes again, this TV keeps its own home: continue with SKIP_LAUNCHER=1 optimize/run.sh (UrTV works as an app and the screensaver)."
        echo "   Some TCL firmware pins Home to the stock launcher; on those sets keep the stock home."
        echo "   If the line above said the setup wizard owns the Wi-Fi, keep the stock home too: never turn the wizard off by hand."
        exit 1 ;;
