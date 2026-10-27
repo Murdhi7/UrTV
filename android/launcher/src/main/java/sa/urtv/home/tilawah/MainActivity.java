@@ -44,6 +44,13 @@ public class MainActivity extends Activity {
     private View lastSelected;
     private boolean focusedOnce;
 
+    /** singleTop: the settings' «الأذان» row asked again while this is already open: show the adhan tab. */
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && "adhan".equals(intent.getStringExtra(EXTRA_OPEN))) selectTab(TAB_ADHAN);
+    }
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         sa.urtv.home.Digits.init(this);   // the screensaver's «الأرقام» setting

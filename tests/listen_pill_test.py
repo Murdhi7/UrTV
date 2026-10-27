@@ -110,4 +110,12 @@ check("saver.sh listenpill with no value: usage, nothing sent", rc != 0 and not 
 # the TV refuses anything else (the receiver says so; the stand-in only logs): the receiver's own check is read above
 check("the settings export and import carry it as listen_pill", '"listen_pill"' in text(ROOT / "optimize/settings_move.py") and 'es("listenpill", flag(v))' in text(ROOT / "optimize/settings_move.py"))
 check("SETTINGS.md and FEATURES.md and SETUP-PROMPT.md say it", all("listenpill" in text(ROOT / "docs" / d) for d in ("SETTINGS.md", "FEATURES.md", "SETUP-PROMPT.md")))
+# restore / re-show fixes found in review
+home = text(ROOT / "android/launcher/src/main/java/sa/urtv/home/MainActivity.java")
+check("open=adhan is handled at creation only on a fresh start (not after a restore or from history)",
+      "b == null && (getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) openRequested(getIntent())" in home)
+check("onNewIntent keeps the new intent", "super.onNewIntent(intent);\n        setIntent(intent);" in home)
+check("a pill shown or hidden again re-wires up/down", re.search(r"requestFocus\(\);\n        \}\n        wireFocus\(\);", home) is not None)
+tw = text(ROOT / "android/launcher/src/main/java/sa/urtv/home/tilawah/MainActivity.java")
+check("the player opened again with open=adhan shows the adhan tab", "void onNewIntent(Intent intent)" in tw and "selectTab(TAB_ADHAN);\n    }" in tw)
 sys.exit(1 if failed else 0)

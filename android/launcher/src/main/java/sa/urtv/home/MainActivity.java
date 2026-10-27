@@ -169,7 +169,8 @@ public class MainActivity extends Activity {
                 View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                         | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
         setContentView(buildUi());
-        openRequested(getIntent());   // started by the screensaver's «الأذان» row
+        // started by the screensaver's «الأذان» row; not again after a restore (the system hands back the same intent)
+        if (b == null && (getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) openRequested(getIntent());
         wantEdit = getIntent() != null && getIntent().getBooleanExtra(EXTRA_EDIT, false);   // the settings' «تعديل المفضلة»
         buildApps();
 
@@ -244,6 +245,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent);
         Parental.SESSION.clear();
         if (edit != null) leaveEdit();   // Home while editing: the order so far is kept
         if (intent != null && intent.getBooleanExtra(EXTRA_EDIT, false)) {   // the settings' «تعديل المفضلة»
@@ -525,6 +527,7 @@ public class MainActivity extends Activity {
             pillRow.removeView(tilawahPill);
             if (hadFocus && !pills.isEmpty()) pills.get(pills.size() - 1).requestFocus();
         }
+        wireFocus();   // the row changed: up/down from the pills follow it
     }
 
     /** Shows or hides the «يُتلى الآن» card by what «تلاوة» is doing: a surah or a station (playing or paused), else nothing. */
