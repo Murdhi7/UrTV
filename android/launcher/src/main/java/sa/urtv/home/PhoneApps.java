@@ -125,7 +125,7 @@ public final class PhoneApps {
         } else {
             boolean shown = false;
             for (String[] a : apps(app)) shown |= a[0].equals(target);
-            if (!shown) return "not_found";
+            if (!shown || !ParentalPolicy.visible(Parental.state(app), target)) return "not_found";   // kids mode is looked at again here, not only in the cached list
             locked = Parental.needsPin(app, target);
             if (!locked) {
                 PackageManager pm = app.getPackageManager();

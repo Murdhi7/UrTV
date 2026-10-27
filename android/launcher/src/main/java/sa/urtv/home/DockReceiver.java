@@ -97,7 +97,9 @@ public class DockReceiver extends BroadcastReceiver {
                 for (android.media.tv.TvInputInfo t : InputLabels.reported(c)) {
                     String ours = given.get(InputLabels.key(t));
                     b.append(InputLabels.key(t)).append(" | ").append(InputLabels.label(c, t, given)).append(" | ").append(InputLabels.own(c, t))
-                     .append(" | ").append(ours == null ? "" : ours).append('\n');
+                     .append(" | ").append(ours == null ? "" : ours)
+                     .append(" | ").append(InputDisplay.cecName(InputLabels.cecRaw(c, t)))   // the CEC device's own name, "" when none
+                     .append(" | ").append(InputLabels.stateWord(InputLabels.state(c, t))).append('\n');
                 }
                 setResultData(b.length() == 0 ? "no inputs reported" : b.toString().trim());
                 return;

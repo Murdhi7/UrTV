@@ -17,6 +17,7 @@ public final class AdhanSync {
         String now = identity(p);
         SharedPreferences sp = c.getSharedPreferences("tilawah", Context.MODE_PRIVATE);
         PrayerTimes.refreshIfDue(c, p);   // Aladhan's times for today, once the TV is online: the home screen agrees with the page
+        Adhan.prefetchIfSkipped(c);   // a recording skipped in standby comes now; nothing is asked when none was skipped
         if (now.equals(sp.getString("sched_identity", ""))) return;
         sp.edit().putString("sched_identity", now).apply();
         AdhanScheduler.schedule(c);

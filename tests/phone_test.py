@@ -141,6 +141,9 @@ check("the adhan stop and the sleep timer go through the app's own code", "Music
 check("the favourites are looked up at most every few seconds and cleared on a package or favourites change; an icon comes from the cache after that check and expires",
       "APPS_TTL_MS = 5_000" in apps_src and "public static synchronized void invalidate()" in apps_src and "PhoneApps.invalidate();" in main_src and main_src.count("PhoneApps.invalidate();") == 2
       and "ICON_TTL_MS" in apps_src and apps_src.index("for (String[] a : apps(app)) shown |= a[0].equals(pkg);") < apps_src.index("ICONS.get(pkg)"))
+check("kids mode and the locks reach the phone at once: the cache is cleared when they change, and launch looks at kids mode again",
+      "PhoneApps.invalidate();" in text(JAVA / "Parental.java") and text(JAVA / "Parental.java").count("PhoneApps.invalidate();") == 3
+      and "ParentalPolicy.visible(Parental.state(app), target)" in apps_src)
 check("kids mode: a pill request from the phone is ignored by the home (it shows none)", 'if (t.startsWith("@") && Parental.state(this).kids) return;' in main_src)
 check("cancelling the sleep timer from the phone is a PIN-protected change", '(endpoint.equals("do") && "sleep_cancel".equals(v.get("op")))' in api and 'only(body, "op", "pin")' in text(PHONE / "Schema.java"))
 check("the new settings are the app's lists", re.findall(r"MINUTES = \{([0-9, ]+)\}", text(JAVA / "SleepTimer.java"))[0].replace(" ", "") == "15,30,60,90"

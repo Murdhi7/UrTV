@@ -47,6 +47,7 @@ python3 tests/key_home_test.py
 python3 tests/dock_names_test.py
 python3 tests/dock_input_names_test.py
 python3 tests/input_names_test.py
+python3 tests/input_display_test.py
 python3 tests/dock_sleep_test.py
 python3 tests/find_tv_test.py
 python3 tests/wireless_test.py
@@ -67,6 +68,7 @@ python3 tests/settings_move_test.py
 python3 tests/saver_off_test.py
 python3 tests/saver_reload_test.py
 python3 tests/listen_pill_test.py
+python3 tests/updates_bell_test.py
 python3 tests/versions_test.py
 python3 tests/channel_test.py
 python3 tests/app_fixes_test.py
@@ -87,11 +89,13 @@ python3 tests/own_adhan_keep_test.py
 python3 tests/player_logic_test.py
 python3 tests/seek_burst_test.py
 python3 tests/pill_text_test.py
+python3 tests/control_center_test.py
 python3 tests/tasks_card_test.py
 python3 tests/now_playing_test.py
 python3 tests/digits_text_test.py
 python3 tests/page_stamp_test.py
 python3 tests/greeting_test.py
+python3 tests/netgate_test.py
 python3 tests/clock_text_test.py
 python3 tests/clock_setting_test.py
 python3 tests/saver_clock24_test.py

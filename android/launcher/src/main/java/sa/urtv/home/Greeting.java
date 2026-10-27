@@ -37,7 +37,10 @@ final class Greeting {
     private final Handler main = new Handler(Looper.getMainLooper());
     private boolean fetching;
 
-    Greeting(Context context, TextView greeting, TextView weather) {
+    private final java.util.function.BooleanSupplier inFront;   // the home screen is resumed (NetGate)
+
+    Greeting(Context context, TextView greeting, TextView weather, java.util.function.BooleanSupplier inFront) {
+        this.inFront = inFront;
         this.context = context;
         this.greeting = greeting;
         this.weather = weather;
@@ -69,7 +72,10 @@ final class Greeting {
         }
         // once every 30 minutes; a new city is asked at once, but only once (a failed answer is not asked again at once)
         boolean triedHere = s.lat.equals(sp.getString("triedLat", "")) && s.lon.equals(sp.getString("triedLon", ""));
-        if (!fetching && (!triedHere || System.currentTimeMillis() - sp.getLong("tried", 0) >= REFRESH_MS)) fetch(s);
+        // only with the home in front and the display on (NetGate); the next minute tick or the return to the front asks again
+        long now = System.currentTimeMillis();
+        boolean front = inFront.getAsBoolean(), on = NetGateAndroid.displayOn(context);
+        if (!fetching && (triedHere ? NetGate.due(front, on, sp.getLong("tried", 0), REFRESH_MS, now) : NetGate.allowed(front, on))) fetch(s);
     }
 
     private void fetch(final Config s) {

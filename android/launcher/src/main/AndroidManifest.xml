@@ -24,6 +24,8 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- the adhan sets the TV's volume to its own level and puts it back afterwards -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- «مركز التحكم» ← «حرّر الذاكرة»: asks the system to stop the background processes of other apps (a normal permission: no prompt) -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
     <!-- «حماية العائلة (DNS)»: Private DNS (Settings.Global). Granted only over ADB by `optimize/dock.sh familydns grant`;
          without it the feature says so and does nothing. -->

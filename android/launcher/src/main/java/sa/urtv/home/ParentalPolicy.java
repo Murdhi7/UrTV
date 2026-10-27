@@ -21,22 +21,22 @@ import java.util.Set;
 final class ParentalPolicy {
     private ParentalPolicy() {}
 
-    /** «المصادر», «واي فاي», «الإعدادات» (the TV's), «المهام», «شاشة التوقف», «تلاوة وأذان», «مؤقت النوم»: the pills that can be locked */
+    /** «المصادر», «واي فاي», «الإعدادات» (the TV's), «المهام», «شاشة التوقف», «تلاوة وأذان», «مؤقت النوم», «مركز التحكم»: the pills that can be locked */
     static final String INPUTS = "@inputs", WIFI = "@wifi", TV_SETTINGS = "@tvsettings", TASKS = "@tasks", SAVER = "@saver",
-            LISTEN = "@listen", SLEEP = "@sleep";
+            LISTEN = "@listen", SLEEP = "@sleep", CENTER = "@center";
     /** «قفل الإعدادات»: our own «ترتيب المفضلة» and the long-press menu of the tiles */
     static final String OWN_SETTINGS = "@urtv";
     /** «الرقابة الأبوية» itself: always asks once a PIN is set, it has no toggle */
     static final String PARENTAL = "@parental";
 
     /** The pills a parent can lock, in the order the settings list them. */
-    static final String[] PILLS = {INPUTS, WIFI, TV_SETTINGS, TASKS, SAVER, LISTEN, SLEEP};
+    static final String[] PILLS = {INPUTS, WIFI, TV_SETTINGS, TASKS, SAVER, LISTEN, SLEEP, CENTER};
 
     /** Where the home screen can be asked to open something from. */
     static final int TILE = 0, GRID = 1, MENU_ARRANGE = 2, MENU = 3, PILL_INPUTS = 4, PILL_WIFI = 5, PILL_TV_SETTINGS = 6, PILL_TASKS = 7,
             CARD_TASKS = 8, PILL_SAVER = 9, PILL_SAVER_SETTINGS = 10, PILL_LISTEN = 11, PILL_SLEEP = 12, INPUT_LIVE_TV = 13,
             INPUT_PICKER = 14, SLEEP_ACCESSIBILITY = 15, MENU_KEY = 16, PARENTAL_SCREEN = 17, ARRANGE_SCREEN = 18, MENU_UPDATE = 19, UPDATE_SCREEN = 20,
-            REMOTE_APP = 21, REMOTE_SETTINGS = 22;
+            REMOTE_APP = 21, REMOTE_SETTINGS = 22, PILL_CENTER = 23, PILL_UPDATES = 24;
 
     /**
      * The targets a launch path asks about. pkg: the app it opens, where it knows it (a tile, a row, a package the pill opens); the TV's
@@ -47,6 +47,7 @@ final class ParentalPolicy {
         switch (path) {
             case TILE:
             case GRID:
+            case PILL_UPDATES:   // the updates bell opens the Play Store: locked by that app, like its tile
             case REMOTE_APP:   // a shortcut key of the remote (YouTube, Netflix): locked exactly as the app's own tile is
                 break;
             case MENU:
@@ -84,6 +85,9 @@ final class ParentalPolicy {
                 break;
             case PILL_SLEEP:
                 t.add(SLEEP);
+                break;
+            case PILL_CENTER:   // opening «مركز التحكم»: its tiles for turning off now, freeing memory, the speed test and the sound output are covered by this
+                t.add(CENTER);
                 break;
             case INPUT_LIVE_TV:
             case INPUT_PICKER:

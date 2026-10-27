@@ -97,7 +97,7 @@ public class InputNamesActivity extends Activity {
         Map<String, String> given = InputLabels.given(this);
         List<View> cards = new ArrayList<>();
         for (TvInputInfo t : inputs) {
-            View c = card(InputLabels.own(this, t), given.get(InputLabels.key(t)), v -> edit(t));
+            View c = card(InputLabels.fallback(this, t), given.get(InputLabels.key(t)), v -> edit(t));
             cards.add(c);
             list.addView(c, rowParams());
         }
@@ -145,7 +145,7 @@ public class InputNamesActivity extends Activity {
 
     /** The editor: the TV's keyboard in a small box; «حفظ» keeps it, empty brings the TV's own name back. */
     private void edit(TvInputInfo t) {
-        final String id = InputLabels.key(t), own = InputLabels.own(this, t);
+        final String id = InputLabels.key(t), own = InputLabels.fallback(this, t);   // the CEC device's name when there is one
         String saved = InputLabels.given(this).get(id);
         final EditText in = new EditText(this);
         in.setSingleLine(true);

@@ -418,7 +418,30 @@ state	1	0	settings.pkg		-
 ask	REMOTE_SETTINGS	settings.pkg	ASK
 targets	REMOTE_APP	yt	yt
 targets	REMOTE_SETTINGS	s	@tvsettings,s
-paths				ARRANGE_SCREEN,CARD_TASKS,GRID,INPUT_LIVE_TV,INPUT_PICKER,MENU,MENU_ARRANGE,MENU_KEY,MENU_UPDATE,PARENTAL_SCREEN,PILL_INPUTS,PILL_LISTEN,PILL_SAVER,PILL_SAVER_SETTINGS,PILL_SLEEP,PILL_TASKS,PILL_TV_SETTINGS,PILL_WIFI,REMOTE_APP,REMOTE_SETTINGS,SLEEP_ACCESSIBILITY,TILE,UPDATE_SCREEN
+# «مركز التحكم»: opening the panel asks about @center only; the tiles that open something keep their own pills' locks
+nothing				-
+ask	PILL_CENTER		GO
+state	1	0	@center		-
+ask	PILL_CENTER		ASK
+ask	PILL_SLEEP		GO
+ask	PILL_WIFI	settings.pkg	GO
+ask	PILL_TV_SETTINGS	settings.pkg	GO
+ask	PILL_SAVER	sa.urtv.screensaver	GO
+ask	PILL_INPUTS		GO
+unlock	PILL_CENTER		-
+ask	PILL_CENTER		GO
+state	1	0	@sleep,@wifi,@tvsettings,@saver		-
+ask	PILL_CENTER		GO
+ask	PILL_SLEEP		ASK
+ask	PILL_WIFI	settings.pkg	ASK
+ask	PILL_TV_SETTINGS	settings.pkg	ASK
+ask	PILL_SAVER	sa.urtv.screensaver	ASK
+state	0	1	@center		-
+ask	PILL_CENTER		GO
+state	1	0	@center		-
+targets	PILL_CENTER			@center
+
+paths				ARRANGE_SCREEN,CARD_TASKS,GRID,INPUT_LIVE_TV,INPUT_PICKER,MENU,MENU_ARRANGE,MENU_KEY,MENU_UPDATE,PARENTAL_SCREEN,PILL_CENTER,PILL_INPUTS,PILL_LISTEN,PILL_SAVER,PILL_SAVER_SETTINGS,PILL_SLEEP,PILL_TASKS,PILL_TV_SETTINGS,PILL_UPDATES,PILL_WIFI,REMOTE_APP,REMOTE_SETTINGS,SLEEP_ACCESSIBILITY,TILE,UPDATE_SCREEN
 # `dock.sh pin lock/unlock`: what may be named, and what `pin status` says about a kept list
 state	1	0	com.netflix.ninja,@wifi		-
 lockedline					@wifi,com.netflix.ninja
@@ -433,6 +456,8 @@ validtarget	@wifi				true
 validtarget	@tvsettings				true
 validtarget	@tasks				true
 validtarget	@saver				true
+validtarget	@center				true
+validtarget	@Center				false
 validtarget	@listen				true
 validtarget	@sleep				true
 validtarget	@urtv				true
@@ -444,3 +469,10 @@ validtarget	1com.x				false
 validtarget	com.x'y				false
 validtarget	com.x;reboot				false
 validtarget					false
+# 12. the updates bell opens the Play Store: nothing set goes through; the Play Store locked (its package) asks, the other pills' locks do not
+nothing				-
+ask	PILL_UPDATES	play	GO
+state	1	0	play		-
+ask	PILL_UPDATES	play	ASK
+state	1	0	wifi.pkg		-
+ask	PILL_UPDATES	play	GO

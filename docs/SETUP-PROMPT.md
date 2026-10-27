@@ -415,6 +415,7 @@ optimize/saver.sh hijrioffset <-2 to 2>          # ONLY if I said the Hijri date
 optimize/saver.sh clock24 <on or off>             # ONLY if I asked for a 24-hour clock (19:30 instead of 7:30 م; default off: leave it)
 optimize/saver.sh digits <hindi or latin>        # ONLY if I asked for 123 instead of ١٢٣ (default hindi: leave it)
 optimize/saver.sh listenpill <on or off>          # ONLY if I asked to remove the «تلاوة وأذان» button from the home screen (default on: leave it; the adhan keeps working, the screen opens from the app menu)
+optimize/saver.sh updatebell <on or off>        # ONLY if I asked to remove the «جرس التحديثات» bell from the home screen (default on: leave it; it shows only while the Play Store has updates waiting)
 optimize/saver.sh markets <up to 4 of tasi, aramco, spx, btc, gold, silver, xrp, comma-separated>   # ONLY if I asked for other markets at the top left (default tasi,spx,btc: leave it)
 optimize/saver.sh markets off                    # ONLY if I asked to hide the markets line at the top and keep just the weather (`markets on` brings it back)
 optimize/saver.sh clocksize <large, medium or small>   # ONLY if I asked for a smaller screensaver clock (default large: leave it)

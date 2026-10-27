@@ -47,6 +47,7 @@ final class Updater {
         final Context app = c.getApplicationContext();
         Prefs prefs = new Prefs(app);
         if (!prefs.autoUpdate()) return;
+        if (!displayOn(app)) return;   // standby: not now; the next screensaver start asks (lastCheck is not touched)
         if (System.currentTimeMillis() - prefs.raw().getLong("lastCheck", 0) < INTERVAL_MS) return;
         if (!DUE_RUNNING.compareAndSet(false, true)) return;
         new Thread(new Runnable() {
@@ -58,6 +59,16 @@ final class Updater {
                 }
             }
         }).start();
+    }
+
+    /** PowerManager.isInteractive(); true when it cannot be read (a check is not lost for that). */
+    private static boolean displayOn(Context c) {
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) c.getSystemService(Context.POWER_SERVICE);
+            return pm == null || pm.isInteractive();
+        } catch (RuntimeException e) {
+            return true;
+        }
     }
 
     /** Blocking; call off the main thread. Returns an Arabic status line for the settings screen. */

@@ -138,7 +138,7 @@ Everything is scriptable over ADB, made for slow Wi-Fi (retries, resumable uploa
 | `docs/FEATURES.md` | كل ميزة بالعربي: وش تسوي، ووين تغيّرها، ووش يكتب الوكيل |
 | `AGENTS.md` | for AI agents, read first: where to start and the rules agents broke in reports |
 | `docs/SETTINGS.md` | every setting and feature with its command, for agents: use these, never build your own |
-| `optimize/saver.sh` | screensaver settings: `show`, `cities`, `city`, `find-team`, `teams`, `leagues`, `card`, `home-card`, `greeting`, `listenpill`, `events`, `genres`, `langs`, `minrating`, `photos`, `idle`, `digits`, `hijrioffset`, `clock24`, `national`, `cardstyle`, `markets` (`off`/`on`), `clocksize`, `mkstyle`, `stocks`, `slot`, `countdown`, `tasks`, `export` / `import` (move the settings to a second TV, `import` previews until `--yes`), `update` |
+| `optimize/saver.sh` | screensaver settings: `show`, `cities`, `city`, `find-team`, `teams`, `leagues`, `card`, `home-card`, `greeting`, `listenpill`, `updatebell`, `events`, `genres`, `langs`, `minrating`, `photos`, `idle`, `digits`, `hijrioffset`, `clock24`, `national`, `cardstyle`, `markets` (`off`/`on`), `clocksize`, `mkstyle`, `stocks`, `slot`, `countdown`, `tasks`, `export` / `import` (move the settings to a second TV, `import` previews until `--yes`), `update` |
 | `optimize/photos.sh` | the owner's own photos, 1 to 10: `add FILE...`, `list`, `del N`, `clear`, `mode mix\|only`, `show` |
 | `optimize/dock.sh` | favourites row: `show`, `apps`, `set`, `reset`; `hidden`, `hide PKG`, `show PKG` for apps left off the home screen |
 | `optimize/music.sh` | «تلاوة وأذان» over ADB: `status`, `reciters`, `stations`, `surah`, `radio`, `pause`, `resume`, `seek`, `sleep`, `adhan` (`now`, `on`/`off`, `voice N`) |
@@ -146,6 +146,7 @@ Everything is scriptable over ADB, made for slow Wi-Fi (retries, resumable uploa
 | `optimize/community.sh` | a TV our lists do not know: the tested list for exactly its model from [CleanYourTV](https://github.com/Gathin23/cleanyourtv) (MIT; `optimize/lists/community/`, made by `.github/tools/community_lists.py`) |
 | `optimize/autostart.sh` | TCL only: allows our two apps to start at boot (the adhan after a restart, the sleep service), writes it to disk, and reports it |
 | `optimize/keep.sh` | turn back on anything protected (AirPlay, casting, voice, updates…) that something turned off · `off`: what the setup turned off, by name · `restore <pkg>`: an app the person wants back, remembered so `run.sh again` leaves it on |
+| `docs/NETWORK.md` | every network request the apps make: host, trigger, when it runs, what is sent, and why it is allowed to run in the background or not |
 | `docs/TVS.md` | what was seen on each TV model (ADB port, home switch, what to watch out for) |
 | `optimize/reset.sh` | back to stock: lists re-enabled, stock home and screensaver back, our apps removed |
 | `optimize/share.sh` | if the owner wants: `--preview` writes how the setup went and prints exactly what would be sent, `--send` sends it: TV model, time per step, what failed, memory before/after, nothing personal; anonymous to the author (from their phone by a QR code if this computer is offline). `--problem`: a problem report any time, even from another computer; agents report problems this way, never as GitHub issues |

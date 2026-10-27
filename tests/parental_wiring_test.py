@@ -33,9 +33,9 @@ def guarded_near(lines, i, back=3):
     return any("guarded(" in lines[k] or "launchGuarded(" in lines[k] for k in range(max(0, i - back), i + 1))
 
 # ---- 1. every way in asks
-sites = {"launch": {"launchGuarded", "openPackage", "startSaver", "openPassthroughInput"},   # the helpers a guarded call reaches
+sites = {"launch": {"launchGuarded", "openPackage", "startSaver", "openPassthroughInput", "openUpdates"},   # the helpers a guarded call reaches (openUpdates: the bell, which calls it only from guarded(...))
          "openPackage": {"startSaver", "openPassthroughInput"}, "startSaver": set(), "openPassthroughInput": {"showInputsNow"},
-         "showSleep": set(), "showInputsNow": set(), "showAppMenuNow": set()}
+         "showSleep": set(), "openUpdates": set(), "showInputsNow": set(), "showAppMenuNow": set()}
 for fn, inner in sites.items():
     bad = []
     for i, l in enumerate(main):
