@@ -249,6 +249,7 @@
   .week li.stk .chg{flex:0 0 auto;min-width:4.9em;text-align:left;font-size:.74em;font-variant-numeric:tabular-nums}
   .week li.stk .up{color:#79D6A0}
   .week li.stk .down{color:#EE8B70}
+  .week li.adw{border-bottom:none;color:#E6DCC4}   /* «مع العصر ٣:٠٠ م»: the adhkar card waiting beside the verse card */
   .week li.adf{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:.8em;align-items:center;
     border-bottom:none;padding:.6vh 0 0;font-size:calc(clamp(12px,.95vw,18px)*var(--z,1));color:var(--gold-2)}
   .week li.adf .s{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-bottom:.3em;margin-bottom:-.3em}
@@ -2903,10 +2904,21 @@ function adhkarNext(card){
   renderCard(card, card.ad.n > 1);
   fitCards();
 }
+// «أذكار المساء · مع العصر ٣:٠٠ م»: what comes next and when, for an adhkar card beside the verse card outside the windows
+function adhkarWait(){
+  const at = k => { const [h, mi] = String(DAY_TIMES[k]).split(':').map(Number); return fmtTime(h, mi); };
+  const p = riyadhParts(), now = p.h * 60 + p.mi, mins = k => { const [h, mi] = String(DAY_TIMES[k]).split(':').map(Number); return h * 60 + mi; };
+  const [title, when] = !DAY_TIMES ? ['أذكار الصباح والمساء', 'في أوقاتها، من الفجر ومن العصر']
+    : now < mins('Asr') ? ['أذكار المساء', 'مع العصر ' + at('Asr')] : ['الآيتان من آخر سورة البقرة', 'بعد العشاء ' + at('Isha')];
+  return {title, hd: `<span>${title}</span>`, rows: [`<li class="adw"><span>${esc(when)}</span></li>`]};
+}
 function adhkarCard(card){
   const ad = card.ad, mode = adhkarWindow(), list = mode ? ADHKAR.filter(d => d.when === mode || (d.when === 'both' && mode !== 'night')) : [];
   if(!list.length){
     clearTimeout(ad.t); ad.t = 0; ad.mode = '';
+    // between the windows the card shows the verse of the day, unless another card here already does (two cards with one hadith,
+    // a field report): then one line on when the next adhkar begins
+    if(CARDS.some(c => c !== card && c.eff === 'verse')) return adhkarWait();
     return quoteOfDay(card);
   }
   if(mode !== ad.mode){ ad.mode = mode; ad.i = 0; clearTimeout(ad.t); ad.t = 0; }

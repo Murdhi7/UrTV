@@ -4064,6 +4064,46 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
     c0.oc.name === c1.oc.name && c0.oc.name === c2.oc.name && c0.oc.days - c1.oc.days === 1 && c2.oc.days - c0.oc.days === 2, JSON.stringify([c0.oc, c1.oc, c2.oc]));
 }
 
+// ---- a field report: with the adhkar card and the verse card on one page, outside the adhkar windows both showed the day's hadith.
+// Now the adhkar card says when the next adhkar begins; alone it still shows the verse of the day there, as documented.
+{
+  const TIMES = "buildPrayers({Fajr:'04:50',Sunrise:'06:05',Dhuhr:'11:40',Asr:'15:00',Maghrib:'17:45',Isha:'19:15'});";
+  const read = p => p.evaluate(() => CARDS.map(c => ({ kind: c.kind, hd: c.hd.textContent.trim(), text: c.ul.innerText.trim() })));
+  for (const [when, title, line, why] of [['2026-10-22T10:00:00Z', 'أذكار المساء', 'مع العصر ٣:٠٠ م', '13:00, between Dhuhr and Asr'],
+      ['2026-10-22T15:00:00Z', 'الآيتان من آخر سورة البقرة', 'بعد العشاء ٧:١٥ م', '18:00, between Maghrib and Isha'],
+      ['2026-10-23T10:00:00Z', 'أذكار المساء', 'مع العصر ٣:٠٠ م', 'a hadith day (the 23rd), after a reload']]) {
+    for (const cards of ['verse,adhkar', 'adhkar,verse']) {
+      const W = 1920, [bw, bh] = homeBox(2, W);
+      const { p, ctx, errors } = await open('tv.html', `home_panel=${cards}&widget=1`, { width: bw, height: bh });
+      await p.clock.setFixedTime(new Date(when));
+      if (why.includes('reload')) { await p.reload(); await p.waitForTimeout(400); }
+      await p.evaluate(TIMES + ' renderPanel(false); fitCards();');
+      const r = await read(p), ad = r.find(x => x.kind === 'adhkar'), vs = r.find(x => x.kind === 'verse');
+      check(`adhkar beside the verse card (${cards}), ${why}: not the same text twice; the adhkar card says «${title} · ${line}»`,
+        !errors.length && ad.text !== vs.text && ad.hd === title && ad.text === line && vs.text.length > 20, JSON.stringify(r) + errors.join('; '));
+      await ctx.close();
+    }
+  }
+  {   // the adhkar card alone between the windows: the verse of the day, as before
+    const { p, ctx, errors } = await open('tv.html', 'home_panel=adhkar&widget=1', { width: 461, height: 250 });
+    await p.clock.setFixedTime(new Date('2026-10-22T10:00:00Z'));
+    await p.evaluate(TIMES + ' renderPanel(false);');
+    const r = await read(p);
+    check('adhkar alone between the windows: still the verse of the day', !errors.length && r[0].text.length > 20 && !r[0].text.startsWith('مع العصر'), JSON.stringify(r));
+    await ctx.close();
+  }
+  {   // inside a window both cards are their own: the adhkar and the verse
+    const [bw, bh] = homeBox(2, 1920);
+    const { p, ctx, errors } = await open('tv.html', 'home_panel=verse,adhkar&widget=1', { width: bw, height: bh });
+    await p.clock.setFixedTime(new Date('2026-10-22T13:40:00Z'));
+    await p.evaluate(TIMES + ' renderPanel(false);');
+    const r = await read(p);
+    check('adhkar beside the verse card at 16:40 (the evening window): the evening adhkar and the verse, different', !errors.length && r[1].hd.startsWith('أذكار المساء')
+      && r[0].text !== r[1].text, JSON.stringify(r));
+    await ctx.close();
+  }
+}
+
 await browser.close();
 console.log(failed ? `\n${failed} failed` : '\nall page tests passed');
 process.exit(failed ? 1 : 0);
