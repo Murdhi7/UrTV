@@ -35,6 +35,11 @@ SOFTWARE.
 
 ## Free My TV
 
+The home screen's setup («إعداد تلفزيوني», `android/launcher/src/main/java/sa/urtv/home/setup/AdbClient.java` and `AdbKeys.java`) is adapted from Free My TV's
+`app/src/io/freemytv/Adb.java`: the way an app talks to the TV's own adb daemon at 127.0.0.1:5555 (the RSA key, the "Allow USB debugging?" prompt, the
+Android 8 to 10 handling of the answer). Both files keep their credit header. The idea of running the setup from the TV itself follows Free My TV's
+`HomeMode.java`; the commands and lists are UrTV's own (the ones `optimize/` runs from a computer).
+
 talkies has `Spring.java` from Free My TV (https://github.com/simbasjungles/free-my-tv, `app/src/io/freemytv/Spring.java`), under
 this license:
 

@@ -6,18 +6,31 @@ set -euo pipefail
 cd "$(dirname "$0")"
 . ./python.sh
 pick_python || exit 1
-"${SYS_PY[@]}" -m venv venv
+# A phone or an iPad has no wheels for cryptography and Pillow (they would have to be built): Termux (pkg install python-cryptography) and Alpine /
+# iSH (apk add py3-cryptography py3-pillow) ship them, so the venv may see the system's packages and pip installs only what is missing. Set
+# URTV_SYSTEM_SITE=1 to ask for it anywhere; Termux and Alpine are recognised by themselves. See docs/PHONE-SETUP.md.
+system_site=
+if [ "${URTV_SYSTEM_SITE:-}" = 1 ] || [ -f /etc/alpine-release ] || [[ "${PREFIX:-}" == */com.termux/* ]]; then system_site=--system-site-packages; fi
+"${SYS_PY[@]}" -m venv ${system_site:+"$system_site"} venv
 if [ ! -e venv/bin/python ] && [ -e venv/Scripts/python.exe ]; then
   # Windows puts it in venv\Scripts: every script calls optimize/venv/bin/python, so point that there
   mkdir -p venv/bin
   printf '#!/usr/bin/env bash\nexec "$(dirname "$0")/../Scripts/python.exe" "$@"\n' > venv/bin/python
   chmod +x venv/bin/python
 fi
-if ! venv/bin/python -m pip install -q --no-cache-dir -r requirements.txt; then
+reqs=requirements.txt
+if [ -n "$system_site" ]; then   # Pillow only serves photos.sh: it must not stop the rest where it cannot be built
+  reqs=$(mktemp); grep -vi '^pillow' requirements.txt > "$reqs" || true
+  venv/bin/python -c "import PIL" > /dev/null 2>&1 || venv/bin/python -m pip install -q --no-cache-dir pillow > /dev/null 2>&1 \
+    || echo "(Pillow is not here: photos.sh needs it; Termux: pkg install python-pillow, Alpine / iSH: apk add py3-pillow, then optimize/setup.sh again)"
+fi
+if ! venv/bin/python -m pip install -q --no-cache-dir -r "$reqs"; then
   echo "!! Couldn't install the Python packages into optimize/venv (pip's error is above). If it is a network"
   echo "   error, allow this terminal network access (pypi.org), then run optimize/setup.sh again."
+  [ -z "$system_site" ] || echo "   On a phone or an iPad the packages that need building come from the system: Termux: pkg install python-cryptography; Alpine / iSH: apk add py3-cryptography (docs/PHONE-SETUP.md)."
   exit 1
 fi
+[ "$reqs" = requirements.txt ] || rm -f "$reqs"
 # iPhone/Samsung HEIC photos for photos.sh: optional, so a computer with no wheel for it still gets everything else
 venv/bin/python -m pip install -q --no-cache-dir pillow-heif > /dev/null 2>&1 || echo "(HEIC photos won't be readable here: photos.sh takes JPEG, PNG, WebP, GIF and BMP)"
 # every `venv/bin/python -I` call verifies TLS with certifi (python.org's macOS Python ships no CA certificates)
