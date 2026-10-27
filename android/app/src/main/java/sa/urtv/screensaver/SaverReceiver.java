@@ -320,6 +320,8 @@ public class SaverReceiver extends BroadcastReceiver {
         if (langs != null) p.setList("langs", langs);
         if (events != null) p.setList("events", events);
         if (leagues != null) p.setList("leagues", leagues);
+        // the page reads its settings once, when it starts: a screensaver (or preview) already on the screen would go on showing the old ones
+        c.sendBroadcast(new Intent(Prefs.CHANGED).setPackage(c.getPackageName()));
         return "saved\n" + describe(c, p);
     }
 

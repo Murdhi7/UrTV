@@ -114,6 +114,9 @@ final class Prefs {
     private final SharedPreferences sp;
     private final Context ctx;
 
+    /** sent (to this app only) when a SET from ADB or the launcher saved something: a screensaver that is already showing starts over with it */
+    static final String CHANGED = "sa.urtv.screensaver.SETTINGS_CHANGED";
+
     Prefs(Context c) { ctx = c; sp = c.getSharedPreferences("settings", Context.MODE_PRIVATE); }
 
     /** {name, latitude, longitude}; Riyadh until the user picks */

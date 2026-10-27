@@ -1,5 +1,9 @@
 package sa.urtv.screensaver;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.service.dreams.DreamService;
 import android.view.KeyEvent;
 import android.webkit.WebView;
@@ -10,6 +14,16 @@ public class ScreenDream extends DreamService {
     private final RenderGuard guard = new RenderGuard();
     private boolean attached;
     private final AdhanKeys adhanKeys = new AdhanKeys();
+    /** settings were saved while this dream is on (an agent's `saver.sh city`): start the page over with them, not at the next dream */
+    private final BroadcastReceiver changed = new BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) {
+            if (!attached || web == null) return;
+            WebView old = web;
+            web = null;
+            ScreenView.release(old);
+            show(false);
+        }
+    };
 
     @Override
     public void onAttachedToWindow() {
@@ -19,6 +33,7 @@ public class ScreenDream extends DreamService {
         setScreenBright(true);
         attached = true;
         show(true);
+        registerReceiver(changed, new IntentFilter(Prefs.CHANGED));
     }
 
     /**
@@ -55,6 +70,7 @@ public class ScreenDream extends DreamService {
     @Override
     public void onDetachedFromWindow() {
         attached = false;
+        try { unregisterReceiver(changed); } catch (IllegalArgumentException ignored) { }
         ScreenView.release(web);
         web = null;
         super.onDetachedFromWindow();
