@@ -205,10 +205,15 @@ VIRTUAL_NETS = [ipaddress.ip_network(n) for n in (
 VIRTUAL_IFACE = re.compile(r"^(vboxnet|docker|br-|veth|virbr|vmnet|utun|vethernet)|virtualbox|vmware|hyper-v", re.I)
 
 
-def virtual_ip(ip):
-    """An address in a virtual-machine, container or emulator network: never the TV."""
+def virtual_ip(ip, iface=None, nets=()):
+    """An address in a virtual-machine, container or emulator network: never the TV. Those ranges are also used by some home routers, so a
+    range decides only for an address that is on no network being scanned and on no known interface; on an interface its name decides
+    (VIRTUAL_IFACE), and an address inside a scanned network (the one that goes out to the internet, or a real interface) is never dropped."""
+    if iface:
+        return bool(VIRTUAL_IFACE.search(iface))
     try:
-        return any(ipaddress.ip_address(ip) in n for n in VIRTUAL_NETS)
+        a = ipaddress.ip_address(ip)
+        return not any(a in n for n in nets) and any(a in n for n in VIRTUAL_NETS)
     except ValueError:
         return False
 
@@ -268,8 +273,8 @@ def my_networks(route_ip):
     virtual machines, containers and emulators are left out."""
     nets = []
 
-    def add(ip, prefix, name=""):
-        if not home(ip) or virtual_ip(ip) or VIRTUAL_IFACE.search(name):
+    def add(ip, prefix, name=None):   # name None = the address that goes out to the internet: that network is the home network
+        if not home(ip) or (name is not None and virtual_ip(ip, name)):
             return
         net = ipaddress.ip_network(f"{ip}/{max(prefix, 22)}", strict=False)
         if net not in nets:
@@ -317,7 +322,7 @@ def candidates(adb, own, gws, nets, knock=None):
     knock = knock or (lambda h, p: connects(h, p, 1.0))
     keep = []
     for h in adb:
-        if h in own or h in gws or virtual_ip(h):
+        if h in own or h in gws or virtual_ip(h, nets=nets):
             continue
         if not gws and h.endswith((".1", ".254")) and any(knock(h, p) for p in (80, 443, 53)):
             continue
@@ -332,13 +337,13 @@ def scan():
         print("!! This terminal cannot reach the home network. Run: optimize/find-tv.sh --check")
         return 1
     own = own_addresses(ip)
-    if not ip or virtual_ip(ip):
+    if not ip or virtual_ip(ip, nets=nets):
         ip = next((a for _, a, _ in interfaces() if a in nets[0]), str(nets[0].network_address))
     gws = set(gateways())
     hosts = [str(h) for n in nets for h in n.hosts() if str(h) not in own]
     print("Scanning " + ", ".join(str(n) for n in nets) + f" from {ip} …")
     near, tls = mdns_hosts(ip)
-    near = [h for h in dict.fromkeys(near + neighbours()) if not virtual_ip(h) and h not in own]
+    near = [h for h in dict.fromkeys(near + neighbours()) if not virtual_ip(h, nets=nets) and h not in own]
     hosts = list(dict.fromkeys(near + hosts))   # the ones the network already knows go first
     pairs = [(h, p) for h in hosts for p in (5555, 8008)]
     open_ = knock_all(pairs, 1.5)
@@ -348,7 +353,7 @@ def scan():
     if not adb:   # still nothing: the whole range once more, slower
         slow = knock_all([(h, 5555) for h in hosts], 3.5, 96)
         adb = candidates([h for h, p in slow], own, gws, nets)
-    cast = [h for h, p in open_ if p == 8008 and h not in own and h not in gws and not virtual_ip(h)]
+    cast = [h for h, p in open_ if p == 8008 and h not in own and h not in gws and not virtual_ip(h, nets=nets)]
     infos = {}
     with concurrent.futures.ThreadPoolExecutor(16) as pool:
         for h, info in zip(list(dict.fromkeys(cast + adb)), pool.map(cast_info, list(dict.fromkeys(cast + adb)))):

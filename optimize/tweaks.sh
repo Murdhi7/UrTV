@@ -65,7 +65,7 @@ psget() {
              esac ;;
   esac
 }
-test_build() { "$PY" -I optimize/tv.py "getprop ro.build.tags; getprop ro.build.type" 2> /dev/null | tr -d '\r' | grep -Eqi 'test-keys|userdebug|^eng$'; }
+test_build() { "$PY" -I optimize/tv.py "getprop ro.build.type" 2> /dev/null | tr -d '\r' | grep -Eqx 'userdebug|eng'; }   # test-keys alone is common on shipped TVs
 psput() {   # key value
   case "$1" in
     standby_bucket) echo "am set-standby-bucket $PS $2" ;;

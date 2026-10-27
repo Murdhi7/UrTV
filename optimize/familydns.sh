@@ -20,11 +20,19 @@ get() {   # setting -> its value; «null» only when the TV itself says so, «un
   local v; v=$(tv "settings get global $1" 2> /dev/null | tr -d '\r' | tail -n 1) || v=""; echo "${v:-unknown}"
 }
 sdk() { tv "getprop ro.build.version.sdk" 2> /dev/null | tr -d '\r' | tail -n 1 | tr -dc '0-9'; }
-app_here() { tv "pm list packages $APP" 2> /dev/null | tr -d '\r' | grep -qx "package:$APP"; }
+pkg_state() {   # yes | no | unknown: «no» only when the package list was read to its end marker and holds android itself
+  local raw; raw=$(tv "pm list packages; echo END_OF_LIST" 2> /dev/null | tr -d '\r') || { echo unknown; return; }
+  if [ "$(tail -n 1 <<< "$raw")" != END_OF_LIST ] || ! grep -qx "package:android" <<< "$raw"; then echo unknown
+  elif grep -qx "package:$APP" <<< "$raw"; then echo yes; else echo no; fi
+}
+app_here() { [ "$(pkg_state)" = yes ]; }
 app() {   # mode -> the app's answer text, empty when it did not answer. An app without the feature answers «error: unknown action …».
   tv "am broadcast -n $APP/.DockReceiver -a $APP.FAMILY_DNS --es mode $1" 2> /dev/null | tr -d '\r' | sed -n 's/.*data="\(.*\)"$/\1/p' | head -n 1 || true
 }
-app_has_feature() { case "$(app status)" in "family-dns: "*) return 0 ;; *) return 1 ;; esac; }
+feature_state() {   # yes | no | unknown: «no» only for the app's own «error: unknown action» (every launcher released before this feature)
+  local a; a=$(app status)
+  case "$a" in "family-dns: "*) echo yes ;; "error: unknown action"*) echo no ;; *) echo unknown ;; esac
+}
 app_idle() {   # wait (up to 70 s) for a running check of the app to end; the last status line
   local i s=""
   for i in $(seq 35); do
@@ -33,8 +41,13 @@ app_idle() {   # wait (up to 70 s) for a running check of the app to end; the la
   done
   echo "$s"
 }
+could_not_ask() { echo "!! familydns: the TV did not answer whether the home app with «حماية العائلة» is on it, so nothing was changed. Run the same command again."; }
 need_app() {   # on: the home app with this feature is required
-  if ! app_here || ! app_has_feature; then
+  local p f; p=$(pkg_state)
+  [ "$p" != unknown ] || { could_not_ask; exit 1; }
+  f=no; [ "$p" = no ] || f=$(feature_state)
+  [ "$f" != unknown ] || { could_not_ask; exit 1; }
+  if [ "$p" = no ] || [ "$f" = no ]; then
     echo "!! familydns: حماية العائلة تحتاج تطبيق الواجهة: optimize/install.sh launcher (the home app with this feature is not on this TV, so nothing was changed)"
     exit 1
   fi
@@ -86,9 +99,14 @@ case "${1:-status}" in
       echo "حماية العائلة (DNS) is on ($HOST); the internet works through it (switched by the home app, which holds the record)."
     else explain "${r:-NO_ANSWER}"; exit 1; fi ;;
   off)
-    if ! app_here || ! app_has_feature; then
+    p=$(pkg_state)
+    [ "$p" != unknown ] || { could_not_ask; exit 1; }
+    f=no; [ "$p" = no ] || f=$(feature_state)
+    [ "$f" != unknown ] || { could_not_ask; exit 1; }
+    if [ "$f" = no ]; then
       # an app without the feature has no record, so there is nothing to put back (every launcher released before this feature)
       echo "Nothing to put back: no home app with «حماية العائلة» is on this TV."
+      if [ "$(get private_dns_specifier)" = "$HOST" ]; then echo "(The TV's Private DNS points at $HOST, but not through this app: if the person did not set it, turn it off in the TV's network settings.)"; fi
       exit 0
     fi
     app_idle > /dev/null

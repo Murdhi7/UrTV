@@ -148,5 +148,8 @@ public class FamilyDnsRun {
         new FamilyDns(f).enable();
         sb.append(f.lookups);
         System.out.println(sb);
+        // 20 an UnknownHostException is «no such name» only with a GaiException EAI_NODATA/EAI_NONAME cause
+        System.out.println(FamilyDns.unknownHostKind(true, 7, 7, 8) + " " + FamilyDns.unknownHostKind(true, 8, 7, 8) + " "
+            + FamilyDns.unknownHostKind(true, 2, 7, 8) + " " + FamilyDns.unknownHostKind(false, 7, 7, 8));
     }
 }

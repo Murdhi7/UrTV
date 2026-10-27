@@ -122,6 +122,14 @@ check("fallback: .1 answering 80 is the router", ft.candidates(["192.168.1.1", "
 check("fallback: .1 answering nothing is kept", ft.candidates(["192.168.1.1"], set(), set(), [], lambda h, p: False) == ["192.168.1.1"], "")
 check("parse_ifaces names", ("vboxnet0", "192.168.56.1", 24) in ft.parse_ifaces("3: vboxnet0    inet 192.168.56.1/24 scope global vboxnet0")
       and ("en0", "192.168.1.5", 24) in ft.parse_ifaces("en0: flags=8863<UP>\n\tinet 192.168.1.5 netmask 0xffffff00 broadcast 192.168.1.255"), "")
+check("virtual_ip: a bare address in a VM range is virtual; the same address inside a scanned network, or on a real interface, is not",
+      ft.virtual_ip("192.168.99.7") and not ft.virtual_ip("192.168.99.7", nets=[ft.ipaddress.ip_network("192.168.99.0/24")])
+      and not ft.virtual_ip("192.168.99.7", "wlan0") and ft.virtual_ip("192.168.99.7", "vboxnet0"), "")
+_saved_if = ft.interfaces
+ft.interfaces = lambda: [("wlan0", "192.168.99.23", 24), ("docker0", "172.17.0.1", 16)]
+nets = [str(n) for n in ft.my_networks("192.168.99.23")]
+ft.interfaces = _saved_if
+check("a home router that uses 192.168.99.x (a real interface, the route out) is scanned; docker0 is not", nets == ["192.168.99.0/24"], nets)
 
 
 # ---- use IP

@@ -1,5 +1,5 @@
 """optimize/restore.sh puts back every package ANY of our disable runs turned off (a second run, a list that changed or is gone), not
-only the lists it is given; a package removed for the user is installed again before it is turned on. Fake TV; no TV needed.
+only the lists it is given; a package that was never installed is not in it. Fake TV; no TV needed.
 
     python3 tests/restore_complete_test.py
 """
@@ -7,7 +7,20 @@ import os, shutil, subprocess, sys, tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-STUB = '#!/usr/bin/env bash\nshift 2\ncase "$1" in\n  --batch) cat >> "$T/batch" ;;\nesac\nexit 0\n'
+STUB = r'''#!/usr/bin/env bash
+shift 2
+case "$1" in
+  --batch) cat >> "$T/batch" ;;
+  "pm list packages; echo END_OF_LIST"|"pm list packages")
+    echo package:android; echo package:com.a.one; echo package:com.a.two; echo package:com.c.four; echo package:com.b.three
+    echo package:com.google.android.tvlauncher; [[ "$1" == *END* ]] && echo END_OF_LIST ;;
+  "pm list packages -d; echo END_OF_LIST")   # 1st read of a run: nothing was off; 2nd read: what the batch turned off
+    n=$(cat "$T/n" 2>/dev/null || echo 0); echo $(( (n+1) % 2 )) > "$T/n"
+    [ "$n" = 0 ] || printf 'package:%s\\n' com.a.one com.a.two com.c.four
+    echo END_OF_LIST ;;
+esac
+exit 0
+'''
 failed = 0
 def check(name, ok, detail=""):
     global failed
@@ -42,8 +55,8 @@ check("the disable time is marked", (tree / "optimize/run/.package-change").exis
 (t / "batch").unlink(missing_ok=True)
 r = sh("restore.sh")
 b = (t / "batch").read_text().splitlines()
-check("restore with no list: every package any run turned off is installed for the user if it was removed, then turned on",
-      all(b.index(f"cmd package install-existing --user 0 {p}") < b.index(f"pm enable {p}") for p in ("com.a.one", "com.a.two", "com.c.four")), str(b))
+check("restore with no list: every package any run turned off is turned on (we never uninstall, so nothing is installed again)",
+      all(f"pm enable {p}" in b for p in ("com.a.one", "com.a.two", "com.c.four")) and not any("install-existing" in x for x in b), str(b))
 check("and the stock home's helpers and the home are still put back", "pm enable com.tcl.helper" in b and "input keyevent KEYCODE_HOME" in b, str(b))
 check("restore is not harmed by a missing ledger (nothing disabled by us)", subprocess.run(["bash", str(tree / "optimize/restore.sh")], env=dict(env, URTV_RUN_DIR=str(t / "norun")), capture_output=True, text=True, cwd=tree).returncode == 0)
 sys.exit(1 if failed else 0)

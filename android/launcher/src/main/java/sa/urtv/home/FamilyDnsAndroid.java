@@ -141,7 +141,10 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
                 java.net.InetAddress.getByName(name);
                 kind.set(FamilyDns.Lookup.Kind.RESOLVED);
             } catch (java.net.UnknownHostException e) {
-                kind.set(FamilyDns.Lookup.Kind.NOT_FOUND);
+                Throwable c = e.getCause();
+                boolean gai = c instanceof android.system.GaiException;
+                kind.set(FamilyDns.unknownHostKind(gai, gai ? ((android.system.GaiException) c).error : 0,
+                        android.system.OsConstants.EAI_NODATA, android.system.OsConstants.EAI_NONAME));
             } catch (Exception e) {
                 kind.set(FamilyDns.Lookup.Kind.FAILED);
             }

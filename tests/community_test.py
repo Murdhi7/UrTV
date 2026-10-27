@@ -128,7 +128,7 @@ def run(cmd):
     LOG.write(cmd + "\n")
     if cmd == "pm list packages": return "".join("package:%s\n" % p.lstrip("-") for p in S)
     if cmd == "pm list packages -d": return "".join("package:%s\n" % p[1:] for p in S if p.startswith("-"))
-    if cmd.startswith("cmd package query-activities"): return "" if os.environ.get("NOHOMES") else "com.acme.launcher/.Main\ncom.google.android.apps.tv.launcherx/.Home\n"
+    if cmd.startswith("cmd package query-activities"): return "" if os.environ.get("NOHOMES") else "2 activities found:\n  Activity #0:\n    priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true\n    com.acme.launcher/.Main\n  Activity #1:\n    priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true\n    com.google.android.apps.tv.launcherx/.Home\n"
     m = re.fullmatch(r"pm disable-user --user 0 (\S+)", cmd)
     if m: S = [("-" + p if p == m.group(1) else p) for p in S]; save(); return "ok\n"
     return ""
@@ -162,7 +162,7 @@ real_check = (tree / "optimize/check-packages.py").read_text()
 (tree / "optimize/check-packages.py").write_text("import sys\nsys.exit(1)\n")
 rc2, o2, applied2, log2, state2 = step(ACME, PKGS, tree / "home")
 (tree / "optimize/check-packages.py").write_text(real_check)
-check("step: the Unsafe check could not run (offline): the third-party list is NOT applied at all, a !! line says so", rc2 == 1 and applied2 == [] and "pm disable-user" not in log2 and "!! community list not applied: the Unsafe check (UAD-ng) needs the internet" in o2, o2)
+check("step: the Unsafe check could not run (offline): the third-party list is NOT applied at all, a !! line says so, and the step does not stop the setup (exit 0)", rc2 == 0 and applied2 == [] and "pm disable-user" not in log2 and "!! community list not applied: the Unsafe check (UAD-ng) needs the internet" in o2, o2)
 rc, o, applied, log, state = step(ACME, PKGS, tree / "home")   # (the real run again, for the checks below)
 asked = (tree / "optimize/run/community-ask.txt")
 check("step: an update service, voice, MiLink and a video player are left ON and offered to the person; YouTube Music is never turned off",

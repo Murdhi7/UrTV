@@ -33,7 +33,7 @@ tmp=$(mktemp -d)
 printf '%s\n' "$installed" > "$tmp/installed"
 # the apps that answer HOME on this TV are never disabled here
 tv "cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2> /dev/null" | tr -d '\r' \
-  | sed -n 's#^\([A-Za-z0-9_.]*\)/.*#\1#p' | sort -u > "$tmp/homes"
+  | sed -n 's#^[[:space:]]*\([A-Za-z0-9_.]*\)/.*#\1#p' | sort -u > "$tmp/homes"
 if [ ! -s "$tmp/homes" ]; then   # every TV has a home app: an empty answer is «the TV did not say», and the home must not be guessed by its name
   echo "!! community list not applied: the TV did not say which app is its home screen, so nothing was turned off. Run optimize/community.sh again."
   rm -rf "$tmp"; exit 1
@@ -65,7 +65,7 @@ if [ -s "$tmp/todo" ]; then   # never what UAD-ng rates Unsafe; offline, the che
   else
     # the third-party list is the least vetted: without the one safety rating it is not applied at all
     echo "!! community list not applied: the Unsafe check (UAD-ng) needs the internet and could not run. Nothing from the community list was turned off; run optimize/community.sh again when online."
-    rm -rf "$tmp"; exit 1
+    rm -rf "$tmp"; exit 0   # a !! line, not a stop of the whole setup: nothing was applied (community-applied.txt stays empty)
   fi
 fi
 base=$(basename "$chosen" .txt)

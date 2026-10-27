@@ -65,7 +65,7 @@ check("both already on the TV: nothing downloaded or uploaded", rc == 0 and log 
 rc, out, log, inst, tree = run(installed=["com.phlox.tvwebbrowser"], fail_push=STUBE)
 check("the first is on the TV, the second's upload fails twice: only the second is tried (twice), skipped with one line, setup goes on", rc == 0
       and not any(TVBRO in l for l in log) and log.count(f"push {STUBE}") == 2
-      and f"skipped after 2 timeouts: SmartTube; to add it later: optimize/install.sh extras" in out.splitlines(), f"{rc} {log} {out}")
+      and f"!! skipped after 2 timeouts: SmartTube; to add it later: optimize/install.sh extras" in out.splitlines(), f"{rc} {log} {out}")
 check("the half-done APK stays on this computer for the next try", (tree / "optimize" / STUBE).exists())
 rc, out, log, inst, _ = run(installed=["com.phlox.tvwebbrowser"], have={STUBE: 20}, tree=tree)
 check("the next try does not download a finished APK again, uploads and installs it", rc == 0 and "download" not in " ".join(log)
@@ -73,8 +73,8 @@ check("the next try does not download a finished APK again, uploads and installs
 rc, out, log, inst, _ = run(installed=["com.phlox.tvwebbrowser"], have={STUBE: 7})
 check("a cut-off download (wrong size) is downloaded again", rc == 0 and f"download {STUBE}" in log, f"{rc} {log} {out}")
 rc, out, log, inst, _ = run(silent="1")
-check("SmartTube: the TV goes silent during its install: tried once more, then skipped with one plain line, the step still ends well, TV Bro stays",
-      rc == 0 and "skipped after 2 timeouts: SmartTube; to add it later: optimize/install.sh extras" in out.splitlines()
+check("SmartTube: the TV goes silent during its install: tried once more, then skipped with one !! line, the step still ends well, TV Bro stays",
+      rc == 0 and "!! skipped after 2 timeouts: SmartTube; to add it later: optimize/install.sh extras" in out.splitlines()
       and log.count(f"push {STUBE}") == 2 and "org.smarttube.stable" not in inst and "com.phlox.tvwebbrowser" in inst, f"{rc} {out} {log}")
 check("the home app and the screensaver are never skipped that way", "skipped after 2 timeouts" not in open(ROOT / "optimize" / "install.sh").read().split("push_install() {")[1].split("from_github() {")[0])
 rc, out, log, inst, _ = run(abi_empty="3")

@@ -29,7 +29,7 @@ case "$1" in
   "device_config get activity_manager "*) f="$S/${1##* }"; [ -f "$f" ] && cat "$f" || echo null ;;
   "am get-standby-bucket "*) [ "$UNREADABLE" = yes ] && exit 0; [ -f "$S/standby_bucket" ] && cat "$S/standby_bucket" || echo 10 ;;
   "appops get "*) [ "$UNREADABLE" = yes ] && exit 0; op=${1##* }; [ -f "$S/op_$op" ] && echo "$op: $(cat "$S/op_$op")" || echo "No operations." ;;
-  "getprop ro.build.tags; getprop ro.build.type") [ "$TESTBUILD" = yes ] && printf 'test-keys\nuserdebug\n' || printf 'release-keys\nuser\n' ;;
+  "getprop ro.build.type") case "$TESTBUILD" in yes) echo userdebug ;; keys) echo user ;; *) echo user ;; esac ;;
   "df -k /data"*) echo "/dev/x 16777216 4194304 12582912 25% /data" ;;
 esac
 exit 0
@@ -182,5 +182,8 @@ rc, out = tv.run("apply", refuse="standby_bucket", testbuild="yes")
 check("a test build that keeps its standby bucket: an info line, no !!, and the setup is not marked as a problem", "info: standby_bucket stays" in out and "!! standby_bucket" not in out, out)
 tv = Tv(window_animation_scale="1.0", transition_animation_scale="1.0", animator_duration_scale="1.0")
 rc, out = tv.run("apply", refuse="standby_bucket")
+tv = Tv(window_animation_scale="1.0", transition_animation_scale="1.0", animator_duration_scale="1.0")
+rc, out = tv.run("apply", refuse="standby_bucket", testbuild="keys")
+check("test-keys alone (shipped TVs often have it) is not a test build: the !! line stays", "!! standby_bucket: this TV did not take the value" in out, out)
 check("a normal build still gets the !! line", "!! standby_bucket: this TV did not take the value" in out, out)
 sys.exit(1 if failed else 0)

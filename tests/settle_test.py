@@ -32,7 +32,7 @@ check("a change 2 s ago: waits about 13 s, then syncs the TV", rc == 0 and len(s
 rc, out, slept, sent, t = run("wait", marked_ago=40)
 check("a change 40 s ago: no waiting (it still syncs)", rc == 0 and slept == [] and "sync" in sent, f"{slept} {sent}")
 rc, out, slept, sent, t = run("wait")
-check("nothing marked (the marker was wiped): waits the whole time once, then syncs, instead of not at all", rc == 0 and len(slept) == 1 and 14 <= int(slept[0]) <= 15 and "sync" in sent, f"{slept} {sent}")
+check("nothing marked: no waiting, nothing sent", rc == 0 and slept == [] and sent == [], f"{slept} {sent}")
 
 # the places that change packages mark, the places that restart or read back wait
 src = lambda n: (ROOT / "optimize" / n).read_text(encoding="utf-8")

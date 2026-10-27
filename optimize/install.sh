@@ -182,7 +182,7 @@ from_github() {   # $1 owner/repo, $2 package, $3 asset pattern ({abi} = the TV'
     [ "$try" = 2 ] || sleep 5
   done
   if [ "$out" = NO_ANSWER ] && ! "$PY" -I optimize/tv.py "pm list packages $2" 2> /dev/null | tr -d '\r' | grep -qx "package:$2"; then
-    echo "skipped after 2 timeouts: ${1##*/}; to add it later: optimize/install.sh extras"
+    echo "!! skipped after 2 timeouts: ${1##*/}; to add it later: optimize/install.sh extras"
     return 0   # the downloaded file stays, so the next try does not fetch it again
   fi
   "$PY" -I optimize/tv.py "rm -f /data/local/tmp/$name" > /dev/null 2>&1 || true
@@ -231,15 +231,26 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
   # Which stock home does this TV have? Google TV sets: launcherx. Older Android TV: tvlauncher.
   # Only a package that is really installed is ever named (a guessed one would be "restored" to nothing): another maker's own home is
   # taken from the app that answers Home now, if there is exactly one besides ours and the setup wizard; else the switch is not made.
-  have_pkg() { "$PY" -I optimize/tv.py "pm list packages $1" 2> /dev/null | tr -d '\r' | grep -qx "package:$1"; }
-  STOCK=
-  if have_pkg com.google.android.apps.tv.launcherx; then
+  # One read of the package list; a list without the android package itself is «the TV did not answer», not «nothing is installed».
+  pkglist=$("$PY" -I optimize/tv.py "pm list packages" 2> /dev/null | tr -d '\r') || pkglist=""
+  have_pkg() { grep -qx "package:$1" <<< "$pkglist"; }
+  STOCK=; stock_unreadable=no
+  if ! have_pkg android; then
+    stock_unreadable=yes
+  elif have_pkg com.google.android.apps.tv.launcherx; then
     STOCK=com.google.android.apps.tv.launcherx/com.google.android.apps.tv.launcherx.home.HomeActivity
   elif have_pkg com.google.android.tvlauncher; then
     STOCK=com.google.android.tvlauncher/.MainActivity
   else
+    # query-activities prints each component indented under «Activity #n:»; the setup wizard, a bare fallback home, the settings apps and
+    # Android's own core are never taken for the TV's home
     cand=$("$PY" -I optimize/tv.py "cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2> /dev/null" 2> /dev/null \
-           | tr -d '\r' | grep -E '^[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+$' | grep -vE '^(sa\.urtv\.|com\.google\.android\.tungsten\.setupwraith)' | sort -u || true)
+           | tr -d '\r' | sed 's/^[[:space:]]*//' | grep -E '^[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+$' \
+           | grep -vE '^(sa\.urtv\.|com\.google\.android\.tungsten\.setupwraith|com\.android\.settings|com\.android\.tv\.settings)' \
+           | grep -vE '/([A-Za-z0-9_.]*\.)?FallbackHome$' | sort -u || true)
+    if [ -f optimize/lists/core.txt ]; then
+      cand=$(grep -vEf <(grep -vE '^[[:space:]]*(#|$)' optimize/lists/core.txt | sed 's/.*/^(&)\//') <<< "$cand" || true)
+    fi
     if [ "$(grep -c . <<< "$cand")" = 1 ] && have_pkg "${cand%%/*}"; then STOCK=$cand; fi
   fi
   echo "Stock home: ${STOCK:-not found}"
@@ -305,7 +316,7 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
         case "$(wifi_owner)" in
           owned) WIZARD_KEPT=yes; echo "The setup wizard answers Home and owns the saved Wi-Fi network: it is left on (the network stays), and the switch goes on without turning it off." ;;
           other) wraith=listed ;;
-          *) WIZARD_KEPT=yes; echo "The setup wizard answers Home, but the TV did not say who owns its saved Wi-Fi: the wizard is left on, so the network is not lost." ;;
+          *) echo "The setup wizard answers Home, but the TV did not say who owns its saved Wi-Fi: the wizard is left on, so the network is not lost." ;;   # (not a «keeps its own home»: if Home does not open ours, the message says to run again)
         esac
       fi
       # 2. Arm the safety switch on the TV: it restores the stock home in 300 s unless we confirm (slow ADB needs time).
@@ -364,7 +375,8 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
         printf '%s\n' "cmd role add-role-holder --user 0 android.app.role.HOME ${STOCK%%/*}" \
           "cmd package set-home-activity --user 0 $STOCK" "pm enable com.google.android.tungsten.setupwraith" \
           "touch /data/local/tmp/home_ok.$NONCE" "input keyevent KEYCODE_HOME" | "$PY" -I optimize/tv.py --batch > /dev/null \
-          && jstate restored   # only when it went through: else the journal stays «switching» and the next run redoes it
+          || return 1   # the put-back did not go through (ADB dropped): the retry path decides, the journal stays «switching»
+        jstate restored
         return 4
       fi
     fi
@@ -409,7 +421,8 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
       printf '%s\n' "pm enable ${STOCK%%/*}" "pm enable $WRAITH" \
         "cmd role add-role-holder --user 0 android.app.role.HOME ${STOCK%%/*}" "cmd package set-home-activity --user 0 $STOCK" \
         "touch /data/local/tmp/home_ok.$NONCE" "input keyevent KEYCODE_HOME" | "$PY" -I optimize/tv.py --batch > /dev/null \
-        && jstate restored   # (see above: not «restored» if the batch did not go through)
+        || return 1   # the stock home is NOT confirmed back (ADB dropped): the retry path decides; never say «put back» then
+      jstate restored
       # the setup wizard had to stay on (it owns the Wi-Fi password) and Home still goes to the stock home: this TV keeps its own home
       [ "$WIZARD_KEPT" = yes ] && return 6
       return 2
@@ -422,7 +435,7 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
   }
 
 
-  rc=0; if [ -z "$STOCK" ]; then rc=7; else switch_home || rc=$?; fi
+  rc=0; if [ "$stock_unreadable" = yes ]; then rc=8; elif [ -z "$STOCK" ]; then rc=7; else switch_home || rc=$?; fi
   if [ "$rc" = 1 ]; then   # ADB dropped: wait for the TV, see what Home is now, and go on or start the switch again
     back=no; last_hint=""
     for n in $(seq 60); do   # every 10 s, 10 minutes; the same address and port as before (tv.py keeps the remembered one)
@@ -456,6 +469,8 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
        echo "Home switch skipped: this TV refuses to turn its own home screen off («This command is illegal», seen on a Nokia Streaming Box 8000). It keeps its own home; the stock home is back as it was. The screensaver and the rest of the setup work without it."
        mkdir -p "${URTV_RUN_DIR:-optimize/run}"
        echo "Home switch: skipped, this TV refuses to turn its own home screen off" > "${URTV_RUN_DIR:-optimize/run}/home-skipped.txt" ;;
+    8) echo "!! Could not read this TV's package list (it came back empty, or without the android package), so the home switch was not made and nothing was changed. Run the same command again."
+       exit 1 ;;
     7) home_skipped=1
        echo "!! Could not tell which app is this TV's own home screen (the Google TV and Android TV launchers are not installed, and no single other app answers Home), so the home switch was not made and nothing was changed: the stock home could not be put back if the switch failed. UrTV works as an app and as the screensaver."
        mkdir -p "${URTV_RUN_DIR:-optimize/run}"

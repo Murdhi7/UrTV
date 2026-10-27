@@ -28,8 +28,16 @@ case "$2" in *offlist.py) exec python3 "$@" ;; esac
 shift 2
 echo "$1" >> "$T/calls"
 case "$1" in
-  --batch) cat >> "$T/batch" ;;
-  "pm list packages -d") [ "$OFF_FAILS" = yes ] && exit 1; printf 'package:%s\\n' $OFF ;;
+  --batch) cat >> "$T/batch"; [ "$BATCH_FAILS" = yes ] && exit 1 ;;
+  "pm list packages -d; echo END_OF_LIST")
+    [ "$OFF_FAILS" = yes ] && exit 1
+    [ "$OFF_EMPTY" = yes ] && exit 0
+    n=$(cat "$T/offn" 2>/dev/null || echo 0); echo $((n+1)) > "$T/offn"
+    if [ "$n" = 0 ]; then printf 'package:%s\\n' $OFF; else printf 'package:%s\\n' $OFF $AFTER; fi
+    echo END_OF_LIST ;;
+  "pm list packages; echo END_OF_LIST")
+    [ "$INSTALLED_FAILS" = yes ] && exit 1
+    echo package:android; printf 'package:%s\\n' $INSTALLED; echo END_OF_LIST ;;
   "pm list packages "*) echo "package:${1##* }" ;;
 esac
 exit 0
@@ -38,7 +46,8 @@ exit 0
     return t, tr
 
 def sh(t, tr, script, *args, **env):
-    e = dict(os.environ, T=str(t), PY=str(t / "py"), URTV_HOME=str(t / "home"), URTV_RUN_DIR=str(tr / "optimize/run"), PACKAGE_SETTLE_S="0", OFF="", OFF_FAILS="")
+    e = dict(os.environ, T=str(t), PY=str(t / "py"), URTV_HOME=str(t / "home"), URTV_RUN_DIR=str(tr / "optimize/run"), PACKAGE_SETTLE_S="0", OFF="", OFF_FAILS="", OFF_EMPTY="", BATCH_FAILS="", INSTALLED_FAILS="",
+             INSTALLED="com.a.one com.a.two com.a.already com.a.new", AFTER="com.a.one com.a.two com.a.new")
     e.update({k.upper(): v for k, v in env.items()})
     r = subprocess.run(["bash", str(tr / "optimize" / script), *args], env=e, capture_output=True, text=True, cwd=tr)
     batch = (t / "batch").read_text() if (t / "batch").exists() else ""
@@ -55,11 +64,25 @@ t, tr = tree(); (tr / "list.txt").write_text("com.a.already\ncom.a.new\n")
 rc, out, batch = sh(t, tr, "disable.sh", "list.txt", off="com.a.already")
 ledger = (tr / "optimize/run/disabled-by-us.txt").read_text().split()
 check("disable.sh: a package the TV already had off is not remembered as ours (a restore would turn it ON), but is still sent", rc == 0 and ledger == ["com.a.new"] and "pm disable-user --user 0 com.a.already" in batch, f"{ledger} {batch}")
+for label, kw in (("the already-off list cannot be read", dict(off_fails="yes")), ("the already-off list came back empty (no end marker)", dict(off_empty="yes")),
+                  ("the installed list cannot be read", dict(installed_fails="yes"))):
+    t, tr = tree(); (tr / "list.txt").write_text("com.a.one\n")
+    rc, out, batch = sh(t, tr, "disable.sh", "list.txt", **kw)
+    led = tr / "optimize/run/disabled-by-us.txt"
+    check(f"disable.sh: {label} -> nothing is remembered, a !! line says so, the packages are still turned off", rc == 0 and "!! disable.sh: the TV did not say which packages it has" in out
+          and "pm disable-user --user 0 com.a.one" in batch and (not led.exists() or led.read_text().split() == []), f"{out} {led.read_text() if led.exists() else None}")
+t, tr = tree(); (tr / "list.txt").write_text("com.a.new\ncom.a.gone\ncom.a.stuck\n")
+rc, out, batch = sh(t, tr, "disable.sh", "list.txt", installed="com.a.new com.a.stuck", after="com.a.new")
+check("disable.sh: the ledger holds only what was installed and is off afterwards (not a package missing from the TV, not one that stayed on)",
+      (tr / "optimize/run/disabled-by-us.txt").read_text().split() == ["com.a.new"], (tr / "optimize/run/disabled-by-us.txt").read_text())
+t, tr = tree(); (tr / "list.txt").write_text("com.a.one\ncom.a.two\n")
+rc, out, batch = sh(t, tr, "disable.sh", "list.txt", batch_fails="yes", after="")
+check("disable.sh: a batch that dies half way still leaves the intended packages in the ledger (the restore undoes whatever was done)",
+      (tr / "optimize/run/disabled-by-us.txt").read_text().split() == ["com.a.one", "com.a.two"], (tr / "optimize/run/disabled-by-us.txt").read_text())
+
 t, tr = tree(); (tr / "list.txt").write_text("com.a.one\n")
-rc, out, batch = sh(t, tr, "disable.sh", "list.txt", off_fails="yes")
-led = tr / "optimize/run/disabled-by-us.txt"
-check("disable.sh: the TV did not say what was already off -> nothing is remembered, and a !! line says so", rc == 0 and "!! disable.sh: the TV did not say which packages were already off" in out
-      and (not led.exists() or led.read_text().split() == []), f"{out} {led.read_text() if led.exists() else None}")
+rc, out, batch = sh(t, tr, "disable.sh", "list.txt", after="")
+check("disable.sh: a package that is still on after the batch is taken back out of the ledger", (tr / "optimize/run/disabled-by-us.txt").read_text().split() == [], (tr / "optimize/run/disabled-by-us.txt").read_text())
 
 # keep.sh unkeep: the same refusals as disable.sh
 t, tr = tree(); (t / "home").mkdir()

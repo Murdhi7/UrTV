@@ -13,8 +13,7 @@ case "${1:-}" in
   mark) mkdir -p "$RUN"; date +%s > "$F" ;;
   wait)
     last=$(cat "$F" 2> /dev/null || true)
-    # no usable marker (wiped, another run folder): the change may have been seconds ago, so wait the whole time once
-    [[ "$last" =~ ^[0-9]+$ ]] || last=$(date +%s)
+    [[ "$last" =~ ^[0-9]+$ ]] || exit 0   # no marker: no package change was made by these tools in this run folder, so nothing to wait for
     left=$((last + ${PACKAGE_SETTLE_S:-15} - $(date +%s)))
     if [ "$left" -gt 0 ]; then
       echo "(waiting $left s: Android writes the package state to disk about 10 s after a change)"

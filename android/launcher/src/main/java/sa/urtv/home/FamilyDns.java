@@ -87,6 +87,14 @@ public final class FamilyDns {
         }
     }
 
+    /**
+     * What an UnknownHostException means. Only the resolver's own «no such name / no data» (a GaiException with EAI_NODATA or EAI_NONAME as the
+     * cause) is a real answer; any other cause (a failed or refused connection, a bad certificate, a system error) is a broken resolver.
+     */
+    public static Lookup.Kind unknownHostKind(boolean causeIsGai, int gaiError, int eaiNodata, int eaiNoname) {
+        return causeIsGai && (gaiError == eaiNodata || gaiError == eaiNoname) ? Lookup.Kind.NOT_FOUND : Lookup.Kind.FAILED;
+    }
+
     public enum Result { ENABLED, ALREADY_ON_BY_OTHER, NEEDS_GRANT, NO_ROUTE, UNREADABLE_VALUE, NOT_RECORDED, NOT_TAKEN, REVERTED, RESTORED, NOTHING_TO_RESTORE, RESTORE_FAILED, UNSUPPORTED, CHANGED_BY_SOMEONE_ELSE }
     public enum State { ON, OFF, UNKNOWN }
 

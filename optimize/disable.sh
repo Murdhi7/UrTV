@@ -29,22 +29,34 @@ if [ -n "$keptpkgs" ]; then
   pkgs=$(printf '%s\n' "$pkgs" | grep -Fxvf <(printf '%s\n' "$keptpkgs") || true)
 fi
 [ -n "$pkgs" ] || exit 0
-was_off=""; was_off_ok=
-if was_off_raw=$("$PY" -I optimize/tv.py "pm list packages -d" 2> /dev/null); then
-  was_off=$(printf '%s\n' "$was_off_raw" | tr -d '\r' | sed -n 's/^package://p'); was_off_ok=1
-fi
-printf '%s\n' "$pkgs" | awk '{print "pm disable-user --user 0 " $1}' | "$PY" -I optimize/tv.py --batch
-# what this run disabled is remembered (also when a list changes later, or a second run disables another list): optimize/restore.sh
-# re-enables every package in it. And the time, so nothing restarts the TV before Android has written the state (optimize/settle.sh).
+# Which packages are ours to put back: installed on the TV, not already off before this run (a maker's own «disabled» package must not be turned
+# ON by a restore, and a package that is not on the TV, or was removed for the user, is not ours at all). Each list is read with an end marker:
+# an empty answer is «the TV did not say», not «none».
+tvlist() {   # command -> package names, one per line; fails when the end marker is missing
+  local raw; raw=$("$PY" -I optimize/tv.py "$1; echo END_OF_LIST" 2> /dev/null | tr -d '\r') || return 1
+  [ "$(tail -n 1 <<< "$raw")" = END_OF_LIST ] || return 1
+  sed -n 's/^package://p' <<< "$raw"
+}
 RUN="${URTV_RUN_DIR:-optimize/run}"
 mkdir -p "$RUN"
-# only what the TV did not already have off is ours (a maker's own «disabled» package must not be turned ON by a restore). The list of
-# what was off BEFORE this run was read first; if it could not be read, nothing is remembered and a !! line says so.
-if [ -n "${was_off_ok:-}" ]; then
-  mine=$(printf '%s\n' "$pkgs" | grep -vxFf <(printf '%s\n' "$was_off") || true)
+LEDGER="$RUN/disabled-by-us.txt"
+known=yes
+installed=$(tvlist "pm list packages") || known=no
+was_off=$(tvlist "pm list packages -d") || known=no
+intended=""
+if [ "$known" = yes ] && grep -qx android <<< "$installed"; then
+  intended=$(printf '%s\n' "$pkgs" | grep -Fxf <(printf '%s\n' "$installed") | grep -vxFf <(printf '%s\n' "$was_off") || true)
 else
-  mine=""; echo "!! disable.sh: the TV did not say which packages were already off, so nothing from this run is remembered for the restore (optimize/restore.sh with the same list still turns them on)." >&2
+  known=no
+  echo "!! disable.sh: the TV did not say which packages it has or which were already off, so nothing from this run is remembered for the restore (optimize/restore.sh with the same list still turns them on)." >&2
 fi
-{ [ ! -f "$RUN/disabled-by-us.txt" ] || cat "$RUN/disabled-by-us.txt"; printf '%s\n' "$mine"; } | grep -E '^[A-Za-z0-9_.]+$' | sort -u > "$RUN/disabled-by-us.txt.tmp" \
-  && mv "$RUN/disabled-by-us.txt.tmp" "$RUN/disabled-by-us.txt"
+prev=""; [ ! -f "$LEDGER" ] || prev=$(cat "$LEDGER")
+remember() { { printf '%s\n' "$prev"; printf '%s\n' "$1"; } | { grep -E '^[A-Za-z0-9_.]+$' || true; } | sort -u > "$LEDGER.tmp" && mv "$LEDGER.tmp" "$LEDGER"; }
+[ "$known" = no ] || remember "$intended"   # written BEFORE the batch: a batch that dies half way is still undone by the restore
+printf '%s\n' "$pkgs" | awk '{print "pm disable-user --user 0 " $1}' | "$PY" -I optimize/tv.py --batch
+if [ "$known" = yes ]; then   # confirmed by what the TV says is off now (read from the package manager, which is up to date at once)
+  if now_off=$(tvlist "pm list packages -d"); then
+    remember "$(printf '%s\n' "$intended" | grep -Fxf <(printf '%s\n' "$now_off") || true)"
+  fi
+fi
 optimize/settle.sh mark 2> /dev/null || true

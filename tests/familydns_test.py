@@ -26,6 +26,7 @@ case "$1" in
            [ -n "$DROP_AFTER_PUT" ] && grep -q "private_dns_mode hostname" "$T/batch" && touch "$T/dropped"; exit 0 ;;
   "getprop ro.build.version.sdk") echo "$SDK" ;;
   "pm list packages sa.urtv.home") [ "$HOMEAPP" = yes ] && echo "package:sa.urtv.home" ;;
+  "pm list packages; echo END_OF_LIST") [ "$LISTFAILS" = yes ] && exit 1; echo package:android; [ "$HOMEAPP" = yes ] && echo "package:sa.urtv.home"; echo END_OF_LIST ;;
   "pm grant "*) [ "$GRANT_REFUSED" = yes ] && exit 1; echo yes > "$S/grant"; echo "grant" >> "$T/events" ;;
   "settings get global "*) k=${1##* }; [ "$UNREADABLE" = yes ] && exit 1; f="$S/$k"; [ -f "$f" ] && cat "$f" || echo null ;;
   *"--help"*) [ "$NONC" = yes ] && echo "toybox: Unknown command nc" || echo "usage: netcat [-46ELlntUu] ..." ;;
@@ -38,7 +39,8 @@ case "$1" in
        esac ;;
   "dumpsys connectivity"*) if [ "$(cat "$S/private_dns_mode" 2>/dev/null)" = hostname ] && [ "$NOVALID" != yes ]; then echo "    PrivateDnsConfig{family.adguard-dns.com:[]}"; fi ;;
   "touch "*) echo "$1" >> "$T/events" ;;
-  *"FAMILY_DNS"*) if [ "$NOACTION" = yes ]; then echo 'Broadcast completed: result=0, data="error: unknown action sa.urtv.home.FAMILY_DNS"'; exit 0; fi
+  *"FAMILY_DNS"*) if [ "$SILENT" = yes ]; then exit 0; fi
+       if [ "$NOACTION" = yes ]; then echo 'Broadcast completed: result=0, data="error: unknown action sa.urtv.home.FAMILY_DNS"'; exit 0; fi
        case "$1" in
   *"FAMILY_DNS --es mode status") echo "Broadcast completed: result=0, data=\"$(app_status)\"" ;;
   *"FAMILY_DNS --es mode on") if [ "$(cat "$S/grant" 2>/dev/null || echo "$GRANT")" != yes ]; then echo 'Broadcast completed: result=0, data="family-dns: NEEDS_GRANT"'
@@ -70,7 +72,7 @@ class Tv:
         for k, v in settings.items(): (self.t / "tv" / k).write_text(v + "\n")
     def run(self, *args, **env):
         e = dict(os.environ, T=str(self.t), PY=str(self.t / "py"), PATH=f"{self.t}:{os.environ['PATH']}", REFUSE="", UNREADABLE="", NONC="", NOFAMILY="", BREAK="",
-                 SDK="30", HOMEAPP="", GRANT="no", NOVALID="", DROP_AFTER_PUT="", APP_RESULT="", OFF_RESULT="", GRANT_REFUSED="", NOACTION="")
+                 SDK="30", HOMEAPP="", GRANT="no", NOVALID="", DROP_AFTER_PUT="", APP_RESULT="", OFF_RESULT="", GRANT_REFUSED="", NOACTION="", SILENT="", LISTFAILS="")
         e.update({("HOMEAPP" if k == "app" else k.upper()): v for k, v in env.items()})
         r = subprocess.run(["bash", str(self.tree / "optimize" / "familydns.sh"), *args], env=e, capture_output=True, text=True, cwd=self.tree)
         return r.returncode, r.stdout + r.stderr
@@ -99,6 +101,15 @@ rc, out = tv.run("off")
 check("off with no home app: nothing to put back, exit 0 (reset must not stop)", rc == 0 and "Nothing to put back" in out, out)
 rc, out = tv.run("off", app="yes", noaction="yes")
 check("off with an older home app ('error: unknown action', as on every launcher released so far): nothing to put back, exit 0", rc == 0 and "Nothing to put back" in out and "!!" not in out, out)
+tv = Tv(private_dns_mode="hostname", private_dns_specifier=H)
+rc, out = tv.run("off", app="yes", silent="yes")
+check("off when the home app did not answer: NOT «nothing to put back», a !! line and exit 1", rc == 1 and "Nothing to put back" not in out and "!! familydns: the TV did not answer" in out and "app-off" not in tv.events(), out)
+rc, out = tv.run("off", app="yes", listfails="yes")
+check("off when the package list could not be read: the same, not «nothing to put back»", rc == 1 and "Nothing to put back" not in out and "!! familydns: the TV did not answer" in out, out)
+rc, out = tv.run("on", app="yes", silent="yes")
+check("on when the home app did not answer: a !! line (not the «install the launcher» line), nothing changed", rc == 1 and "the TV did not answer" in out and "تحتاج تطبيق" not in out, out)
+rc, out = tv.run("off")
+check("off with no home app but the Private DNS pointing at the family host: nothing put back, and it says so", rc == 0 and "Nothing to put back" in out and H in out, out)
 tv = Tv(private_dns_mode="off")
 rc, out = tv.run("on", sdk="26", app="yes", grant="yes")
 check("Android 8 (API 26) has no Private DNS: refused before the app is asked", rc == 1 and "older than 9" in out and "app-on" not in tv.events(), out)
