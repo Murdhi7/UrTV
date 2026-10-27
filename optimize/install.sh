@@ -121,22 +121,8 @@ push_install() {   # $1 apk name, $2 package
   "$PY" -I optimize/tv.py "rm -f /data/local/tmp/$1"
 }
 
-from_github() {   # $1 owner/repo, $2 package, $3 asset pattern ({abi} = the TV's processor types, best first)
-  local abis url name out code body size
-  # an extra that an earlier try already installed is not downloaded or uploaded again: a flaky Wi-Fi that dropped on the second
-  # one resumes there, not from the first (an upload cut off half way is resumed by tv.py itself)
-  if "$PY" -I optimize/tv.py "pm list packages $2" | tr -d '\r' | grep -qx "package:$2"; then
-    echo "$2 is already on the TV: left as it is (it updates itself)."; return 0
-  fi
-  abis=$("$PY" -I optimize/tv.py "getprop ro.product.cpu.abilist" | tr -d '\r')
-  body=$(curl_get -sSL -w '\n%{http_code}' "https://api.github.com/repos/$1/releases/latest") || body=$'\n000'
-  code=${body##*$'\n'}; body=${body%$'\n'*}
-  if [ "$code" = 403 ] || [ "$code" = 429 ]; then
-    echo "!! GitHub rate limit, try later: $1 skipped"; failed=1; return 0
-  elif [ "$code" != 200 ]; then
-    echo "!! GitHub did not list the releases of $1 (HTTP $code): skipped"; failed=1; return 0
-  fi
-  url=$("$PY" -I -c '
+pick_asset() {   # $1 asset pattern ({abi} = a processor type), $2 the TV's processor types (best first), $3 the release JSON: "url size" of the best build
+  "$PY" -I -c '
 import json, re, sys
 assets = {a["name"]: (a["browser_download_url"], a.get("size", 0)) for a in json.load(sys.stdin)["assets"]}
 for abi in [a for a in sys.argv[2].split(",") if a] + ["universal", ""]:
@@ -144,21 +130,58 @@ for abi in [a for a in sys.argv[2].split(",") if a] + ["universal", ""]:
     hit = sorted(n for n in assets if pat.search(n))
     if hit:
         print(assets[hit[0]][0], assets[hit[0]][1]); break
-' "$3" "$abis" <<< "$body") || true
-  if [ -z "$url" ]; then echo "!! No build of $1 for this TV ($abis): skipped"; return 0; fi
+' "$1" "$2" <<< "$3"
+}
+
+from_github() {   # $1 owner/repo, $2 package, $3 asset pattern ({abi} = the TV's processor types, best first)
+  local abis url name out code body size attempt prop
+  # an extra that an earlier try already installed is not downloaded or uploaded again: a flaky Wi-Fi that dropped on the second
+  # one resumes there, not from the first (an upload cut off half way is resumed by tv.py itself)
+  if "$PY" -I optimize/tv.py "pm list packages $2" | tr -d '\r' | grep -qx "package:$2"; then
+    echo "$2 is already on the TV: left as it is (it updates itself)."; return 0
+  fi
+  body=$(curl_get -sSL -w '\n%{http_code}' "https://api.github.com/repos/$1/releases/latest") || body=$'\n000'
+  code=${body##*$'\n'}; body=${body%$'\n'*}
+  if [ "$code" = 403 ] || [ "$code" = 429 ]; then
+    echo "!! GitHub rate limit, try later: $1 skipped"; failed=1; return 0
+  elif [ "$code" != 200 ]; then
+    echo "!! GitHub did not list the releases of $1 (HTTP $code): skipped"; failed=1; return 0
+  fi
+  # the list of processor types is read up to 3 times: a flaky TV (seen on an AFMU0) answered with nothing, or with a short list,
+  # and «no build» was said for an app that has one. An empty answer is asked again (abilist, then abilist32, then abi).
+  for attempt in 1 2 3; do
+    abis=""
+    for prop in ro.product.cpu.abilist ro.product.cpu.abilist32 ro.product.cpu.abi; do
+      abis=$("$PY" -I optimize/tv.py "getprop $prop" 2> /dev/null | tr -d '\r\n ' || true)
+      [ -z "$abis" ] || break
+    done
+    url=$(pick_asset "$3" "$abis" "$body") || url=""
+    [ -z "$url" ] || break
+    [ "$attempt" = 3 ] || sleep 3
+  done
+  if [ -z "$url" ]; then echo "!! No build of $1 for this TV (${abis:-no answer about its processor}): skipped"; return 0; fi
   size=${url##* }; url=${url% *}
   name=$(basename "$url")
   if [ -f "optimize/$name" ] && [ "$size" != 0 ] && [ "$(wc -c < "optimize/$name" | tr -d ' ')" = "$size" ]; then
     echo "$name is already downloaded: not downloading it again."
   elif ! curl_get -fsSL -o "optimize/$name" "$url"; then echo "!! Could not download $url"; failed=1; return 0; fi
-  "$PY" -I optimize/tv.py --push-b64 "optimize/$name" "/data/local/tmp/$name"
-  out=$(pm_install "$name" "$2")
+  # An optional app never holds the setup up: the upload and the install are tried twice (an upload resumes where it stopped),
+  # and a TV that did not answer both times means this app is skipped with one line and the setup goes on.
+  local try
+  for try in 1 2; do
+    if "$PY" -I optimize/tv.py --push-b64 "optimize/$name" "/data/local/tmp/$name"; then out=$(pm_install "$name" "$2"); else out=NO_ANSWER; fi
+    [ "$out" = NO_ANSWER ] || break
+    # the install may even have finished while the TV was silent
+    ! "$PY" -I optimize/tv.py "pm list packages $2" 2> /dev/null | tr -d '\r' | grep -qx "package:$2" || break
+    [ "$try" = 2 ] || sleep 5
+  done
+  if [ "$out" = NO_ANSWER ] && ! "$PY" -I optimize/tv.py "pm list packages $2" 2> /dev/null | tr -d '\r' | grep -qx "package:$2"; then
+    echo "skipped after 2 timeouts: ${1##*/}; to add it later: optimize/install.sh extras"
+    return 0   # the downloaded file stays, so the next try does not fetch it again
+  fi
   "$PY" -I optimize/tv.py "rm -f /data/local/tmp/$name" > /dev/null 2>&1 || true
   rm -f "optimize/$name"
-  if [ "$out" = NO_ANSWER ]; then
-    # an extra never stops the setup: the install may even have finished while the TV was silent
-    if "$PY" -I optimize/tv.py "pm list packages $2" 2> /dev/null | tr -d '\r' | grep -qx "package:$2"; then echo "Installed $name (the TV was slow to answer)"
-    else echo "!! $2 was skipped: the TV stopped answering while it installed (slow Wi-Fi or a slow set). The rest of the setup goes on; to add it later: optimize/install.sh extras"; fi
+  if [ "$out" = NO_ANSWER ]; then echo "Installed $name (the TV was slow to answer)"
   elif grep -q Success <<< "$out"; then echo "Installed $name"
   elif grep -qE 'UPDATE_INCOMPATIBLE|signatures do not match' <<< "$out"; then
     echo "$2 is already installed from somewhere else: left as it is (with its settings)."   # never removed
@@ -395,13 +418,18 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
 
   rc=0; if [ -z "$STOCK" ]; then rc=7; else switch_home || rc=$?; fi
   if [ "$rc" = 1 ]; then   # ADB dropped: wait for the TV, see what Home is now, and go on or start the switch again
-    back=no
-    for _ in $(seq 36); do   # every 10 s, about 6 minutes
+    back=no; last_hint=""
+    for n in $(seq 60); do   # every 10 s, 10 minutes; the same address and port as before (tv.py keeps the remembered one)
       if "$PY" -I optimize/tv.py "getprop ro.serialno" > /dev/null 2>&1; then back=yes; break; fi
+      # every minute: if another device on the Wi-Fi now has ADB open, say so. Only a hint: the TV is never switched by itself.
+      if [ $((n % 6)) = 0 ]; then
+        hint=$("$PY" -I optimize/tv.py --address-hint 2> /dev/null || true)
+        if [ -n "$hint" ] && [ "$hint" != "$last_hint" ]; then echo "$hint"; last_hint=$hint; fi
+      fi
       sleep 10
     done
     if [ "$back" = no ]; then
-      echo "!! The TV did not come back within 6 minutes. Check it is on and on Wi-Fi: the safety switch restores the stock home."
+      echo "!! The TV did not come back within 10 minutes. Check it is on and on Wi-Fi: the safety switch restores the stock home."
       echo "   Then run the same command again."
       exit 1
     fi

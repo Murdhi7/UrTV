@@ -154,7 +154,7 @@ cases = [
     ("two drops: gives up, exits 1", run("d", 2, "stock"),
      lambda c, o, l: c == 1 and l.count("arm") == 2 and "!! The safety switch put the stock home back" in o),
     ("TV never answers: exits 1", run("e", 1, "stock", down_polls=99),
-     lambda c, o, l: c == 1 and "did not come back within 6 minutes" in o and l.count("arm") == 1),
+     lambda c, o, l: c == 1 and "did not come back within 10 minutes" in o and l.count("arm") == 1),
     ("Play Protect refuses: check off for the install, old value back", run("f", 0, "", verify="once", verifier="1"),
      lambda c, o, l: c == 0 and "Play Protect refused" in o and "(was: 1)" in o and l.count("refused") == 1
      and l.count("installed") == 1 and l[l.index("put-0"):].count("put-1") == 1 and l[-1] == "final-1"),

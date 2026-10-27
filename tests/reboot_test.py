@@ -47,6 +47,11 @@ os.environ["URTV_RUN_DIR"] = tempfile.mkdtemp()   # where the TV's identity is r
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "optimize"))
 import tv
 tv.signer = lambda: None
+hints = {"n": 0}
+def fake_hint(host=None):   # find-tv.py's look at the Wi-Fi: one other device has ADB open (it is only printed, never used)
+    hints["n"] += 1
+    return "   (the saved address does not answer, but one device on this Wi-Fi has ADB open at 192.168.1.77: optimize/find-tv.sh use 192.168.1.77)"
+tv.address_hint = fake_hint
 tv.time = types.SimpleNamespace(time=lambda: clock["t"], sleep=lambda s: clock.__setitem__("t", clock["t"] + s))
 
 def scenario(label, down_at, up_at, ready_at, has_id=True, old_up=5000.0, ignored=False, want="back", min_wait=0):
@@ -89,7 +94,26 @@ results = [
     scenario("same, no boot id, a TV up only 30 s before", down_at=70, up_at=100, ready_at=130, has_id=False, old_up=30.0),
     scenario("the reboot is ignored: never counts as back", down_at=0, up_at=0, ready_at=0, ignored=True, want="never restarted"),
     scenario("never answers again", down_at=5, up_at=10_000, ready_at=10_001, want="did not come back"),
+    # F: a TV that takes 8 minutes to be back is found (it used to be given up on after 5)
+    scenario("back after 8 minutes", down_at=5, up_at=470, ready_at=480, min_wait=480),
 ]
+hints["n"] = 0
+clock["t"] = 1000.0
+ok10 = scenario("never answers: the line says 10 minutes", down_at=5, up_at=10_000, ready_at=10_001, want="did not come back")
+tx = io.StringIO()
+tvstate.update(sent=0, state=lambda: "down")
+clock["t"] = 0.0
+try:
+    with contextlib.redirect_stderr(tx):
+        tv.wait_for_tv(restart=False)
+except SystemExit as e:
+    line = str(e.code)
+print("reboot: failure line and wait: " + ("ok" if line.startswith("!! The TV did not come back within 10 minutes.") and 600 <= clock["t"] <= 620
+      and "192.168.1.77" in line and "192.168.1.77" in tx.getvalue() else f"WRONG {line!r} t={clock['t']}"))
+results.append(ok10 and line.startswith("!! The TV did not come back within 10 minutes.") and 600 <= clock["t"] <= 620 and "192.168.1.77" in line)
+# the hint is looked for about once a minute while waiting, and the host is never changed by it
+results.append(hints["n"] >= 9 and tv.HOST == "1.2.3.4")
+print("reboot: hint looked for once a minute, saved host unchanged: " + ("ok" if results[-1] else f"WRONG {hints['n']} {tv.HOST}"))
 
 # unreachable before anything is sent: stops, nothing sent, nothing waited for
 class Dead(Dev):
