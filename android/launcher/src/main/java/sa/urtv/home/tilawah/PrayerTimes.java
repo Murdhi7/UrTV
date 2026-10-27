@@ -162,6 +162,8 @@ final class PrayerTimes {
      * new times. Runs off the main thread; `done` runs on the main thread when something changed.
      */
     static void refresh(final Context c, final Runnable done) {
+        // standby: not asked now (the adhan itself rings on the computed times, and the home's minute tick asks when it is back in front)
+        if (!sa.urtv.home.NetGate.backgroundOk(sa.urtv.home.NetGateAndroid.displayOn(c))) return;
         new Thread(() -> {
             if (refreshNow(c) && done != null) new android.os.Handler(android.os.Looper.getMainLooper()).post(done);
         }, "adhan-times").start();
@@ -172,6 +174,7 @@ final class PrayerTimes {
      * try in 30 minutes while it has not worked, none once today's are kept (the answer is on disk, no thread, no network).
      */
     static void refreshIfDue(Context c, Place place) {
+        if (!sa.urtv.home.NetGate.backgroundOk(sa.urtv.home.NetGateAndroid.displayOn(c))) return;   // a try is not counted while nothing could be asked
         Calendar day = Calendar.getInstance(TimeZone.getTimeZone(place.tz), Locale.US);
         String key = key(day, place);
         SharedPreferences sp = prefs(c);

@@ -412,7 +412,7 @@ public class MainActivity extends Activity {
         weatherLine.setMaxLines(2);
         weatherLine.setVisibility(View.GONE);
         left.addView(weatherLine, llp(-2, -2, 0, dp(1), dp(4), 0));
-        greetingLine = new Greeting(this, greeting, weatherLine);
+        greetingLine = new Greeting(this, greeting, weatherLine, () -> resumed);
 
         LinearLayout clockRow = new LinearLayout(this);
         clockRow.setGravity(Gravity.BOTTOM);
@@ -1630,6 +1630,7 @@ public class MainActivity extends Activity {
             }
             showWallpaperIfCurrent(bm, gen);
             if (only) return;   // no network while only the owner's photos show
+            if (!NetGate.allowed(resumed, NetGateAndroid.displayOn(this))) return;   // another app came up, or standby: no network; the next rotation on return asks
             // 2. then the network: the photo list (once a day), the cache pruned, and the hosted photo if it was missing
             refreshPhotoIndex();
             pruneCachedPhotos(remotePhotos());
@@ -1681,7 +1682,7 @@ public class MainActivity extends Activity {
 
     private boolean firstWallpaper = true;
 
-    private boolean resumed;   // home is in front: only then does the photo rotation run
+    private volatile boolean resumed;   // (read by the photo thread too) home is in front: only then does the photo rotation run
 
     private void scheduleWallpaper(long delay) {
         handler.removeCallbacks(rotateWallpaper);

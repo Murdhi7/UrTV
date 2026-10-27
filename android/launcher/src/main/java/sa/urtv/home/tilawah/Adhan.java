@@ -125,12 +125,21 @@ final class Adhan {
 
     static boolean isCached(Context c, int voice) { return cached(c, voice).length() > MIN_BYTES; }
 
+    static volatile boolean skippedInStandby;
+
+    /** The home screen's tick: a prefetch that was skipped in standby is made now (once; nothing is asked when none was skipped). */
+    static void prefetchIfSkipped(Context c) {
+        if (skippedInStandby) prefetchChosen(c);
+    }
+
     /**
      * The chosen voices (the usual one and the one for Fajr), on their own thread, unless they are on the TV already: asked for by the alarm
      * scheduler and the receiver, so the adhan plays from the cache at its prayer time and the screen «تلاوة» need not have been opened.
      * A failed try is not repeated for an hour.
      */
     static void prefetchChosen(final Context c) {
+        if (!sa.urtv.home.NetGate.backgroundOk(sa.urtv.home.NetGateAndroid.displayOn(c))) { skippedInStandby = true; return; }   // not now; AdhanSync asks once when the home is back
+        skippedInStandby = false;
         final Prefs prefs = new Prefs(c);
         final int chosen = prefs.voice(), fajr = prefs.fajrVoice();
         long now = System.currentTimeMillis();
