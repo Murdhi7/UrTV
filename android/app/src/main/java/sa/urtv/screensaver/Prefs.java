@@ -672,6 +672,10 @@ final class Prefs {
     boolean listenPill() { return sp.getBoolean("listenPill", true); }
     void setListenPill(boolean v) { sp.edit().putBoolean("listenPill", v).apply(); }
 
+    /** «جرس التحديثات» on the home screen: on by default (it shows only on evidence of waiting updates, so it cannot hurt) */
+    boolean updateBell() { return sp.getBoolean("updateBell", true); }
+    void setUpdateBell(boolean v) { sp.edit().putBoolean("updateBell", v).apply(); }
+
     List<String> teamIds() {
         List<String> ids = new ArrayList<>();
         for (String t : teams()) ids.add(t.split("\\|", 2)[0]);

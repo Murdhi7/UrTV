@@ -20,7 +20,7 @@ import java.util.Locale;
  *   am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.CITIES
  *   am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.SET
  *       [--es city 'الرس'] [--es lat 25.86 --es lon 43.49 --es tz Asia/Kuwait]   (tz is needed for a place that is not in the list) [--es teams '136013:Al-Hilal,150643:Al-Zulfi']
- *       [--es panel prayers] [--es panel2 hourly|none] [--es home_panel prayers,hourly,verse|none] [--es greeting on|off] [--es listenpill on|off] [--es adhanbar on|off] [--es yearstrip on|off] [--es minrating 7]
+ *       [--es panel prayers] [--es panel2 hourly|none] [--es home_panel prayers,hourly,verse|none] [--es greeting on|off] [--es listenpill on|off] [--es updatebell on|off] [--es adhanbar on|off] [--es yearstrip on|off] [--es minrating 7]
  *       [--es sunrise on|off] [--es prayerbar on|off] [--es wxmore on|off] [--es months default|levant] [--es genres Drama,Comedy] [--es langs English]
  *       [--es photos 30] [--es idle 10] [--es digits hindi|latin] [--es hijrioffset -2..2] [--es clock24 on|off]
  *       [--es cardstyle current|dark1|glass1|dark3|glass3] [--es national auto|off]
@@ -44,6 +44,7 @@ import java.util.Locale;
  * through ConfigProvider (.../own-in), or, with path, one in /data/local/tmp/urtv-own/ (only where the app may read it);
  * mode = mix (they join ours, as always) or only.
  * listenpill = the «تلاوة وأذان» button on the home screen (on, the default, or off: only the button goes, the adhan and the Quran stay).
+ * updatebell = the «جرس التحديثات» on the home screen (on, the default, or off: only the bell goes; it shows only while the Play Store has updates waiting).
  * greeting = the greeting and the weather line above the home screen's clock (on, the default, or off: the plain good-morning).
  * yearstrip = the slim year strip under the screensaver's clock (on, or off, the default).
  * sunrise, prayerbar, wxmore = on or off (the default): the sunrise after Fajr in the prayer panel, the bar under it, the humidity and wind.
@@ -226,6 +227,9 @@ public class SaverReceiver extends BroadcastReceiver {
         String listenPill = i.getStringExtra("listenpill");
         if (listenPill != null && !"on".equals(listenPill) && !"off".equals(listenPill))
             return "error: listenpill is one of on off";
+        String updateBell = i.getStringExtra("updatebell");
+        if (updateBell != null && !"on".equals(updateBell) && !"off".equals(updateBell))
+            return "error: updatebell is one of on off";
         String rating = i.getStringExtra("minrating");
         if (rating != null && !Arrays.asList(Prefs.MIN_RATINGS).contains(rating))
             return "error: minrating is one of " + Prefs.join(Arrays.asList(Prefs.MIN_RATINGS), " ");
@@ -321,6 +325,7 @@ public class SaverReceiver extends BroadcastReceiver {
         if (homeCards != null) p.setHomePanels(homeCards);
         if (greeting != null) p.setGreeting("on".equals(greeting));
         if (listenPill != null) p.setListenPill("on".equals(listenPill));
+        if (updateBell != null) p.setUpdateBell("on".equals(updateBell));
         if (adhanBar != null) p.setAdhanBar("on".equals(adhanBar));
         if (updateChannel != null) p.setUpdateChannel(updateChannel);
         if (yearStrip != null) p.setYearStrip("on".equals(yearStrip));
@@ -452,6 +457,7 @@ public class SaverReceiver extends BroadcastReceiver {
             + "\nhome_panel: " + p.homePanel()
             + "\ngreeting: " + (p.greeting() ? "on" : "off")
             + "\nlistenpill: " + (p.listenPill() ? "on" : "off")
+            + "\nupdatebell: " + (p.updateBell() ? "on" : "off")
             + "\nadhanbar: " + (p.adhanBar() ? "on" : "off")
             + "\nupdatechannel: " + p.updateChannel()
             + "\nyearstrip: " + (p.yearStrip() ? "on" : "off")
