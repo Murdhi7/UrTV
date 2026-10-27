@@ -53,7 +53,7 @@ PRAYER_METHODS = ("auto", "jafari")
 CARD_STYLES = ("current", "dark1", "glass1", "dark3", "glass3")
 CLOCK_SIZES = ("large", "medium", "small")
 MK_STYLES = ("arrows", "prices")
-MARKETS = ("tasi", "aramco", "spx", "btc", "gold", "silver", "xrp")
+MARKETS = ("tasi", "aramco", "spx", "btc", "gold", "silver", "oil", "xrp")
 MAX_MARKETS = 4
 PANELS = ("shows", "prayers", "forecast", "hourly", "prayerrow", "nextprayer", "matches", "verse", "wisdom", "adhkar",
           "stocks", "tasks", "year", "smart", "today", "none")

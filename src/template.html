@@ -1133,14 +1133,14 @@ function sunrisePanel(mins, elL, elN, elT, elC, progress){
   if(!DAY_TIMES || !DAY_TIMES.Sunrise || !fajr) return false;
   const [sh, sm] = String(DAY_TIMES.Sunrise).split(':').map(Number), at = sh*60 + sm, from = fajr.h*60 + fajr.mi + (CONFIG.iqama.Fajr || 0);
   if(mins >= from && mins < at){
-    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmt12(sh, sm));
+    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmtTime(sh, sm));
     setHTML(elC, 'بعد <b>' + untilAdhan(at - mins) + '</b>');
     progress((mins - from) / Math.max(1, at - from));
     return true;
   }
   const ago = mins - at;
   if(ago >= 0 && ago < SUNRISE_AFTER_MIN){
-    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmt12(sh, sm));
+    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmtTime(sh, sm));
     setHTML(elC, ago < 1 ? 'الآن' : 'قبل <b>' + humanRemaining(Math.max(60, Math.floor(ago) * 60)) + '</b>');
     progress(ago / SUNRISE_AFTER_MIN);
     return true;
