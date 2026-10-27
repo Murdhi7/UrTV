@@ -221,6 +221,8 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { prefs.setListenPill(!prefs.listenPill()); render(); } });
         row("ترتيب التطبيقات المفضلة", "قائمة ترتّب فيها المفضلة بالأسهم", R.drawable.ic_star,
             new Runnable() { public void run() { openDockSettings(); } });
+        row("تعديل المفضلة", "تحريك التطبيقات على الشاشة الرئيسية وحذفها", R.drawable.ic_star,
+            new Runnable() { public void run() { openDockEdit(); } });
         row("تحديث تلفزيوني", "يعرض الإصدار ويتحقق من التحديث", R.drawable.ic_sync,
             new Runnable() { public void run() { openUpdate(); } });
         row("تحكم من الجوال", "متوقف حتى تشغّله أنت", R.drawable.ic_settings,
@@ -613,6 +615,16 @@ public class SettingsActivity extends Activity {
     private void openAdhanSettings() {
         try {
             startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.MainActivity").putExtra("open", "adhan"));
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
+    /** «تعديل المفضلة» is a mode of the launcher's home screen (it owns the row); the extra asks it to start in it. */
+    private void openDockEdit() {
+        try {
+            startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setClassName("sa.urtv.home", "sa.urtv.home.MainActivity")
+                .putExtra("edit_favourites", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         } catch (RuntimeException e) {
             toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
         }

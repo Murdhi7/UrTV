@@ -46,6 +46,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.TextView;
+import android.widget.Toast;
 import sa.urtv.home.tilawah.NowPlaying;
 
 import java.text.SimpleDateFormat;
@@ -146,7 +147,7 @@ public class MainActivity extends Activity {
         @Override public void onReceive(Context c, Intent i) { updateSleepPill(); }
     };
     private final BroadcastReceiver packages = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { buildApps(); }
+        @Override public void onReceive(Context c, Intent i) { buildApps(); }   // buildApps ends «تعديل المفضلة» without saving: the row it edits is stale
     };
     // favourites changed in «ترتيب المفضلة» or from ADB while the home screen is up
     private final BroadcastReceiver dockChanged = new BroadcastReceiver() {
@@ -169,6 +170,7 @@ public class MainActivity extends Activity {
                         | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
         setContentView(buildUi());
         openRequested(getIntent());   // started by the screensaver's «الأذان» row
+        wantEdit = getIntent() != null && getIntent().getBooleanExtra(EXTRA_EDIT, false);   // the settings' «تعديل المفضلة»
         buildApps();
 
         IntentFilter pf = new IntentFilter();
@@ -221,6 +223,7 @@ public class MainActivity extends Activity {
         resumed = false;   // a slow photo check that answers now must not start the 10-minute rotation again
         remoteKeys.reset();   // a shortcut key opened an app: its release went there, not here
         PinPrompt.dismiss(this);
+        if (edit != null) leaveEdit();   // another screen came up: what was arranged is saved
         handler.removeCallbacks(rotateWallpaper);
         unregisterReceiver(tick);
         if (inputsPopup != null) inputsPopup.dismiss();
@@ -242,7 +245,13 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         Parental.SESSION.clear();
-        openRequested(intent);
+        if (edit != null) leaveEdit();   // Home while editing: the order so far is kept
+        if (intent != null && intent.getBooleanExtra(EXTRA_EDIT, false)) {   // the settings' «تعديل المفضلة»
+            wantEdit = true;
+            if (appsShown) beginPendingEdit();
+            return;
+        }
+        openRequested(intent);   // the screensaver's «الأذان» row (open=adhan)
         // Home pressed while already home: jump back to the first dock app.
         if (inputsPopup != null) inputsPopup.dismiss();
         if (!dockCards.isEmpty()) dockCards.get(0).requestFocus();
@@ -310,6 +319,7 @@ public class MainActivity extends Activity {
         });
         adhanBar.setVisibility(View.GONE);
         root.addView(adhanBar, new FrameLayout.LayoutParams(-1, dp(26), Gravity.TOP));
+        buildEditViews(root);
 
         // Hero: exactly one screen tall, header on top, title + dock at the bottom.
         hero = new FrameLayout(this);
@@ -553,6 +563,7 @@ public class MainActivity extends Activity {
     static final int BATCH_ROWS = 2;   // grid rows added per pass of the UI thread
 
     private void buildApps() {
+        if (edit != null) abandonEdit();
         PackageManager pm = getPackageManager();
         android.content.pm.ChangedPackages changed = pm.getChangedPackages(packageSeq);
         if (changed != null) { packageSeq = changed.getSequenceNumber(); artCache.evictAll(); }   // an app may have a new icon
@@ -629,6 +640,7 @@ public class MainActivity extends Activity {
         appsShown = true;
         if (entranceDue) { entranceDue = false; playEntrance(); }
         applyPendingFocus();
+        beginPendingEdit();
         addGridRows(rest, 0, gen);
     }
 
@@ -717,6 +729,7 @@ public class MainActivity extends Activity {
         shine.setBackground(ring);
         shine.setAlpha(0f);
         card.addView(shine, new FrameLayout.LayoutParams(-1, -1));
+        if (inDock) addEditMarks(card, ring, shine);
 
         box.addView(card, new LinearLayout.LayoutParams(-1, -2));
 
@@ -853,6 +866,257 @@ public class MainActivity extends Activity {
                              : getResources().getStringArray(R.array.dock_apps);
     }
 
+
+    // ---------------------------------------------------------------- «تعديل المفضلة»
+
+    /** The settings' «تعديل المفضلة» asks the home screen for this mode with this extra (FavEdit has the rules). */
+    static final String EXTRA_EDIT = "edit_favourites";
+    private static final int CORAL = 0xFFEE8B70;
+
+    private FavEdit edit;                 // null: the mode is off
+    private boolean wantEdit;             // asked for from the settings, waiting for the favourites to be on screen
+    private TextView editHint, undoChip;
+    private final Map<View, TextView> xByCard = new HashMap<>();
+    private final Map<View, GradientDrawable> ringByCard = new HashMap<>();
+    private final Map<View, View> shineByCard = new HashMap<>();
+    private long lastEditStep;
+    private final Runnable undoExpiry = () -> { if (edit != null) { edit.expire(SystemClock.uptimeMillis()); paintEdit(); } };
+
+    private void buildEditViews(FrameLayout root) {
+        editHint = text(13, "sans-serif-medium", 0xFFFFFFFF);
+        editHint.setText(FavEdit.HINT);
+        editHint.setSingleLine(true);
+        editHint.setGravity(Gravity.CENTER);
+        editHint.setPadding(dp(18), dp(6), dp(18), dp(6));
+        GradientDrawable hb = new GradientDrawable();
+        hb.setCornerRadius(dp(18));
+        hb.setColor(0xCC000000);
+        hb.setStroke(dp(1), GOLD);
+        editHint.setBackground(hb);
+        editHint.setVisibility(View.GONE);
+        root.addView(editHint, lp(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, dp(30), 0, 0));
+
+        undoChip = text(14, "sans-serif-medium", 0xFFFFFFFF);
+        undoChip.setText("تراجع");
+        undoChip.setGravity(Gravity.CENTER);
+        undoChip.setPadding(dp(22), dp(8), dp(22), dp(8));
+        undoChip.setFocusable(true);
+        undoChip.setClickable(true);
+        undoChip.setId(View.generateViewId());
+        GradientDrawable cb = new GradientDrawable();
+        cb.setCornerRadius(dp(20));
+        undoChip.setBackground(cb);
+        undoChip.setOnFocusChangeListener((v, has) -> {
+            cb.setColor(has ? GOLD : 0xCC000000);
+            cb.setStroke(dp(2), GOLD);
+            undoChip.setTextColor(has ? 0xFF04120C : 0xFFFFFFFF);
+        });
+        undoChip.getOnFocusChangeListener().onFocusChange(undoChip, false);
+        undoChip.setOnClickListener(v -> { if (edit != null) applyEdit(edit.undo(SystemClock.uptimeMillis())); });
+        undoChip.setVisibility(View.GONE);
+        root.addView(undoChip, lp(-2, -2, Gravity.BOTTOM | Gravity.LEFT, dp(68), 0, 0, dp(150)));
+    }
+
+    /** A small × in the corner of a favourite's card; it shows, and takes the focus, only while the row is being edited. */
+    private void addEditMarks(FrameLayout card, GradientDrawable ring, View shine) {
+        TextView x = text(16, "sans-serif-medium", 0xFFFFFFFF);
+        x.setText("×");
+        x.setGravity(Gravity.CENTER);
+        x.setIncludeFontPadding(false);
+        x.setFocusable(false);
+        x.setVisibility(View.GONE);
+        x.setId(View.generateViewId());
+        GradientDrawable xb = new GradientDrawable();
+        xb.setShape(GradientDrawable.OVAL);
+        x.setBackground(xb);
+        x.setOnFocusChangeListener((v, has) -> {
+            xb.setColor(has ? CORAL : 0xB3000000);
+            xb.setStroke(dp(2), has ? 0xFFFFD9CF : 0x66FFFFFF);
+            x.animate().scaleX(has ? 1.3f : 1f).scaleY(has ? 1.3f : 1f).setDuration(120).start();
+        });
+        x.getOnFocusChangeListener().onFocusChange(x, false);
+        card.addView(x, lp(dp(26), dp(26), Gravity.TOP | Gravity.START, dp(6), dp(6), dp(6), 0));
+        xByCard.put(card, x);
+        ringByCard.put(card, ring);
+        shineByCard.put(card, shine);
+    }
+
+    /** The favourites as the row shows them now, by package. */
+    private List<String> dockPackages() {
+        List<String> out = new ArrayList<>();
+        for (View c : dockCards) out.add(((App) c.getTag()).pkg);
+        return out;
+    }
+
+    /** «تعديل المفضلة» from the long-press menu (on the app that was pressed) or from the settings (pkg null). The family lock asks first. */
+    private void beginEdit(String pkg) {
+        guarded(ParentalPolicy.MENU_ARRANGE, null, "تعديل المفضلة", () -> startEdit(pkg));
+    }
+
+    /** From the settings: once the favourites are on screen. */
+    private void beginPendingEdit() {
+        if (!wantEdit || dockCards.isEmpty()) return;
+        wantEdit = false;
+        beginEdit(null);
+    }
+
+    private void startEdit(String pkg) {
+        if (edit != null || dockCards.isEmpty()) return;
+        List<String> row = dockPackages();
+        int focus = pkg != null ? row.indexOf(pkg) : -1;
+        if (focus < 0) {
+            View f = getCurrentFocus();
+            for (int i = 0; i < dockCards.size(); i++) if (dockCards.get(i) == f) focus = i;
+        }
+        edit = new FavEdit(row, MIN_DOCK, Math.max(0, focus));
+        scroll.smoothScrollTo(0, 0);
+        editHint.setVisibility(View.VISIBLE);
+        paintEdit();
+    }
+
+    /** Back: the order is saved where «ترتيب المفضلة» and dock.sh keep it, and the row is built again from it. */
+    private void leaveEdit() {
+        FavEdit e = edit;
+        if (e.carrying()) e.back(SystemClock.uptimeMillis());   // an app still in the hand goes back where it was
+        List<String> row = e.row();
+        int at = row.isEmpty() ? 0 : Math.min(e.at(), row.size() - 1);
+        edit = null;
+        syncRow(row);
+        endEditUi(at);
+        if (e.changed()) {
+            focusPkgAfter = row.get(at);
+            Dock.save(this, row);   // the same store as «ترتيب المفضلة» and dock.sh; its broadcast builds the row from it
+        }
+    }
+
+    /** The row changed under the mode (an app came or went, or dock.sh set it): nothing is saved, the new row is built. */
+    private void abandonEdit() {
+        edit = null;
+        endEditUi(0);
+    }
+
+    private void endEditUi(int focus) {
+        handler.removeCallbacks(undoExpiry);
+        editHint.setVisibility(View.GONE);
+        undoChip.setVisibility(View.GONE);
+        for (View c : dockCards) {
+            TextView x = xByCard.get(c);
+            if (x != null) { x.setVisibility(View.GONE); x.setFocusable(false); }
+        }
+        if (!dockCards.isEmpty()) dockCards.get(Math.min(focus, dockCards.size() - 1)).requestFocus();
+        for (View c : dockCards) liftCard(c, false);
+    }
+
+    /** One key while the mode is on. True: it is ours (every key but the volume and power ones). */
+    private boolean editKey(KeyEvent e) {
+        int k = e.getKeyCode();
+        if (AdhanKeys.reserved(k)) return false;
+        if (e.getAction() != KeyEvent.ACTION_DOWN) return true;   // a release does nothing; it must not click the tile under the focus
+        long now = SystemClock.uptimeMillis();
+        int rep = e.getRepeatCount();
+        int d = FavEdit.step(k, dockRow.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL);
+        if (d != 0) {
+            if (!FavEdit.stepAllowed(rep, lastEditStep, e.getEventTime(), SIDE_REPEAT_MS)) return true;
+            lastEditStep = e.getEventTime();
+            applyEdit(edit.move(d, now));
+        } else if (k == KeyEvent.KEYCODE_DPAD_UP) {
+            if (!FavEdit.stepAllowed(rep, lastEditStep, e.getEventTime(), SIDE_REPEAT_MS)) return true;
+            lastEditStep = e.getEventTime();
+            applyEdit(edit.up(0, now));
+        } else if (k == KeyEvent.KEYCODE_DPAD_DOWN) {
+            if (!FavEdit.stepAllowed(rep, lastEditStep, e.getEventTime(), SIDE_REPEAT_MS)) return true;
+            lastEditStep = e.getEventTime();
+            applyEdit(edit.down(now));
+        } else if (AdhanKeys.isOk(k)) {
+            if (FavEdit.oncePerPress(rep)) applyEdit(edit.ok(now));
+        } else if (k == KeyEvent.KEYCODE_BACK) {
+            if (FavEdit.oncePerPress(rep)) applyEdit(edit.back(now));
+        }
+        return true;
+    }
+
+    private void applyEdit(int result) {
+        if (edit == null) return;
+        switch (result) {
+            case FavEdit.EXIT:
+                leaveEdit();
+                return;
+            case FavEdit.TOO_FEW:
+                Toast.makeText(this, "المفضلة لا تقل عن " + arabicDigits(String.valueOf(MIN_DOCK)) + " تطبيقات", Toast.LENGTH_SHORT).show();
+                break;
+            case FavEdit.REMOVED:
+                handler.removeCallbacks(undoExpiry);
+                handler.postDelayed(undoExpiry, FavEdit.UNDO_MS + 50);
+                break;
+            default:
+                break;
+        }
+        paintEdit();
+    }
+
+    /** Draws the model: the tiles in its order, the × on each, the lifted one, the chip, and the focus where the model has it. */
+    private void paintEdit() {
+        FavEdit e = edit;
+        if (e == null) return;
+        long now = SystemClock.uptimeMillis();
+        e.expire(now);
+        syncRow(e.row());
+        boolean chip = e.undoAvailable(now);
+        if (chip) {
+            int dockTop = bottomBlock.getTop() + dockRow.getTop();
+            FrameLayout.LayoutParams p = (FrameLayout.LayoutParams) undoChip.getLayoutParams();
+            p.bottomMargin = Math.max(dp(8), getResources().getDisplayMetrics().heightPixels - dockTop + dp(8));
+            undoChip.setLayoutParams(p);
+        }
+        undoChip.setVisibility(chip ? View.VISIBLE : View.GONE);
+        for (View c : dockCards) {
+            TextView x = xByCard.get(c);
+            if (x != null) { x.setVisibility(View.VISIBLE); x.setFocusable(true); }
+        }
+        if (dockCards.isEmpty()) return;
+        // the focus first: a card gaining it animates to the ordinary focus size, and the lifted one must come after
+        View target = e.onUndo() && chip ? undoChip : e.onX() ? xByCard.get(dockCards.get(e.at())) : dockCards.get(e.at());
+        if (target != null && !target.isFocused()) target.requestFocus();
+        for (int i = 0; i < dockCards.size(); i++) liftCard(dockCards.get(i), e.carrying() && i == e.at());
+    }
+
+    /** The dock row in this order of packages (tiles already built; a removed one stays out of the row but keeps its tile for «تراجع»). */
+    private void syncRow(List<String> order) {
+        List<View> now = new ArrayList<>(dockCards);
+        boolean same = order.size() == now.size();
+        for (int i = 0; same && i < order.size(); i++) same = ((App) now.get(i).getTag()).pkg.equals(order.get(i));
+        if (same) return;
+        dockRow.removeAllViews();
+        dockCards.clear();
+        for (int i = 0; i < order.size(); i++) {
+            View card = cardByPkg.get(order.get(i));
+            if (card == null) continue;
+            View box = (View) card.getParent();
+            if (box.getParent() instanceof ViewGroup) ((ViewGroup) box.getParent()).removeView(box);
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f);
+            p.setMargins(i == 0 ? 0 : dp(10), 0, i == order.size() - 1 ? 0 : dp(10), 0);
+            dockRow.addView(box, p);
+            dockCards.add(card);
+        }
+        wireFocus();
+    }
+
+    /** Picked up: bigger, a gold outline and a little off the row. Dropped: as any tile. */
+    private void liftCard(View card, boolean lifted) {
+        GradientDrawable ring = ringByCard.get(card);
+        View shine = shineByCard.get(card);
+        if (ring != null) ring.setStroke(dp(lifted ? 4 : 2), lifted ? GOLD : 0xE6FFFFFF);
+        if (shine != null && lifted) shine.setAlpha(1f);
+        if (lifted) {
+            card.animate().scaleX(1.25f).scaleY(1.25f).translationY(-dp(10)).translationZ(dp(GlowLook.LIFT_DP)).setDuration(160).start();
+        } else {
+            boolean has = card.isFocused();
+            float s = has ? 1.12f : 1f;
+            card.animate().scaleX(s).scaleY(s).translationY(0).translationZ(has ? dp(GlowLook.LIFT_DP) : 0).setDuration(160).start();
+            if (shine != null) shine.setAlpha(has ? 1f : 0f);
+        }
+    }
+
     /** Only installed apps are kept, so the dock never holds a removed app's slot. */
     private void saveDock(List<String> dock, String focusPkg) {
         List<String> installed = new ArrayList<>();
@@ -874,8 +1138,10 @@ public class MainActivity extends Activity {
         int i = dock.indexOf(pkg);
         List<String> labels = new ArrayList<>();
         List<Runnable> actions = new ArrayList<>();
-        labels.add("ترتيب المفضلة…");
-        actions.add(() -> launchGuarded(ParentalPolicy.MENU_ARRANGE, new Intent(this, DockActivity.class), "ترتيب المفضلة"));
+        if (inDock) {
+            labels.add("تعديل المفضلة");
+            actions.add(() -> beginEdit(pkg));
+        }
         labels.add("تحديث تلفزيوني…");
         actions.add(() -> launchGuarded(ParentalPolicy.MENU_UPDATE, new Intent(this, UpdateActivity.class), "تحديث تلفزيوني"));
         if (inDock) {
@@ -1624,9 +1890,13 @@ public class MainActivity extends Activity {
         RemoteKeys.Decision key = remoteKeys.decide(e.getKeyCode(), e.getScanCode(), e.getAction(), e.getRepeatCount(),
                 RemoteKeys.opensApp(e.getKeyCode()) ? remoteInstalled() : Collections.<String>emptySet());
         if (key.kind != RemoteKeys.PASS) {
-            if (key.kind != RemoteKeys.EAT) openRemoteKey(key);
+            if (key.kind != RemoteKeys.EAT) {
+                if (edit != null) leaveEdit();   // a shortcut key in «تعديل المفضلة»: what was arranged is saved, as with Home, then the key acts
+                openRemoteKey(key);
+            }
             return true;
         }
+        if (edit != null && editKey(e)) return true;   // «تعديل المفضلة»: every key but the volume and power ones is ours
         // Menu key on the remote opens the Inputs dropdown.
         if (e.getKeyCode() == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP && !pills.isEmpty()) {
             showInputs(pills.get(0), ParentalPolicy.MENU_KEY);
