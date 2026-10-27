@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- the build: UTC time (YYYYMMDDHHMMSS) of the newest commit of the page's sources, put in by src/build.py. The app loads the page with the newer stamp (its own
      copy or a downloaded one), never by file time, and does not keep a download whose stamp is older than its own (Updater, PageStamp). -->
-<meta name="urtv-build" content="20261026132318">
+<meta name="urtv-build" content="20261027052016">
 <title>شاشة تلفزيونك</title>
 <style>
   @font-face{font-family:'Thmanyah';font-weight:300;font-style:normal;font-display:block;src:url("https://raw.githubusercontent.com/tshi-dev/UrTV/master/assets/fonts/Thmanyah-Light.woff2") format("woff2")}
@@ -428,6 +428,10 @@
   .panel .sub.when{margin-top:.3vh;font-size:.86em;color:#A79C85}
 
   .p-prayer{text-align:right}
+  /* #prayerbar=1: from the last prayer to the next (or to the iqama, or the sunrise), filling from the right as the text reads */
+  .pbar{height:3px;margin-top:.9vh;overflow:hidden;border-radius:99px;background:rgba(var(--gold-rgb),.18);direction:rtl}
+  .pbar[hidden]{display:none}
+  .pbar i{display:block;width:0;height:100%;border-radius:inherit;background:var(--gold);transition:width .5s linear}
   .p-prayer .big{justify-content:flex-start}
   .p-mid{text-align:center}
   .p-mid .big{display:block;text-align:center;line-height:1.06}
@@ -472,6 +476,8 @@
     font-variant-numeric:tabular-nums}
   .wxdust{color:#E8B86A;font-size:.82em}   /* the dust, beside the condition and not instead of it */
   .wxdust:not(:empty)::before{content:'·';margin-inline-end:.5em;color:rgba(214,175,107,.7)}
+  .wxmore{margin-top:.3vh;font-size:clamp(11px,.92vw,18px);font-weight:300;color:var(--dim);white-space:nowrap}
+  .wxmore[hidden]{display:none}
   .wxsrc{margin-top:.3vh;font-size:clamp(10px,.86vw,17px);font-weight:300;color:var(--dim);opacity:.8;white-space:nowrap}
   .wxsrc:empty{display:none}
   .wxsub{margin-top:.55vh;font-size:clamp(12px,1.06vw,21px);font-weight:300;color:var(--dim);white-space:nowrap}
@@ -543,6 +549,7 @@
     <div class="markets">
       <div class="wxline"><span class="wxt" id="wx-temp"></span><span class="wxd" id="wx-desc"></span><span class="wxdust" id="wx-dust"></span></div>
       <div class="wxsub"><span id="wx-city">الرياض</span><span class="wxr" id="wx-range"></span></div>
+      <div class="wxmore" id="wx-more" hidden></div>
       <div class="wxsrc" id="wx-src"></div>
       <div class="rule l"></div>
       <div class="mk">
@@ -575,6 +582,7 @@
       <div class="label" id="prayer-label">الصلاة القادمة</div>
       <div class="big"><span id="prayer-name">—</span><span class="num" id="prayer-time"></span></div>
       <div class="sub" id="prayer-count">—</div>
+      <div class="pbar" id="pbar" hidden><i id="pbar-fill"></i></div>
     </div>
 
     <div class="panel p-mid">
@@ -686,6 +694,14 @@ const CONFIG = {
   cdName: (_Q.get('cdname') || '').trim().slice(0, 40),
   // «التفسير الميسر» under the verse of the day: #tafsir=1 (anything else = off)
   tafsir: _Q.get('tafsir') === '1',
+  // from PR #28, each off unless asked for: #sunrise=1 the panel at the bottom right counts to the sunrise after Fajr's iqama and tells
+  // it for half an hour after; #prayerbar=1 a thin bar under it, how far the time has come from the last prayer to the next; #wxmore=1
+  // the humidity and the wind under the city at the top left (asked in the same weather request)
+  sunrise: _Q.get('sunrise') === '1',
+  prayerBar: _Q.get('prayerbar') === '1',
+  wxMore: _Q.get('wxmore') === '1',
+  // the Gregorian month's name: #months=levant «تشرين الأول» (the Levant's, as many people read them), anything else «أكتوبر» as always
+  months: _Q.get('months') === 'levant' ? 'levant' : 'default',
   // the slim bar before the adhan: #adhanbar=0 turns it off (anything else = on)
   adhanBar: _Q.get('adhanbar') !== '0',
   // «تعديل وقت الصلاة»: #adj=0,2,0,0,-1 = minutes added to الفجر الظهر العصر المغرب العشاء (each -20..20, whole minutes; anything that is not five
@@ -756,7 +772,13 @@ const FMT_ALL = new Intl.DateTimeFormat('en-GB',{
 });
 const FMT_HM = new Intl.DateTimeFormat('en-GB',{timeZone:CONFIG.timezone,hour:'2-digit',minute:'2-digit',hour12:false});   // the city's clock
 const FMT_DATE = new Intl.DateTimeFormat('en-CA',{timeZone:CONFIG.timezone});   // YYYY-MM-DD in the city
-const FMT_DAY_MONTH = new Intl.DateTimeFormat(GREG,{timeZone:CONFIG.timezone,weekday:'long',day:'numeric',month:'long'});   // «السبت ٢٤ أكتوبر»
+// #months=levant: every Gregorian month the page writes in the Levant's names (MonthNames.java on the home screen says the same)
+const LEVANT_MONTHS = {'يناير':'كانون الثاني', 'فبراير':'شباط', 'مارس':'آذار', 'أبريل':'نيسان', 'مايو':'أيار', 'يونيو':'حزيران',
+  'يوليو':'تموز', 'أغسطس':'آب', 'سبتمبر':'أيلول', 'أكتوبر':'تشرين الأول', 'نوفمبر':'تشرين الثاني', 'ديسمبر':'كانون الأول'};
+const LEVANT_RE = new RegExp(Object.keys(LEVANT_MONTHS).join('|'), 'g');
+const gm = s => CONFIG.months === 'levant' ? String(s).replace(LEVANT_RE, m => LEVANT_MONTHS[m]) : s;
+const gregFmt = opts => { const f = new Intl.DateTimeFormat(GREG, opts); return {format: d => gm(f.format(d))}; };   // a Gregorian date with a month name
+const FMT_DAY_MONTH = gregFmt({timeZone:CONFIG.timezone,weekday:'long',day:'numeric',month:'long'});   // «السبت ٢٤ أكتوبر»
 const FMT_WEEKDAY = new Intl.DateTimeFormat(GREG,{timeZone:CONFIG.timezone,weekday:'long'});
 const hmParts = d => FMT_HM.formatToParts(d).reduce((a,x)=>(a[x.type]=x.value,a),{});
 function riyadhParts(d = new Date()){
@@ -822,7 +844,7 @@ function tickDates(){
     setText(document.getElementById('hijri'), h + ' هـ');
   }catch(e){}
   try{
-    setText(document.getElementById('greg'), new Intl.DateTimeFormat(GREG,{
+    setText(document.getElementById('greg'), gregFmt({
       timeZone: CONFIG.timezone, weekday:'long', day:'numeric', month:'long', year:'numeric'
     }).format(now));
   }catch(e){}
@@ -1014,6 +1036,9 @@ function tickPrayer(){
   if(!PRAYERS.length) return;
   const p = riyadhParts();
   const mins = p.h*60 + p.mi + p.s/60;
+  const bar = document.getElementById('pbar'), fill = document.getElementById('pbar-fill');
+  if(bar) bar.hidden = !CONFIG.prayerBar;
+  const progress = f => { if(CONFIG.prayerBar && fill) fill.style.width = (Math.max(0, Math.min(1, f)) * 100).toFixed(1) + '%'; };
 
   // between adhan and iqama: show the iqama countdown
   const cur = PRAYERS.find(x=>{
@@ -1023,6 +1048,7 @@ function tickPrayer(){
   });
   if(cur){
     const left = (cur.h*60 + cur.mi + CONFIG.iqama[cur.key]) - mins;
+    progress((mins - cur.h*60 - cur.mi) / Math.max(1, CONFIG.iqama[cur.key]));
     if(!panel.classList.contains('now')) panel.classList.add('now');
     setText(elL, 'حان الآن');
     setText(elN, prayerName(cur));
@@ -1032,14 +1058,41 @@ function tickPrayer(){
   }
 
   if(panel.classList.contains('now')) panel.classList.remove('now');
+  if(CONFIG.sunrise && sunrisePanel(mins, elL, elN, elT, elC, progress)) return;
   setText(elL, 'الصلاة القادمة');
   let next = PRAYERS.find(x => (x.h*60+x.mi) > mins);
   const leftM = next ? (next.h*60 + next.mi) - mins
                      : (PRAYERS[0].h*60 + PRAYERS[0].mi) + 1440 - mins;
   if(!next) next = PRAYERS[0];
+  const last = PRAYERS.filter(x => x.h*60 + x.mi <= mins).pop(), lastAt = last ? last.h*60 + last.mi : PRAYERS[PRAYERS.length-1].h*60 + PRAYERS[PRAYERS.length-1].mi - 1440;
+  progress((mins - lastAt) / Math.max(1, mins + leftM - lastAt));
   setText(elN, prayerName(next));
   setText(elT, fmt12(next.h, next.mi));
   setHTML(elC, 'بعد <b>' + untilAdhan(leftM) + '</b>');
+}
+
+// #sunrise=1 (from PR #28): after Fajr's iqama the panel counts to the sunrise («الشروق ٦:٠٥ ص · بعد ٢٣ دقيقة»), and for half an hour
+// after it says how long ago it was; then the Dhuhr countdown as always. The sunrise is not a prayer: the label says «الشروق», not «الصلاة
+// القادمة». True when it painted the panel.
+const SUNRISE_AFTER_MIN = 30;
+function sunrisePanel(mins, elL, elN, elT, elC, progress){
+  const fajr = PRAYERS.find(x => x.key === 'Fajr');
+  if(!DAY_TIMES || !DAY_TIMES.Sunrise || !fajr) return false;
+  const [sh, sm] = String(DAY_TIMES.Sunrise).split(':').map(Number), at = sh*60 + sm, from = fajr.h*60 + fajr.mi + (CONFIG.iqama.Fajr || 0);
+  if(mins >= from && mins < at){
+    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmt12(sh, sm));
+    setHTML(elC, 'بعد <b>' + untilAdhan(at - mins) + '</b>');
+    progress((mins - from) / Math.max(1, at - from));
+    return true;
+  }
+  const ago = mins - at;
+  if(ago >= 0 && ago < SUNRISE_AFTER_MIN){
+    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmt12(sh, sm));
+    setHTML(elC, ago < 1 ? 'الآن' : 'قبل <b>' + humanRemaining(Math.max(60, Math.floor(ago) * 60)) + '</b>');
+    progress(ago / SUNRISE_AFTER_MIN);
+    return true;
+  }
+  return false;
 }
 
 // ---- «المناسبة القادمة»: the card in the middle of the bottom row follows the Hijri year ----
@@ -1135,7 +1188,7 @@ function tickOccasion(){
     return;
   }
   setHTML(elD, ar(oc.days) + ' <span class="unit">' + OCC_TEXT.unit + '</span>');
-  setHTML(elS, esc(new Intl.DateTimeFormat(GREG,{timeZone:'UTC',weekday:'long',day:'numeric',month:'long'})
+  setHTML(elS, esc(gregFmt({timeZone:'UTC',weekday:'long',day:'numeric',month:'long'})
       .format(new Date(Date.UTC(oc.y, oc.mo-1, oc.d, 12))).replace('،','') + ' · ' + OCC_TEXT.expected)
     + (o.note ? '<div class="note">' + esc(o.note) + '</div>' : ''));
 }
@@ -1324,7 +1377,7 @@ function matchWhen(d){
 
 // «الخميس ٢٢ أكتوبر»: the day of a finished game
 const matchDay = d => FMT_DAY_MONTH.format(d).replace('،','');
-const FMT_DM = new Intl.DateTimeFormat(GREG,{timeZone:CONFIG.timezone,day:'numeric',month:'long'});
+const FMT_DM = gregFmt({timeZone:CONFIG.timezone,day:'numeric',month:'long'});
 // the short form of matchWhen: «الجمعة ٩:٠٠ م» for a game this week, «٢٤ أكتوبر» for any other (and for a game already played)
 function matchWhenShort(d, now, done){
   const p = hmParts(d), ahead = d - now;
@@ -1890,7 +1943,7 @@ function slotHTML(s){
   if(s === 'countdown'){
     const n = countdownDays();
     const name = CONFIG.cdName ? esc(CONFIG.cdName)
-      : new Intl.DateTimeFormat(GREG, {timeZone:'UTC', day:'numeric', month:'long'}).format(new Date(CONFIG.cd + 'T12:00:00Z'));
+      : gregFmt({timeZone:'UTC', day:'numeric', month:'long'}).format(new Date(CONFIG.cd + 'T12:00:00Z'));
     return slotBlock(n === 0 ? 'اليوم' : '<span class="num">' + ar(n) + '</span> <span class="unit">يوم</span>', name);
   }
   return null;
@@ -2892,19 +2945,31 @@ function wxAgeText(ms){
 function wxSource(){
   const el = document.getElementById('wx-src');
   if(!el) return;
-  setText(el, WX.at && Date.now() - WX.at < WX_STALE_MS ? 'Open-Meteo · ' + wxAgeText(Date.now() - WX.at) : '');
+  const fresh = WX.at && Date.now() - WX.at < WX_STALE_MS;
+  setText(el, fresh ? 'Open-Meteo · ' + wxAgeText(Date.now() - WX.at) : '');
+  // #wxmore=1: «رطوبة ٤٥٪، رياح ١٢ كم/س» («،», not «·»: beside «٪» it reads as «٠») from the same reading (none of it when the reading is stale or did not have it)
+  const more = document.getElementById('wx-more');
+  if(!more) return;
+  const parts = [];
+  if(CONFIG.wxMore && fresh && typeof WX.hum === 'number') parts.push('رطوبة ' + ar(Math.round(WX.hum)) + '٪');
+  if(CONFIG.wxMore && fresh && typeof WX.wind === 'number') parts.push('رياح ' + ar(Math.round(WX.wind)) + ' كم/س');
+  setText(more, parts.join('، '));
+  more.hidden = !parts.length;
 }
 async function loadWeather(){
   const q = `latitude=${CONFIG.latitude}&longitude=${CONFIG.longitude}&timezone=${encodeURIComponent(CONFIG.timezone)}`;
   try{
     // the hours card asks in the same request: its hourly values, and sunrise and sunset for the day or night icon
     const hours = USES('hourly');
-    const r = await fetchT(`https://api.open-meteo.com/v1/forecast?${q}&current=temperature_2m,weather_code,visibility`
+    const r = await fetchT(`https://api.open-meteo.com/v1/forecast?${q}&current=temperature_2m,weather_code,visibility${CONFIG.wxMore ? ',relative_humidity_2m,wind_speed_10m' : ''}`
                          + `&daily=temperature_2m_max,temperature_2m_min,weather_code${hours ? ',sunrise,sunset' : ''}&forecast_days=5`
                          + (hours ? '&hourly=temperature_2m,weather_code' : ''), 12000);
     if(!r.ok) throw 0;
     const j = await r.json();
-    WX.at = Date.now(); WX.vis = typeof j.current.visibility === 'number' ? j.current.visibility : null; saveWx();
+    WX.at = Date.now(); WX.vis = typeof j.current.visibility === 'number' ? j.current.visibility : null;
+    if(CONFIG.wxMore){ WX.hum = typeof j.current.relative_humidity_2m === 'number' ? j.current.relative_humidity_2m : null;
+                       WX.wind = typeof j.current.wind_speed_10m === 'number' ? j.current.wind_speed_10m : null; }
+    saveWx();
     setText(document.getElementById('wx-temp'), ar(Math.round(j.current.temperature_2m)) + '°');
     const d = document.getElementById('wx-desc');
     setText(d, WX_CODES[j.current.weather_code] || '');

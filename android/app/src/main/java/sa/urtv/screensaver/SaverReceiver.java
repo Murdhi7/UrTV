@@ -20,7 +20,8 @@ import java.util.Locale;
  *   am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.CITIES
  *   am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.SET
  *       [--es city 'الرس'] [--es lat 25.86 --es lon 43.49 --es tz Asia/Kuwait]   (tz is needed for a place that is not in the list) [--es teams '136013:Al-Hilal,150643:Al-Zulfi']
- *       [--es panel prayers] [--es home_panel prayers,hourly,verse|none] [--es greeting on|off] [--es adhanbar on|off] [--es yearstrip on|off] [--es minrating 7] [--es genres Drama,Comedy] [--es langs English]
+ *       [--es panel prayers] [--es home_panel prayers,hourly,verse|none] [--es greeting on|off] [--es adhanbar on|off] [--es yearstrip on|off] [--es minrating 7]
+ *       [--es sunrise on|off] [--es prayerbar on|off] [--es wxmore on|off] [--es months default|levant] [--es genres Drama,Comedy] [--es langs English]
  *       [--es photos 30] [--es idle 10] [--es digits hindi|latin]
  *       [--es cardstyle current|dark1|glass1|dark3|glass3] [--es national auto|off]
  *       [--es markets tasi,gold,btc] [--es mkstyle arrows|prices] [--es mkbar on|off] [--es clocksize large|medium|small] [--es stocks 2222,1120,AAPL]
@@ -41,6 +42,8 @@ import java.util.Locale;
  * mode = mix (they join ours, as always) or only.
  * greeting = the greeting and the weather line above the home screen's clock (on, the default, or off: the plain good-morning).
  * yearstrip = the slim year strip under the screensaver's clock (on, or off, the default).
+ * sunrise, prayerbar, wxmore = on or off (the default): the sunrise after Fajr in the prayer panel, the bar under it, the humidity and wind.
+ * months = default («أكتوبر») or levant («تشرين الأول»), the Gregorian month's names on both screens.
  * slot = what the bottom-left slot shows (Prefs.SLOTS). countdown = the date (YYYY-MM-DD) slot=countdown counts down to, or
  * "clear"; cdname = its name (up to 40 characters).
  * national = auto (as always from now: the quiet green look on National Day, 21-25 September, and Founding Day, 20-24 February) or off.
@@ -190,6 +193,11 @@ public class SaverReceiver extends BroadcastReceiver {
         String yearStrip = i.getStringExtra("yearstrip");
         if (yearStrip != null && !"on".equals(yearStrip) && !"off".equals(yearStrip))
             return "error: yearstrip is one of on off";
+        String sunrise = i.getStringExtra("sunrise"), prayerBar = i.getStringExtra("prayerbar"), wxMore = i.getStringExtra("wxmore");
+        for (String[] x : new String[][] {{"sunrise", sunrise}, {"prayerbar", prayerBar}, {"wxmore", wxMore}})
+            if (x[1] != null && !"on".equals(x[1]) && !"off".equals(x[1])) return "error: " + x[0] + " is one of on off";
+        String months = i.getStringExtra("months");
+        if (months != null && !"default".equals(months) && !"levant".equals(months)) return "error: months is one of default levant";
         String greeting = i.getStringExtra("greeting");
         if (greeting != null && !"on".equals(greeting) && !"off".equals(greeting))
             return "error: greeting is one of on off";
@@ -285,6 +293,10 @@ public class SaverReceiver extends BroadcastReceiver {
         if (greeting != null) p.setGreeting("on".equals(greeting));
         if (adhanBar != null) p.setAdhanBar("on".equals(adhanBar));
         if (yearStrip != null) p.setYearStrip("on".equals(yearStrip));
+        if (sunrise != null) p.setSunrise("on".equals(sunrise));
+        if (prayerBar != null) p.setPrayerBar("on".equals(prayerBar));
+        if (wxMore != null) p.setWxMore("on".equals(wxMore));
+        if (months != null) p.setMonths(months);
         if (prayerMethod != null) p.setPrayerMethod(PrayerMethod.parse(prayerMethod));
         if (adj != null) p.setPrayerAdj(adj);
         if (prayerAdj != null) p.setPrayerAdjOn("on".equals(prayerAdj));
@@ -405,6 +417,8 @@ public class SaverReceiver extends BroadcastReceiver {
             + "\ngreeting: " + (p.greeting() ? "on" : "off")
             + "\nadhanbar: " + (p.adhanBar() ? "on" : "off")
             + "\nyearstrip: " + (p.yearStrip() ? "on" : "off")
+            + "\nsunrise: " + (p.sunrise() ? "on" : "off") + "\nprayerbar: " + (p.prayerBar() ? "on" : "off")
+            + "\nwxmore: " + (p.wxMore() ? "on" : "off") + "\nmonths: " + p.months()
             + "\nprayermethod: " + p.prayerMethod()
             + "\nprayeradj: " + (p.prayerAdjOn() ? "on" : "off") + " " + PrayerAdj.describe(p.prayerAdj())
             + "\nminrating: " + p.minRating()

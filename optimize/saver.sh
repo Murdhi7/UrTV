@@ -18,6 +18,10 @@
 #   optimize/saver.sh greeting off                 home screen: the greeting (by prayer time) and the weather line under it: on (default) or off
 #   optimize/saver.sh adhanbar off                 the slim bar before the adhan (last 10 minutes, then until the iqama) on the screensaver and the home screen: on (default) or off
 #   optimize/saver.sh yearstrip on                 the slim year strip under the screensaver's clock (365 dots in 7 rows, today lit, no words): on or off (default)
+#   optimize/saver.sh sunrise on                   the prayer panel counts to the sunrise after Fajr's iqama, and tells it for 30 minutes: on or off (default)
+#   optimize/saver.sh prayerbar on                 a thin bar under the prayer panel, how far it is from the last prayer to the next: on or off (default)
+#   optimize/saver.sh wxmore on                    the humidity and the wind under the city at the top left: on or off (default)
+#   optimize/saver.sh months levant                the Gregorian month's names on both screens: default (يناير…) or levant (كانون الثاني…)
 #   optimize/saver.sh genres Drama,Comedy          episodes card: Drama Comedy Action Crime Thriller Mystery
 #                                                  Science-Fiction Fantasy Adventure Romance Family History Horror
 #                                                  Anime Documentary Sports  ("" = all)
@@ -146,6 +150,10 @@ case "${1:-}" in
   greeting) set1 greeting "${2:?usage: optimize/saver.sh greeting on|off}" ;;
   adhanbar) set1 adhanbar "${2:?usage: optimize/saver.sh adhanbar on|off}" ;;
   yearstrip)set1 yearstrip "${2:?usage: optimize/saver.sh yearstrip on|off}" ;;
+  sunrise)  set1 sunrise "${2:?usage: optimize/saver.sh sunrise on|off}" ;;
+  prayerbar)set1 prayerbar "${2:?usage: optimize/saver.sh prayerbar on|off}" ;;
+  wxmore)   set1 wxmore "${2:?usage: optimize/saver.sh wxmore on|off}" ;;
+  months)   set1 months "${2:?usage: optimize/saver.sh months default|levant}" ;;
   genres)   set1 genres "${2-}" ;;
   # no value at all is a question, not a change: it used to clear them (`""` still means none)
   leagues)  [ $# -ge 2 ] || { echo "usage: optimize/saver.sh leagues 'دوري روشن السعودي' ('' = none; optimize/saver.sh show lists the ones set)"; exit 1; }

@@ -349,6 +349,20 @@ final class Prefs {
     boolean adhanBar() { return sp.getBoolean("adhanBar", true); }
     void setAdhanBar(boolean v) { sp.edit().putBoolean("adhanBar", v).apply(); }
 
+    /** From PR #28, each off by default and sent to the page only when on: the sunrise after Fajr in the bottom-right panel (#sunrise=1),
+     *  the bar of the time between two prayers under it (#prayerbar=1), and the humidity and wind at the top left (#wxmore=1). */
+    boolean sunrise() { return sp.getBoolean("sunrise", false); }
+    void setSunrise(boolean v) { sp.edit().putBoolean("sunrise", v).apply(); }
+    boolean prayerBar() { return sp.getBoolean("prayerBar", false); }
+    void setPrayerBar(boolean v) { sp.edit().putBoolean("prayerBar", v).apply(); }
+    boolean wxMore() { return sp.getBoolean("wxMore", false); }
+    void setWxMore(boolean v) { sp.edit().putBoolean("wxMore", v).apply(); }
+
+    /** The Gregorian month's names: "default" («أكتوبر») or "levant" («تشرين الأول»), on the screensaver and the home screen; #months=levant. */
+    String months() { return "levant".equals(sp.getString("months", "default")) ? "levant" : "default"; }
+    void setMonths(String v) { sp.edit().putString("months", "levant".equals(v) ? "levant" : "default").apply(); }
+    static String monthsLabel(String v) { return "levant".equals(v) ? "كانون الثاني، شباط، آذار…" : "يناير، فبراير، مارس…"; }
+
     /** The slim year strip under the clock, on the screensaver only (default off); sent to the page as #yearstrip=. */
     boolean yearStrip() { return sp.getBoolean("yearStrip", false); }
     void setYearStrip(boolean v) { sp.edit().putBoolean("yearStrip", v).apply(); }
@@ -430,6 +444,8 @@ final class Prefs {
             + "&cardstyle=" + cardStyle()
             + "&adhanbar=" + (adhanBar() ? "1" : "0")
             + "&yearstrip=" + (yearStrip() ? "1" : "0")
+            + (sunrise() ? "&sunrise=1" : "") + (prayerBar() ? "&prayerbar=1" : "") + (wxMore() ? "&wxmore=1" : "")
+            + ("levant".equals(months()) ? "&months=levant" : "")
             + PrayerAdj.fragment(prayerAdjOn(), prayerAdj())
             + PrayerMethod.fragment(prayerMethod())
             + "&national=" + national()
