@@ -215,8 +215,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        remoteKeys.reset();   // a shortcut key opened an app: its release went there, not here
         resumed = false;   // a slow photo check that answers now must not start the 10-minute rotation again
+        remoteKeys.reset();   // a shortcut key opened an app: its release went there, not here
         PinPrompt.dismiss(this);
         handler.removeCallbacks(rotateWallpaper);
         unregisterReceiver(tick);
