@@ -211,6 +211,8 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { prefs.setGreeting(!prefs.greeting()); render(); } });
         row("ترتيب التطبيقات المفضلة", "قائمة ترتّب فيها المفضلة بالأسهم", R.drawable.ic_star,
             new Runnable() { public void run() { openDockSettings(); } });
+        row("أسماء المصادر", "غيّر اسم كل مصدر، مثل PS5", R.drawable.ic_settings,
+            new Runnable() { public void run() { openInputNames(); } });
         row("تحديث تلفزيوني", "يعرض الإصدار ويتحقق من التحديث", R.drawable.ic_sync,
             new Runnable() { public void run() { openUpdate(); } });
         row("تحكم من الجوال", "متوقف حتى تشغّله أنت", R.drawable.ic_settings,
@@ -596,6 +598,15 @@ public class SettingsActivity extends Activity {
             startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.DockActivity"));
         } catch (RuntimeException e) {
             toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
+    /** «أسماء المصادر» lives in the launcher (it owns the sources list). */
+    private void openInputNames() {
+        try {
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.InputNamesActivity"));
+        } catch (RuntimeException e) {   // not installed, or an older launcher without the screen
+            toast("حدّث الواجهة الرئيسية «تلفزيونك» أو ثبّتها أولاً");
         }
     }
 

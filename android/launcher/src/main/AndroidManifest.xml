@@ -110,6 +110,14 @@
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.Material.NoActionBar" />
 
+        <!-- «أسماء المصادر»: a name for each TV input (HDMI 1 -> PS5), opened from the screensaver's settings; asks for the PIN itself like DockActivity -->
+        <activity
+            android:name=".InputNamesActivity"
+            android:exported="true"
+            android:label="أسماء المصادر"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
         <!-- «حماية العائلة (DNS)»: Private DNS to AdGuard Family, opened from the screensaver's settings -->
         <activity
             android:name=".FamilyDnsActivity"

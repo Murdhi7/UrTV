@@ -22,7 +22,6 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.media.tv.TvContract;
 import android.media.tv.TvInputInfo;
-import android.media.tv.TvInputManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
@@ -903,14 +902,10 @@ public class MainActivity extends Activity {
         PopupWindow pw = new PopupWindow(list, dp(200), -2, true);
         List<TextView> rows = new ArrayList<>();
 
-        TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
-        List<TvInputInfo> inputs = new ArrayList<>();
-        if (tim != null) for (TvInputInfo t : tim.getTvInputList()) {
-            if (t.isPassthroughInput() && !t.isHidden(this)) inputs.add(t);
-        }
-        Collections.sort(inputs, (x, y) -> inputLabel(x).compareToIgnoreCase(inputLabel(y)));
+        List<TvInputInfo> inputs = InputLabels.reported(this);   // in the TV's own names' order, so a name the owner gave moves nothing
+        Map<String, String> given = InputLabels.given(this);
         for (TvInputInfo t : inputs) {
-            rows.add(inputRow(inputLabel(t), () -> openPassthroughInput(t)));
+            rows.add(inputRow(InputLabels.label(this, t, given), () -> openPassthroughInput(t)));
         }
         if (isInstalled(liveTvPkg)) rows.add(inputRow("البث التلفزيوني", () -> guarded(ParentalPolicy.INPUT_LIVE_TV, liveTvPkg, "البث التلفزيوني", () -> openPackage(liveTvPkg))));
         if (inputs.isEmpty() && isInstalled(inputPickerPkg)) rows.add(inputRow("كل المصادر…", () -> guarded(ParentalPolicy.INPUT_PICKER, inputPickerPkg, "كل المصادر", () -> openPackage(inputPickerPkg))));
@@ -976,12 +971,6 @@ public class MainActivity extends Activity {
         int left = SleepTimer.minutesLeft(this);
         sleepPill.setLabel(Digits.of(PillText.sleep(left)));
         sleepPill.setAccent(left > 0);   // gold while it runs: the minutes show when the pill has the focus
-    }
-
-    private String inputLabel(TvInputInfo t) {
-        CharSequence c = t.loadCustomLabel(this);
-        if (c == null || c.length() == 0) c = t.loadLabel(this);
-        return String.valueOf(c);
     }
 
     private TextView inputRow(String label, Runnable action) {

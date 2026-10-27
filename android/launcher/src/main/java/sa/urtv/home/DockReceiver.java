@@ -23,6 +23,8 @@ import java.util.Map;
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.NAMES                  pkg | shown | own | from
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.SET_NAMES --es names 'pkg|الاسم;pkg2|'   (empty: back)
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.CLEAR_NAMES
+ *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.INPUT_NAMES            id | shown | the TV's name | ours   («أسماء المصادر»)
+ *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.SET_INPUT_NAME --es id com.x/.Svc/HDMI1 --es name 'PS5'   (empty: the TV's name)
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_SET --es pin 1234   «الرقابة الأبوية»: the master PIN (never printed back)
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_LOCK --es target com.example.app   (PIN_UNLOCK to open it again; a pill: @wifi...)
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_STATUS            what is set
@@ -89,6 +91,32 @@ public class DockReceiver extends BroadcastReceiver {
                 c.sendBroadcast(new Intent(Dock.CHANGED).setPackage(c.getPackageName()));
                 setResultData("names: back to each app's usual name");
                 return;
+            case "sa.urtv.home.INPUT_NAMES": {   // only the inputs the TV reports now; the names are the owner's and are never logged
+                Map<String, String> given = InputLabels.given(c);
+                StringBuilder b = new StringBuilder();
+                for (android.media.tv.TvInputInfo t : InputLabels.reported(c)) {
+                    String ours = given.get(t.getId());
+                    b.append(t.getId()).append(" | ").append(InputLabels.label(c, t, given)).append(" | ").append(InputLabels.own(c, t))
+                     .append(" | ").append(ours == null ? "" : ours).append('\n');
+                }
+                setResultData(b.length() == 0 ? "no inputs reported" : b.toString().trim());
+                return;
+            }
+            case "sa.urtv.home.SET_INPUT_NAME": {
+                String id = i.getStringExtra("id"), raw = i.getStringExtra("name");
+                if (id == null || raw == null) { setResultData("error: add --es id <input id> --es name 'PS5' ('' = the TV's own name)"); return; }
+                if (!InputNames.validId(id)) { setResultData("error: not an input id"); return; }
+                String name = InputNames.clean(raw);
+                if (name == null) { setResultData("error: one line, up to " + InputNames.MAX_LEN + " characters"); return; }
+                if (!name.isEmpty()) {   // a typo in the id is refused; clearing a name of an input that is gone is always allowed
+                    boolean known = false;
+                    for (android.media.tv.TvInputInfo t : InputLabels.reported(c)) known |= id.equals(t.getId());
+                    if (!known) { setResultData("error: this TV does not report that input (optimize/dock.sh input-names)"); return; }
+                }
+                InputLabels.set(c, id, name);
+                setResultData(name.isEmpty() ? "input-name: the TV's own name again" : "input-name: saved");
+                return;
+            }
             case "sa.urtv.home.SLEEP_TV": {   // the sleep timer: no extra = how it stands; minutes = start it; 0 = cancel
                 if (i.hasExtra("minutes")) {
                     int m = i.getIntExtra("minutes", -1);
