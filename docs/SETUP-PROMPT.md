@@ -3,6 +3,8 @@
 **On the TV first:** Settings → System → About → press OK on **Build** 7 times → back → Developer options →
 turn on **USB debugging** (and **Network debugging** if it is listed). Keep the TV on.
 
+**No computer?** The person can set the TV up from the TV itself («إعداد تلفزيوني», a subset), or with these same scripts from an Android phone (Termux) or an iPhone/iPad (iSH): `docs/PHONE-SETUP.md`.
+
 **Then** open an AI agent that runs commands **on a computer on the same Wi-Fi** as the TV (for example Claude Code
 installed on it; a chat in the browser or a cloud session can't reach your TV), and paste everything below the line.
 On Windows, everything it needs installs from PowerShell in three lines (then close PowerShell, open a new one,

@@ -26,6 +26,8 @@
 
 <sub>ويندوز: ركّب Git وPython أول (`winget install --source winget Git.Git Python.Python.3.12`). Gemini CLI مجاني وناس قالوا يشتغل؛ ما جرّبناه.</sub>
 
+> **ما عندك كمبيوتر؟** تقدر تجهّز التلفزيون من **التلفزيون نفسه** (حمّل التطبيقين بتطبيق Downloader وافتح «إعداد تلفزيوني»)، أو من **جوال أندرويد** (Termux) أو **آيفون/آيباد** (iSH). التفاصيل: [`docs/PHONE-SETUP.md`](docs/PHONE-SETUP.md).
+
 ### ③ الصق هذا
 
 > ركّب تلفزيوني من https://github.com/tshi-dev/UrTV: انسخ المستودع واتبع `docs/SETUP-PROMPT.md` خطوة بخطوة. أنت على كمبيوتر متصل بنفس شبكة الواي فاي حقت التلفزيون.
@@ -61,6 +63,8 @@ Settings → About → press OK on **Build** 7 times. Then go to **Developer opt
 | Approvals: choose **«Approve for me»** | Approvals: **Allow** for the whole task |
 
 <sub>Windows: install Git and Python first (`winget install --source winget Git.Git Python.Python.3.12`). Gemini CLI is free and reported to work; not tested by us.</sub>
+
+> **No computer?** Set the TV up from **the TV itself** (install the two apps with the Downloader app and open «إعداد تلفزيوني»), from an **Android phone** (Termux) or from an **iPhone/iPad** (iSH). Details: [`docs/PHONE-SETUP.md`](docs/PHONE-SETUP.md).
 
 ### ③ Paste this
 

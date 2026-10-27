@@ -75,6 +75,7 @@ MISSING_ADB = (
     "     Windows:  winget install -e --id Google.PlatformTools --source winget   (then a new Git Bash window)\n"
     "     macOS:    brew install android-platform-tools\n"
     "     Linux:    sudo apt install adb      (or your package manager's «android-tools»)\n"
+    "     Termux (an Android phone): pkg install android-tools       Alpine / iSH (an iPhone or iPad): apk add android-tools\n"
     "   or unpack Google's «SDK Platform-Tools» zip into the .urtv folder in your home folder (as platform-tools).")
 
 

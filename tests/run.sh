@@ -21,6 +21,10 @@ python3 tests/deadman_test.py
 python3 tests/run_lock_test.py
 python3 tests/run_identity_test.py
 python3 tests/run_report_test.py
+python3 tests/setup_phone_test.py
+python3 tests/phone_userland_test.py
+python3 tests/adb_client_test.py
+python3 tests/setup_engine_test.py
 python3 tests/type_test.py
 python3 tests/reboot_test.py
 python3 tests/tv_identity_test.py
