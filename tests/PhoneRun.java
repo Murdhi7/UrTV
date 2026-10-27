@@ -52,7 +52,7 @@ public final class PhoneRun {
         final List<String> calls = new ArrayList<>();
         Result next = Result.ok("done");
         @Override public Result key(String k) { calls.add("key:" + k); return next; }
-        @Override public Result text(String t) { calls.add("text:" + t); return Result.ok("typed"); }
+        @Override public Result text(String t, String mode, boolean search) { calls.add("text:" + t + ":" + mode + ":" + search); return Result.ok("typed"); }
         @Override public Map<String, Object> state() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("city", "الرياض");
@@ -302,6 +302,19 @@ public final class PhoneRun {
         boolean setOk = true;
         for (String body : new String[] {"{\"sleep_minutes\":0}", "{\"sleep_minutes\":15}", "{\"sleep_minutes\":90}", "{\"saver_idle\":1}", "{\"saver_idle\":30}"}) setOk &= authed(e, "POST", "/api/set", body, sess).status == 200;
         check("v2: set takes the sleep minutes (0 cancels) and the idle minutes of the lists", setOk && e.actions.calls.size() == 5, e.actions.calls.toString());
+        e.actions.calls.clear();
+        e.now[0] += 6_000;
+        check("v2: text takes a mode (append or replace) and search (a boolean), passed on as asked",
+            authed(e, "POST", "/api/text", "{\"text\":\"ماء\",\"mode\":\"append\"}", sess).status == 200
+            && authed(e, "POST", "/api/text", "{\"text\":\"ماء\",\"mode\":\"replace\",\"search\":true}", sess).status == 200
+            && e.actions.calls.equals(Arrays.asList("text:ماء:append:false", "text:ماء:replace:true")), e.actions.calls.toString());
+        e.actions.calls.clear();
+        boolean textBad = true;
+        for (String body : new String[] {"{\"text\":\"a\",\"mode\":\"insert\"}", "{\"text\":\"a\",\"mode\":5}", "{\"text\":\"a\",\"search\":\"yes\"}", "{\"text\":\"a\",\"search\":1}",
+                "{\"text\":\"a\",\"pkg\":\"com.example.video\"}", "{\"text\":\"a\\u202eb\"}", "{\"text\":\"a\\u0000b\"}", "{\"text\":\"\"}", "{\"text\":\"   \"}", "{\"mode\":\"append\"}"}) {
+            textBad &= authed(e, "POST", "/api/text", body, sess).status == 400;
+        }
+        check("v2: text refuses another mode or search value, an extra key (no way to name an app), direction overrides, controls and empty text", textBad && e.actions.calls.isEmpty(), e.actions.calls.toString());
         check("v2: /api/state counts the connected phones", authed(e, "GET", "/api/state", null, sess).json().get("phones") instanceof Long, "");
         e.ctl.stop("owner");
 
@@ -709,7 +722,7 @@ public final class PhoneRun {
         for (String r : refused) status |= authed(e, "POST", "/api/key", r, sess).status == 400 ? 0 : 1;
         check("a key that is not on the list, extra fields, repeated keys and bad JSON never reach the TV", status == 0 && e.actions.calls.isEmpty(), e.actions.calls.toString());
         authed(e, "POST", "/api/text", "{\"text\":\"السلام عليكم\"}", sess);
-        check("Arabic text arrives whole", e.actions.calls.contains("text:السلام عليكم"), e.actions.calls.toString());
+        check("Arabic text arrives whole (replace is the default, no search)", e.actions.calls.contains("text:السلام عليكم:null:false"), e.actions.calls.toString());
         check("text with a line break or an override character is refused", authed(e, "POST", "/api/text", "{\"text\":\"a\\nb\"}", sess).status == 400 && authed(e, "POST", "/api/text", "{\"text\":\"\\u202e\"}", sess).status == 400, "");
         e.actions.next = Actions.Result.fail("other_app");
         Reply fail = authed(e, "POST", "/api/key", "{\"key\":\"up\"}", sess);

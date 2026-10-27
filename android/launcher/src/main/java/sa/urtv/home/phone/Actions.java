@@ -19,8 +19,12 @@ public interface Actions {
     /** A remote key (Schema.KEYS). */
     Result key(String key);
 
-    /** Typed text: "typed" (into a field on the TV), "task" (added to «المهام»), "copied" (no field was open: put on the TV's clipboard). */
-    Result text(String text);
+    /**
+     * Typed text. On our own screens: "typed" (into a field), "task" (added to «المهام»), "copied" (no field was open: put on the TV's clipboard).
+     * With another app in front (the accessibility service types into its field, mode "append" or "replace", and search presses the keyboard's
+     * action): "typed_other", "typed_other_nosearch", "copied" (the app has no text field), or a failure: service_off, locked, password_field, failed.
+     */
+    Result text(String text, String mode, boolean search);
 
     /** What the page shows: settings and player state. Nothing secret. */
     Map<String, Object> state();

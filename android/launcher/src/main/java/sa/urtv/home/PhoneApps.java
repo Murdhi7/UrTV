@@ -169,6 +169,9 @@ public final class PhoneApps {
     /** Is the accessibility service on? Then Back works in every app (the service presses it), not only on our own screens. */
     public static boolean keysEverywhere() { return SleepService.enabled(); }
 
+    /** The phone's text into another app (SleepService.typeText); one of its fixed words. */
+    public static String typeText(Context c, String text, boolean append, boolean search) { return SleepService.typeText(c.getApplicationContext(), text, append, search); }
+
     /** Presses Back through the accessibility service; false when it is off. */
     public static boolean globalBack() { return SleepService.back(); }
 }

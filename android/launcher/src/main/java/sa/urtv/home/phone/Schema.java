@@ -62,9 +62,11 @@ public final class Schema {
                 return c;
             }
             case "text": {
-                Clean c = only(body, "text");
+                Clean c = only(body, "text", "mode", "search");
                 if (!c.ok()) return c;
                 if (!plainText(body.get("text"), MAX_TEXT, true)) return no("bad text");
+                if (body.containsKey("mode") && !"append".equals(body.get("mode")) && !"replace".equals(body.get("mode"))) return no("bad mode");
+                if (body.containsKey("search") && !(body.get("search") instanceof Boolean)) return no("bad search");
                 return c;
             }
             case "cities": {

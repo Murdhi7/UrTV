@@ -93,7 +93,15 @@ final class PhoneActions implements Actions {
 
     // ---- text
 
-    @Override public Result text(final String text) {
+    @Override public Result text(final String text, String mode, boolean search) {
+        if (Foreground.current() == null) {   // another app in front: through the accessibility service, when the owner turned it on
+            String r = PhoneApps.typeText(app, text, "append".equals(mode), search);
+            switch (r) {
+                case "typed_other": case "typed_other_nosearch": return Result.ok(r);
+                case "no_field": break;   // the app has no text field on screen: the text goes to the TV's clipboard, as it always did
+                default: return Result.fail(r);   // service_off, locked, password_field, failed
+            }
+        }
         FutureTask<String> job = new FutureTask<>(new java.util.concurrent.Callable<String>() {
             @Override public String call() {
                 Activity a = Foreground.current();
