@@ -53,14 +53,14 @@ for bad in st.get("refuse", []):          # a value the TV refuses (answers erro
 ENUM = {"digits": ["hindi", "latin"], "clocksize": ["large", "medium", "small"], "mkstyle": ["arrows", "prices"],
         "cardstyle": ["current", "dark1", "glass1", "dark3", "glass3"], "prayermethod": ["auto", "jafari"],
         "sunrise": ["on", "off"], "prayerbar": ["on", "off"], "wxmore": ["on", "off"], "months": ["default", "levant"],
-        "greeting": ["on", "off"], "listenpill": ["on", "off"], "adhanbar": ["on", "off"], "clock24": ["on", "off"], "mkbar": ["on", "off"], "prayeradj": ["on", "off"]}
+        "greeting": ["on", "off"], "listenpill": ["on", "off"], "updatebell": ["on", "off"], "adhanbar": ["on", "off"], "clock24": ["on", "off"], "mkbar": ["on", "off"], "prayeradj": ["on", "off"]}
 if "SaverReceiver" in cmd and cmd.endswith(".GET"):
     s = st["saver"]
     adj = " ".join(f"{k}={'+' if v > 0 else ''}{v}" for k, v in s["adj"].items())
     out("\n".join([
         "version: 9.9", f"city: {s['city'][0]} ({s['city'][1]}, {s['city'][2]})", f"timezone: {s['tz']}",
         "teams: " + ", ".join(s["teams"]), f"panel: {s['panel']}", f"home_panel: {s['home_panel']}",
-        f"greeting: {s['greeting']}", f"listenpill: {s['listenpill']}", f"adhanbar: {s['adhanbar']}", "yearstrip: off", f"prayermethod: {s['prayermethod']}",
+        f"greeting: {s['greeting']}", f"listenpill: {s['listenpill']}", f"updatebell: {s['updatebell']}", f"adhanbar: {s['adhanbar']}", "yearstrip: off", f"prayermethod: {s['prayermethod']}",
         f"prayeradj: {s['prayeradj']} {adj}", f"hijrioffset: {s['hijri']}", "minrating: 0", "photos: 30", f"digits: {s['digits']}",
         f"clock24: {s['clock24']}", "national: auto", f"cardstyle: {s['cardstyle']}",
         "markets: " + ("" if s["mkbar"] == "on" else "off ") + ",".join(s["markets"]), f"clocksize: {s['clocksize']}",
@@ -126,7 +126,7 @@ fake.chmod(0o755)
 
 BASE = {
     "saver": {"city": ["الرياض", "24.6877", "46.7219"], "tz": "Asia/Riyadh", "teams": ["136013|الهلال", "136137|المنتخب السعودي"],
-              "panel": "verse", "home_panel": "none", "greeting": "on", "listenpill": "on", "adhanbar": "on", "prayermethod": "auto", "prayeradj": "off",
+              "panel": "verse", "home_panel": "none", "greeting": "on", "listenpill": "on", "updatebell": "on", "adhanbar": "on", "prayermethod": "auto", "prayeradj": "off",
               "adj": {"fajr": 0, "dhuhr": 0, "asr": 0, "maghrib": 0, "isha": 0}, "hijri": "0", "digits": "hindi", "clock24": "off",
               "cardstyle": "current", "markets": ["tasi", "spx", "btc"], "mkbar": "on", "clocksize": "large", "mkstyle": "arrows",
               "panel2": "none", "sunrise": "off", "prayerbar": "off", "wxmore": "off", "months": "default", "updatechannel": "stable"},
@@ -134,7 +134,7 @@ BASE = {
 }
 CONFIGURED = copy.deepcopy(BASE)
 CONFIGURED["saver"].update({"city": ["الدوحة", "25.2854", "51.531"], "tz": "Asia/Qatar", "teams": ["136022|النصر", "133738|ريال مدريد"],
-                            "panel": "prayers", "home_panel": "verse,hourly", "greeting": "off", "listenpill": "off", "adhanbar": "off",
+                            "panel": "prayers", "home_panel": "verse,hourly", "greeting": "off", "listenpill": "off", "updatebell": "off", "adhanbar": "off",
                             "prayermethod": "jafari", "prayeradj": "on", "hijri": "-1", "digits": "latin", "clock24": "on",
                             "cardstyle": "glass1", "markets": ["gold", "btc"], "mkbar": "off", "clocksize": "medium", "mkstyle": "prices",
                             "panel2": "hourly", "sunrise": "on", "prayerbar": "on", "wxmore": "on", "months": "levant"})
@@ -192,6 +192,7 @@ check("preview: old → new, one line per changed setting", "  digits: hindi →
       and "  prayer.adjust.fajr: 0 → +2" in out and "  hijri_offset: 0 → -1" in out and "  adhan.volume: 70 → 40" in out
       and "  markets.list: tasi,spx,btc → gold,btc" in out and "  city: الرياض (24.6877, 46.7219) Asia/Riyadh → الدوحة (25.2854, 51.531) Asia/Qatar" in out, out)
 check("preview: the «تلاوة وأذان» button's setting is one more line", "  listen_pill: on \u2192 off" in out, out)
+check("preview: the «جرس التحديثات» setting is one more line", "  update_bell: on \u2192 off" in out, out)
 check("preview: unchanged settings are absent", "prayer.adjust.dhuhr" not in out and "prayer.adjust.isha" not in out, out)
 rc, out, err = b.run("import", f, "--yes")
 check("import --yes: applied (exit 0)", rc == 0 and "Done" in out, (rc, out, err))

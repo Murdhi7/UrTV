@@ -14,6 +14,7 @@ Newest first. `next` is where changes land first; a release is what was tested t
 **Home screen and screensaver**
 - Network only while the home is in front and the display is on (weather, hosted photos, Aladhan's times, adhan recordings, the update check); the adhan itself is unchanged. The audit is `docs/NETWORK.md`.
 - The «المصادر» list shows the name an HDMI-CEC device gives itself (console, box) instead of «HDMI 2», and « · وضع الاستعداد» when the input is in standby; your own name still wins; `dock.sh input-names` shows both.
+- «جرس التحديثات»: a bell in the home screen's top row that shows only on evidence of waiting Play Store updates (none can be read with normal permissions yet, so it stays out of sight), a setting and `saver.sh updatebell`.
 - «تعديل المفضلة»: press a favourite to pick it up and move it along the row, × to remove it with «تراجع»; «ترتيب التطبيقات المفضلة» is now in the settings only.
 - Prayer times as boxes, new pills (icons only, the name shows on focus), glass panels, softer glow on the focused app.
 - «يُتلى الآن» card while تلاوة plays; the screen is now «تلاوة وأذان».

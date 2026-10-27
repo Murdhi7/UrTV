@@ -112,6 +112,11 @@ public class MainActivity extends Activity {
     private TextView greeting, weatherLine, clock, ampm, date, zoneLine, title, appsLabel;
     private Pill tilawahPill;       // «تلاوة وأذان»: in the row only while the setting shows it (applyListenPill)
     private LinearLayout pillRow;    // the top row of pills
+    // [updates bell] «جرس التحديثات»: in the row only on evidence of waiting Play Store updates (applyUpdateBell)
+    private Pill bellPill;
+    private final UpdatesBell updatesBell = new UpdatesBell(new PlayStoreUpdates());
+    private boolean bellForce = true;   // the home came to the front: ask again
+    // [/updates bell]
     private Pill wifiPill;   // the network's name shows while it has the focus
     private Greeting greetingLine;
     private int glowColor = 0xFF3A3A3A;
@@ -189,6 +194,7 @@ public class MainActivity extends Activity {
         super.onResume();
         resumed = true;
         Parental.SESSION.clear();   // the home screen is in front again: an app opened with the PIN asks again next time
+        bellForce = true;   // [updates bell]
         IntentFilter tf = new IntentFilter(Intent.ACTION_TIME_TICK);
         tf.addAction(Intent.ACTION_TIME_CHANGED);
         tf.addAction(Intent.ACTION_TIMEZONE_CHANGED);
@@ -463,6 +469,10 @@ public class MainActivity extends Activity {
         if (isInstalled(SAVER_PKG)) { row.add(tasks); row.add(saver); }
         tilawahPill = tilawah;
         pillRow = right;
+        // [updates bell] built here, put in the row by applyUpdateBell only while it has a reason to be there
+        bellPill = pill("تحديثات التطبيقات", R.drawable.ic_bell);
+        bellPill.setOnClickListener(v -> guarded(ParentalPolicy.PILL_UPDATES, UpdatesBell.PLAY_STORE, "متجر Play", this::openUpdates));
+        // [/updates bell]
         if (listenPillWanted(ConfigSnapshot.read(this).listenPillOn)) row.add(tilawah);   // «زر تلاوة وأذان»: hidden in the screensaver's settings, it is simply not in the row
         for (Pill p : row) {
             right.addView(p, llp(-2, dp(Pill.HEIGHT), dp(10), 0, 0, 0));
@@ -528,6 +538,45 @@ public class MainActivity extends Activity {
         }
         wireFocus();   // the row changed: up/down from the pills follow it
     }
+
+    // [updates bell]
+    /**
+     * «جرس التحديثات» in or out of the row, with the minute tick (and so on every return to the front); the source is asked on a return and
+     * at most every 6 hours after that (UpdatesBell), and only while the setting is on, the store is here and may be opened, and it is not
+     * kids mode. Like the «تلاوة» button it is taken out of the row and out of `pills`, never just hidden, so the walk along the row and
+     * wireFocus stay right; it joins at the end of the row.
+     */
+    private void applyUpdateBell(boolean setting) {
+        if (bellPill == null || pillRow == null) return;
+        boolean force = bellForce;
+        bellForce = false;
+        ParentalPolicy.State family = Parental.state(this);
+        boolean usable = !family.kids && ParentalPolicy.visible(family, UpdatesBell.PLAY_STORE) && isInstalled(UpdatesBell.PLAY_STORE);
+        UpdatesBell.Evidence e = setting && usable ? updatesBell.evidence(force, SystemClock.elapsedRealtime()) : UpdatesBell.Evidence.UNKNOWN;
+        boolean want = UpdatesBell.shown(setting, family.kids, usable, e), has = bellPill.getParent() == pillRow;
+        if (want == has) return;
+        if (want) {
+            pillRow.addView(bellPill, llp(-2, dp(Pill.HEIGHT), dp(10), 0, 0, 0));
+            pills.add(bellPill);
+        } else {
+            boolean hadFocus = bellPill.hasFocus();
+            pills.remove(bellPill);
+            pillRow.removeView(bellPill);
+            if (hadFocus && !pills.isEmpty()) pills.get(pills.size() - 1).requestFocus();
+        }
+        wireFocus();
+    }
+
+    /** OK on the bell: the Play Store's updates screen (its own «my apps» link), else the store itself. */
+    private void openUpdates() {
+        for (String uri : UpdatesBell.OPEN_URIS) {
+            Intent i = uri == null ? getPackageManager().getLeanbackLaunchIntentForPackage(UpdatesBell.PLAY_STORE)
+                    : new Intent(Intent.ACTION_VIEW, Uri.parse(uri)).setPackage(UpdatesBell.PLAY_STORE);
+            if (i == null || (uri != null && getPackageManager().resolveActivity(i, 0) == null)) continue;
+            if (launch(i)) return;
+        }
+    }
+    // [/updates bell]
 
     /** Shows or hides the «يُتلى الآن» card by what «تلاوة» is doing: a surah or a station (playing or paused), else nothing. */
     private void updateNowPlaying() {
@@ -1400,6 +1449,7 @@ public class MainActivity extends Activity {
         date.setText(arabicDigits(hijri.isEmpty() ? greg : hijri + "  –  " + greg));
         updateAdhanBar(cfg);
         applyListenPill(cfg.listenPillOn);
+        applyUpdateBell(cfg.updateBellOn);   // [updates bell]
         sa.urtv.home.tilawah.AdhanSync.onConfig(this, cfg.fragment);   // «تعديل وقت الصلاة» changed on the TV: the alarm follows
         updateSleepPill();
     }
