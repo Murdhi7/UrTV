@@ -13,6 +13,8 @@
 #   optimize/saver.sh teams 136013:Al-Hilal 150643:Al-Zulfi    followed teams in order (up to 20; more are left out and listed);
 #                                                  `teams none` (or `teams ""`) follows no team: the defaults (الهلال، المنتخب السعودي) go
 #   optimize/saver.sh card prayers                 beside the clock: shows prayers forecast hourly prayerrow matches verse wisdom adhkar stocks tasks year smart today none
+#   optimize/saver.sh card2 hourly                 a second card beside the clock, shown only while the clock is small (clocksize small):
+#                                                  the same choices but nextprayer and the first card; card2 none = one card (default)
 #   optimize/saver.sh home-card verse,hourly,year  on the home screen (launcher): up to 3 cards, same choices and nextprayer (home only), in this order
 #                                                  (one value works too; none = off). Two sit side by side, a third under them
 #   optimize/saver.sh greeting off                 home screen: the greeting (by prayer time) and the weather line under it: on (default) or off
@@ -156,6 +158,8 @@ case "${1:-}" in
     set1 teams "$(IFS=,; echo "$*")" ;;
   card)     [ "${2:-}" = nextprayer ] && { echo "!! nextprayer is a home-screen card only (the screensaver's bottom-right panel already shows the next prayer): optimize/saver.sh home-card nextprayer"; exit 1; }
             set1 panel "${2:?usage: optimize/saver.sh card prayers}" ;;
+  card2)    [ "${2:-}" = nextprayer ] && { echo "!! nextprayer is a home-screen card only (the screensaver's bottom-right panel already shows the next prayer): pick another card2, or card2 none"; exit 1; }
+            set1 panel2 "${2:?usage: optimize/saver.sh card2 hourly | none   (shown beside the small clock: optimize/saver.sh clocksize small)}" ;;
   home-card)set1 home_panel "${2?usage: optimize/saver.sh home-card verse,hourly,year | none}" ;;
   greeting) set1 greeting "${2:?usage: optimize/saver.sh greeting on|off}" ;;
   listenpill) set1 listenpill "${2:?usage: optimize/saver.sh listenpill on|off}" ;;
