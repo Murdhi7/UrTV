@@ -23,19 +23,24 @@ final class InputNames {
         if (raw == null) return null;
         String s = raw.trim();
         if (s.codePointCount(0, s.length()) > MAX_LEN) return null;
+        if (s.indexOf('|') >= 0 || !plain(s)) return null;
+        return s;
+    }
+
+    /** True when s holds none of the invisible characters clean() refuses (the one rule, also for a name a device reports about itself). */
+    static boolean plain(String s) {
         for (int i = 0; i < s.length(); ) {
             int cp = s.codePointAt(i);
             i += Character.charCount(cp);
-            if (cp == '|') return null;
             if (cp == 0x200C || cp == 0x200D) continue;
             switch (Character.getType(cp)) {
                 case Character.CONTROL: case Character.FORMAT: case Character.PRIVATE_USE: case Character.SURROGATE: case Character.UNASSIGNED:
                 case Character.LINE_SEPARATOR: case Character.PARAGRAPH_SEPARATOR:
-                    return null;
+                    return false;
                 default: break;
             }
         }
-        return s;
+        return true;
     }
 
     /** What the row shows: the saved name when there is one, else the TV's own. */

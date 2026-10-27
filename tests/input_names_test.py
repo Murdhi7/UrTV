@@ -31,7 +31,7 @@ saver = read("android/app/src/main/java/sa/urtv/screensaver/SettingsActivity.jav
 
 # the sources popup
 popup = main.split("private void showInputsNow", 1)[1].split("/** «مؤقت النوم»", 1)[0]
-check("popup: each input shows InputLabels.label (the saved name, else the TV's own)", "InputLabels.label(this, t, given)" in popup)
+check("popup: each input shows InputLabels.rowLabel (the saved name, else the CEC device's, else the TV's own; tests/input_display_test.py)", "InputLabels.rowLabel(this, t, given)" in popup)
 check("popup: the inputs come from InputLabels.reported, sorted by the TV's own names (renaming moves nothing)",
       "InputLabels.reported(this)" in popup and "Collections.sort(inputs, (x, y) -> own(c, x).compareToIgnoreCase(own(c, y)))" in labels)
 check("popup: the input is still opened by its id, not by its name", "openPassthroughInput(t)" in popup)
