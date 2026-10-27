@@ -21,7 +21,7 @@ import android.widget.TextView;
  * the permission the switch says «يحتاج تفعيل من الكمبيوتر» and does nothing; on Android below 9 (API 28) it says it is unsupported;
  * when Private DNS already points at our host without our record (set from the computer) the switch does nothing either.
  * Exported, but guarded by the signature permission sa.urtv.home.FAMILY_DNS (the screensaver has the same key). Opened from the screensaver's settings (الشاشة الرئيسية ← حماية العائلة)
- * or `am start -n sa.urtv.home/.FamilyDnsActivity`. The page polls once a second only while a check is running and the screen is
+ * or `optimize/dock.sh familydns`. (Not `am start` from the shell: the shell lacks the permission.) The page polls once a second only while a check is running and the screen is
  * in front.
  */
 public class FamilyDnsActivity extends Activity {

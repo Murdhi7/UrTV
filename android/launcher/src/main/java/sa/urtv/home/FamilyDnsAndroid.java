@@ -55,6 +55,7 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
         if (worker != null && worker.isAlive()) return false;
         final Context app = c.getApplicationContext();
         recoverOnce(app);
+        Dock.prefs(app).edit().putString(K_LAST, "RUNNING").commit();   // before the thread starts: a status poll never shows a stale result
         worker = new Thread(() -> {
             FamilyDns f = new FamilyDns(new FamilyDnsAndroid(app));
             FamilyDns.Result r = enable ? f.enable() : f.disable();
@@ -102,7 +103,7 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
 
     @Override public int sdkInt() { return Build.VERSION.SDK_INT; }
 
-    /** The active network says Private DNS is active with our host (API 28+): only then is an answer not from the old resolver. */
+    /** The active network says Private DNS is active with our host (API 28+). That is only the setting having propagated; lookupFreshName checks it answers. */
     @Override public boolean privateDnsValidated(String host, int ms) {
         if (Build.VERSION.SDK_INT < FamilyDns.MIN_SDK) return false;
         long end = System.currentTimeMillis() + ms;
@@ -120,6 +121,41 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
             // no connectivity service: not validated
         }
         return false;
+    }
+
+    /**
+     * A unique random label under connectivitycheck.gstatic.com: no cache anywhere has it, so the answer (an address, or NXDOMAIN) has to
+     * come from the resolver now in use. Runs on a helper thread so the wait is bounded; FamilyDns.resolverAnswers decides what it means.
+     */
+    @Override public FamilyDns.Lookup lookupFreshName(int waitMs) {
+        byte[] b = new byte[8];
+        new java.security.SecureRandom().nextBytes(b);
+        StringBuilder h = new StringBuilder();
+        for (byte x : b) h.append(String.format(java.util.Locale.US, "%02x", x & 0xff));
+        final String name = h + ".connectivitycheck.gstatic.com";
+        final java.util.concurrent.atomic.AtomicReference<FamilyDns.Lookup.Kind> kind = new java.util.concurrent.atomic.AtomicReference<>();
+        final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+        final long start = System.currentTimeMillis();
+        Thread t = new Thread(() -> {
+            try {
+                java.net.InetAddress.getByName(name);
+                kind.set(FamilyDns.Lookup.Kind.RESOLVED);
+            } catch (java.net.UnknownHostException e) {
+                kind.set(FamilyDns.Lookup.Kind.NOT_FOUND);
+            } catch (Exception e) {
+                kind.set(FamilyDns.Lookup.Kind.FAILED);
+            }
+            done.countDown();
+        }, "family-dns-lookup");
+        t.setDaemon(true);
+        t.start();
+        try {
+            if (!done.await(waitMs, java.util.concurrent.TimeUnit.MILLISECONDS)) return new FamilyDns.Lookup(FamilyDns.Lookup.Kind.TIMEOUT, waitMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return new FamilyDns.Lookup(FamilyDns.Lookup.Kind.FAILED, System.currentTimeMillis() - start);
+        }
+        return new FamilyDns.Lookup(kind.get(), System.currentTimeMillis() - start);
     }
 
     @Override public boolean internetWorks(int totalMs) {

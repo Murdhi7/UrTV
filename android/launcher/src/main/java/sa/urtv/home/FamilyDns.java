@@ -9,8 +9,9 @@ package sa.urtv.home;
  *  - a record already there is never overwritten (it would then hold our own values, and "off" would keep them);
  *  - "was not set" (null) is not the same as "could not be read" (UNREADABLE): an unreadable value is never recorded;
  *  - "off" puts back exactly what was recorded; a null original is deleted, not written as a default;
- *  - after the change Private DNS must be validated for HOST (VALIDATE_MS, so a cached answer proves nothing) and the internet must
- *    still work (HTTP_MS), together INTERNET_MS, else the originals go back at once;
+ *  - after the change, in this order: Private DNS must show active for HOST (VALIDATE_MS), then a FRESH random name must get an answer
+ *    from the resolver in time (FRESH_MS; see {@link #resolverAnswers}), then the internet must still work (HTTP_MS), together
+ *    INTERNET_MS, else the originals go back at once;
  *  - the check is crash safe: a flag (checkingSince) is saved before the first write and cleared only after ENABLED or a revert;
  *    a process that starts (or a boot) with the flag set calls recover(), which puts the originals back;
  *  - "off" puts back only while the value is still ours; if it was changed from elsewhere the record is dropped and nothing is written;
@@ -21,8 +22,10 @@ public final class FamilyDns {
     public static final int PORT = 853;
     public static final int PROBE_MS = 5000;
     public static final int INTERNET_MS = 20000;
-    /** INTERNET_MS = waiting for Private DNS to validate + one fresh https request. */
-    public static final int VALIDATE_MS = 12000, HTTP_MS = INTERNET_MS - VALIDATE_MS;
+    /** INTERNET_MS = waiting for Private DNS to show active + one fresh name + fresh https requests. */
+    public static final int VALIDATE_MS = 8000, FRESH_MS = 4000, HTTP_MS = INTERNET_MS - VALIDATE_MS - FRESH_MS;
+    /** A "no such name" answer that comes back faster than this means the resolver answered (DNS works); slower, or none, is broken. */
+    public static final int FAST_ANSWER_MS = 3000;
     public static final int MIN_SDK = 28;
     public static final String KEY_MODE = "private_dns_mode";
     public static final String KEY_SPEC = "private_dns_specifier";
@@ -48,6 +51,8 @@ public final class FamilyDns {
         int sdkInt();
         /** Within ms the active network shows Private DNS active with server name host (not a cached answer). */
         boolean privateDnsValidated(String host, int ms);
+        /** Resolves a unique random name (nothing can have cached it) through the system resolver, waiting at most waitMs. */
+        Lookup lookupFreshName(int waitMs);
         /** A fresh, uncached request to connectivitycheck.gstatic.com succeeds within totalMs. */
         boolean internetWorks(int totalMs);
         /** When the 20 s check began (ms), 0 = no check in progress. Saved before the first write. */
@@ -58,6 +63,28 @@ public final class FamilyDns {
         Record loadRecord();
         boolean saveRecord(Record r);
         void clearRecord();
+    }
+
+    /** How one lookup of a fresh name ended; elapsedMs = how long it took (or the wait, for TIMEOUT). */
+    public static final class Lookup {
+        public enum Kind { RESOLVED, NOT_FOUND, FAILED, TIMEOUT }
+        public final Kind kind;
+        public final long elapsedMs;
+        public Lookup(Kind kind, long elapsedMs) { this.kind = kind; this.elapsedMs = elapsedMs; }
+    }
+
+    /**
+     * The decision on a fresh-name lookup. An answer (an address, or "no such name" = NXDOMAIN) that arrives in time means the resolver
+     * answered; a timeout, a slow failure or any other error means DNS is broken. This proves the resolver answers names it has never
+     * seen through the new setting. It cannot prove the filtering is AdGuard's: an NXDOMAIN looks the same from any resolver.
+     */
+    public static boolean resolverAnswers(Lookup l) {
+        if (l == null) return false;
+        switch (l.kind) {
+            case RESOLVED: return true;
+            case NOT_FOUND: return l.elapsedMs < FAST_ANSWER_MS;
+            default: return false;
+        }
     }
 
     public enum Result { ENABLED, ALREADY_ON_BY_OTHER, NEEDS_GRANT, NO_ROUTE, UNREADABLE_VALUE, NOT_RECORDED, NOT_TAKEN, REVERTED, RESTORED, NOTHING_TO_RESTORE, RESTORE_FAILED, UNSUPPORTED, CHANGED_BY_SOMEONE_ELSE }
@@ -107,7 +134,7 @@ public final class FamilyDns {
             if (restore(rec)) { p.clearRecord(); p.clearChecking(); }
             return Result.NOT_TAKEN;
         }
-        if (!p.privateDnsValidated(HOST, VALIDATE_MS) || !p.internetWorks(HTTP_MS)) {
+        if (!p.privateDnsValidated(HOST, VALIDATE_MS) || !resolverAnswers(p.lookupFreshName(FRESH_MS)) || !p.internetWorks(HTTP_MS)) {
             if (restore(rec)) { p.clearRecord(); p.clearChecking(); }
             return Result.REVERTED;
         }

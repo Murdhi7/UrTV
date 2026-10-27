@@ -7,6 +7,9 @@ import java.util.Map;
 public class FamilyDnsRun {
     static final class Fake implements FamilyDns.Ports {
         boolean grant = true, route = true, internet = true, saveOk = true, ignorePuts = false, validated = true;
+        FamilyDns.Lookup.Kind lookup = FamilyDns.Lookup.Kind.NOT_FOUND;
+        long lookupMs = 40;
+        int lookups;
         int sdk = 29;
         long checking;
         long checkingAtFirstPut = -1;
@@ -20,8 +23,9 @@ public class FamilyDnsRun {
         public boolean putGlobal(String k, String v) { writes++; if (checkingAtFirstPut < 0) checkingAtFirstPut = checking; if (!ignorePuts) g.put(k, v); return true; }
         public boolean deleteGlobal(String k) { writes++; g.remove(k); return true; }
         public int sdkInt() { return sdk; }
-        public boolean privateDnsValidated(String h, int ms) { return validated && h.equals(FamilyDns.HOST) && ms == 12000; }
-        public boolean internetWorks(int ms) { return internet && ms == 8000; }
+        public boolean privateDnsValidated(String h, int ms) { return validated && h.equals(FamilyDns.HOST) && ms == FamilyDns.VALIDATE_MS; }
+        public FamilyDns.Lookup lookupFreshName(int ms) { lookups++; return ms == FamilyDns.FRESH_MS ? new FamilyDns.Lookup(lookup, lookupMs) : new FamilyDns.Lookup(FamilyDns.Lookup.Kind.FAILED, 0); }
+        public boolean internetWorks(int ms) { return internet && ms == FamilyDns.HTTP_MS; }
         public long checkingSince() { return checking; }
         public boolean markChecking() { checking = 111; return true; }
         public void clearChecking() { checking = 0; }
@@ -130,5 +134,19 @@ public class FamilyDnsRun {
         System.out.println(r17 + " " + (f.writes - w) + " " + f.state() + " " + (f.rec == null));
         // 18 Arabic copy for the new results
         System.out.println(FamilyDns.arabic(FamilyDns.Result.UNSUPPORTED) + " | " + FamilyDns.arabic(FamilyDns.Result.CHANGED_BY_SOMEONE_ELSE));
+        // 19 fresh name: fast NXDOMAIN and a resolved address continue; timeout, slow NXDOMAIN, other failure revert with the originals back
+        StringBuilder sb = new StringBuilder();
+        Object[][] cases = {{FamilyDns.Lookup.Kind.NOT_FOUND, 50L}, {FamilyDns.Lookup.Kind.RESOLVED, 3500L},
+            {FamilyDns.Lookup.Kind.TIMEOUT, 4000L}, {FamilyDns.Lookup.Kind.NOT_FOUND, 3500L}, {FamilyDns.Lookup.Kind.FAILED, 10L}};
+        for (Object[] c : cases) {
+            f = tv("opportunistic", "x.example"); f.lookup = (FamilyDns.Lookup.Kind) c[0]; f.lookupMs = (Long) c[1];
+            FamilyDns.Result r = new FamilyDns(f).enable();
+            sb.append(r).append(' ').append(f.state()).append(' ').append(f.rec == null).append(f.checking).append(" | ");
+        }
+        // the lookup is not made when Private DNS never shows active, and not in the revert-by-internet case before it
+        f = tv("opportunistic", "x.example"); f.validated = false;
+        new FamilyDns(f).enable();
+        sb.append(f.lookups);
+        System.out.println(sb);
     }
 }

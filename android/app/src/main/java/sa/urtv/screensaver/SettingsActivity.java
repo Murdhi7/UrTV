@@ -497,6 +497,11 @@ public class SettingsActivity extends Activity {
     private void openFamilyDns() {
         try {
             startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.FamilyDnsActivity"));
+        } catch (SecurityException | ActivityNotFoundException e) {   // permission not granted, or an old launcher without the activity
+            boolean installed = true;
+            try { getPackageManager().getPackageInfo("sa.urtv.home", 0); }
+            catch (android.content.pm.PackageManager.NameNotFoundException gone) { installed = false; }
+            toast(installed ? "ما قدرنا نفتح حماية العائلة: حدّث الواجهة الرئيسية «تلفزيونك»" : "ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
         } catch (RuntimeException e) {
             toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
         }
