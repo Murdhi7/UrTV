@@ -65,6 +65,7 @@ psget() {
              esac ;;
   esac
 }
+test_build() { "$PY" -I optimize/tv.py "getprop ro.build.tags; getprop ro.build.type" 2> /dev/null | tr -d '\r' | grep -Eqi 'test-keys|userdebug|^eng$'; }
 psput() {   # key value
   case "$1" in
     standby_bucket) echo "am set-standby-bucket $PS $2" ;;
@@ -170,7 +171,11 @@ bad=0
 for kv in "${want[@]+"${want[@]}"}"; do verify "${kv%%=*}" "${kv#*=}" || bad=1; done
 for kv in "${pswant[@]+"${pswant[@]}"}"; do   # the standby bucket is the system's to move, so a mismatch is said, not fatal
   got=$(psget "${kv%%=*}")
-  if [ "$got" != "${kv#*=}" ]; then echo "!! ${kv%%=*}: this TV did not take the value (asked for ${kv#*=}, it says $got)"; bad=1; fi
+  if [ "$got" != "${kv#*=}" ]; then
+    if [ "${kv%%=*}" = standby_bucket ] && test_build; then   # a test build (userdebug, test-keys) keeps its own bucket: not a problem to report
+      echo "info: standby_bucket stays $got on this test build (userdebug / test-keys): the system keeps its own standby bucket"
+    else echo "!! ${kv%%=*}: this TV did not take the value (asked for ${kv#*=}, it says $got)"; bad=1; fi
+  fi
 done
 if [ "$1" = restore ] && [ -f "$JOURNAL" ] && [ "$bad" = 0 ]; then mv -f "$JOURNAL" "$JOURNAL_DONE"; fi   # kept when the TV refused something
 if [ "$1" = apply ]; then echo "Animation scale $v, Play Store background: $bg, cached-app freezer: on"

@@ -219,7 +219,9 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
   push_install urtv-home.apk sa.urtv.home
   "$PY" -I optimize/tv.py "pm grant sa.urtv.home android.permission.ACCESS_FINE_LOCATION" || true
   # exact alarms for the adhan (Android 12 and newer; older TVs need nothing)
-  "$PY" -I optimize/tv.py "appops set sa.urtv.home SCHEDULE_EXACT_ALARM allow" || true
+  # (this operation exists from Android 12, SDK 31; older Android prints «Unknown operation string» and needs nothing)
+  sdk=$("$PY" -I optimize/tv.py "getprop ro.build.version.sdk" 2> /dev/null | tr -dc '0-9' || true)
+  if [ "${sdk:-0}" -ge 31 ]; then "$PY" -I optimize/tv.py "appops set sa.urtv.home SCHEDULE_EXACT_ALARM allow" || true; fi
 
   # The setup wizard (setupwraith) is turned off only when it really answers Home. Disabling it can delete the Wi-Fi network
   # that was saved during the first-run wizard (CleanYourTV's README, github.com/Gathin23/cleanyourtv, MIT: a network saved

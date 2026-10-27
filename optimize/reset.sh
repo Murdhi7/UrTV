@@ -88,7 +88,8 @@ if [ -f "${URTV_RUN_DIR:-optimize/run}/grants-journal.txt" ]; then
 fi
 echo "3/4 Removing our apps (old and new names; missing ones are skipped)…"
 # the appop the launcher was given for the adhan (it vanishes with the app anyway)
-tv "appops set sa.urtv.home SCHEDULE_EXACT_ALARM default" > /dev/null 2>&1 || true
+sdk=$(tv "getprop ro.build.version.sdk" 2> /dev/null | tr -dc '0-9' || true)
+if [ "${sdk:-0}" -ge 31 ]; then tv "appops set sa.urtv.home SCHEDULE_EXACT_ALARM default" > /dev/null 2>&1 || true; fi
 for p in sa.urtv.home sa.urtv.screensaver sa.urtv.listening sa.yourtv.home sa.yourtv.screensaver com.abdullah.tvhome com.abdullah.tvsaver; do
   tv "pm uninstall $p" | grep -q Success && echo "   removed $p" || true
 done
