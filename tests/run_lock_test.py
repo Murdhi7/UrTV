@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-STUB_PY = '#!/usr/bin/env bash\n[ "$2" = optimize/tv.py ] || exit 0\nshift 2\ncase "$1" in\n  "getprop ro.serialno") echo 0123456789 ;;\nesac\nexit 0\n'
+STUB_PY = '#!/usr/bin/env bash\n[ "$2" = optimize/tv.py ] || exit 0\nshift 2\ncase "$1" in\n  "getprop ro.serialno") echo 0123456789 ;;\n  "--id") echo 0123456789 ;;\n  "--is-placeholder") exit 1 ;;\nesac\nexit 0\n'
 
 
 def tree(slow=False, fail=""):
@@ -117,7 +117,7 @@ results.append(("run.sh again: the backup of the first run is kept, not replaced
                 code == 0 and (t / "optimize/run/backup.txt").read_text() == "FIRST\n" and any("first run stays" in l for l in out), out[:8]))
 t = tree()
 (t / "optimize/run").mkdir()
-(t / "optimize/run/.tv").write_text("9999999999\n")   # another TV than the one answering
+(t / "optimize/run/.tv").write_text("9988776655\n")   # another TV than the one answering
 for f in ("backup.txt", "tweaks-journal.txt", "home-switch.json"):
     (t / "optimize/run" / f).write_text("OLD\n")
 code, out = run(t)

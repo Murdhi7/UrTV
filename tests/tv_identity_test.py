@@ -19,7 +19,7 @@ class Dev:
             raise ConnectionResetError("dropped")
         if cmd == tv.IDENT_CMD:
             LOG.append(("ident",))
-            return "".join(f"{k}={DEVICE.get(k, '')}\r\n" for k in ("serial", "bootserial", "manufacturer", "model"))
+            return "".join(f"{k}={DEVICE.get(k, '')}\r\n" for k in ("serial", "bootserial", "androidid", "manufacturer", "model"))
         LOG.append(("cmd", cmd))
         return "1\n" if cmd.startswith("getprop ") else ""
 
@@ -61,7 +61,7 @@ def run(*argv, device=None, stdin="", host="192.0.2.5"):
     return code, out.getvalue()
 sent = lambda: [e[1] for e in LOG if e[0] == "cmd"]
 idents = lambda: sum(1 for e in LOG if e[0] == "ident")
-saved = lambda: json.load(open(tv.ID_FILE)) if os.path.exists(tv.ID_FILE) else None
+saved = lambda: ({k: v for k, v in json.load(open(tv.ID_FILE)).items() if v or k != "android_id"} if os.path.exists(tv.ID_FILE) else None)   # (an absent Android id is not part of what these checks compare)
 PUT = "settings put secure screensaver_enabled 1"
 
 # the first run saves the first TV
@@ -84,6 +84,38 @@ code, text = run(PUT, device={**TV, "serial": "OTHER1"})
 check("same model, other serial: refused as another of the same model", code == 1 and "same model" in text and not sent(), text)
 code, text = run(PUT, device={**BOX, "serial": TV["serial"]})
 check("same serial but another make and model (a placeholder serial): refused", code == 1 and not sent(), text)
+# RC08: each candidate is checked before the next one; one policy (serial, boot serial, Android id) shared with run.sh
+SAME = {"manufacturer": "TCL", "model": "55P735"}
+fresh()
+run(PUT, device={**SAME, "serial": "unknown", "bootserial": "BOOT-A-1"})
+check("a placeholder ro.serialno does not hide a valid ro.boot.serialno", (saved() or {}).get("serial") == "BOOT-A-1", str(saved()))
+code, text = run(PUT, device={**SAME, "serial": "unknown", "bootserial": "BOOT-B-2"})
+check("two TVs of one model with placeholder primaries and different boot serials: refused, nothing sent", code == 1 and "same model" in text and not sent(), text)
+fresh()
+run(PUT, device={**SAME, "serial": "0123456789ABCDEF", "bootserial": "unknown", "androidid": "aaaa1111bbbb2222"})
+check("placeholders everywhere but the Android id: that is the id", (saved() or {}).get("android_id") == "aaaa1111bbbb2222" and not (saved() or {}).get("serial"), str(saved()))
+code, text = run(PUT, device={**SAME, "serial": "0123456789ABCDEF", "bootserial": "unknown", "androidid": "cccc3333dddd4444"})
+check("...and a second TV of the same model with another Android id is refused (not a model match)", code == 1 and not sent(), text)
+code, text = run(PUT, device={**SAME, "serial": "0123456789ABCDEF", "bootserial": "unknown", "androidid": "aaaa1111bbbb2222"}, host="192.0.2.9")
+check("...the same Android id at another address passes", code == 0 and sent() == [PUT], text)
+code, text = run(PUT, device={**SAME, "serial": "", "bootserial": "", "androidid": ""})
+check("the saved TV has a unique id and now none can be shown: refused, never downgraded to the model", code == 1 and not sent(), text)
+fresh({"serial": "", "manufacturer": "TCL", "model": "55P735"})
+code, text = run(PUT, device={**SAME, "serial": "", "androidid": "eeee5555ffff6666"})
+check("an older record with no unique id: the model decides once, and the record learns the Android id", code == 0 and (saved() or {}).get("android_id") == "eeee5555ffff6666", f"{text} {saved()}")
+code, text = run(PUT, device={**SAME, "serial": "", "androidid": "9999aaaa8888bbbb"})
+check("...and from then on another Android id is another TV", code == 1 and not sent(), text)
+check("the shared list: placeholders are not ids, a real serial is", all(tv.is_placeholder(x) for x in ("", "unknown", "null", "0123456789ABCDEF", "00000000", "aaaaaaaa", "N/A")) and not tv.is_placeholder("BOOT-A-1"), "")
+check("unique_id: the serial, else aid:<android id>, else nothing", tv.unique_id({"serial": "S1", "android_id": "x"}) == "S1" and tv.unique_id({"android_id": "abcd1234"}) == "aid:abcd1234" and tv.unique_id({}) == "", "")
+fresh()
+code, text = run("--id", device={**SAME, "serial": "unknown", "bootserial": "unknown", "androidid": "aaaa1111bbbb2222"})
+check("--id prints the unique id run.sh uses (aid:… when the serials are placeholders), and saves nothing", code == 0 and text.strip() == "aid:aaaa1111bbbb2222" and saved() is None, f"{text} {saved()}")
+code, text = run("--id", device={**SAME, "serial": "S-12345"})
+check("--id: the serial when there is one", text.strip() == "S-12345", text)
+code, text = run("--is-placeholder", "unknown")
+check("--is-placeholder: exit 0 for a placeholder, 1 for a real serial", code == 0, text)
+code, text = run("--is-placeholder", "S-12345")
+check("... a real serial is not", code == 1, text)
 # serial fallbacks
 fresh()
 run(PUT, device={"serial": "", "bootserial": "BOOT42", "manufacturer": "TCL", "model": "55P735"})

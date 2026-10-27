@@ -68,17 +68,34 @@ MAX_PAUSE_S = 30
 ID_FILE = os.path.join(os.environ.get("URTV_RUN_DIR") or HOME_DIR, "tv-id.json")
 OLD_ID_FILE = os.path.join(HERE, "run", "tv-id.json")
 
-# One round trip: who is answering. The serial is ro.serialno, else ro.boot.serialno.
+# One round trip: who is answering. The id is the first usable one of ro.serialno, ro.boot.serialno and the Android id (random, per TV): the
+# same policy as optimize/run.sh's, which asks `tv.py --id`. A placeholder (cheap boxes all carry one) is never an id.
 IDENT_CMD = ('echo "serial=$(getprop ro.serialno)"; echo "bootserial=$(getprop ro.boot.serialno)"; '
+             'echo "androidid=$(settings get secure android_id)"; '
              'echo "manufacturer=$(getprop ro.product.manufacturer)"; echo "model=$(getprop ro.product.model)"')
+PLACEHOLDERS = ("", "unknown", "null", "none", "n/a", "0123456789abcdef", "1234567890abcdef", "1234567890", "0000000000", "00000000")
+
+
+def is_placeholder(value):
+    v = (value or "").strip().lower()
+    return v in PLACEHOLDERS or len(v) < 4 or len(set(v)) == 1   # empty, a known placeholder, too short, or one repeated character
 
 
 def parse_identity(out):
+    """{serial, android_id, manufacturer, model}. Each candidate is checked before the next is looked at: a placeholder
+    ro.serialno does not hide a real ro.boot.serialno."""
     got = dict(l.split("=", 1) for l in out.replace("\r", "").splitlines() if "=" in l)
-    serial = (got.get("serial", "").strip() or got.get("bootserial", "").strip())
-    if serial.lower() in ("unknown", "null"):
-        serial = ""
-    return {"serial": serial, "manufacturer": got.get("manufacturer", "").strip(), "model": got.get("model", "").strip()}
+    serial = next((got.get(k, "").strip() for k in ("serial", "bootserial") if not is_placeholder(got.get(k, ""))), "")
+    aid = got.get("androidid", "").strip()
+    return {"serial": serial, "android_id": "" if is_placeholder(aid) else aid,
+            "manufacturer": got.get("manufacturer", "").strip(), "model": got.get("model", "").strip()}
+
+
+def unique_id(ident):
+    """The one id run.sh and this file share: the serial, else «aid:<android id>», else nothing (the address then)."""
+    if ident.get("serial"):
+        return ident["serial"]
+    return "aid:" + ident["android_id"] if ident.get("android_id") else ""
 
 
 def tv_name(ident):
@@ -88,14 +105,21 @@ def tv_name(ident):
 def unreadable(ident):
     """An identity with no serial, no make and no model says nothing about which device answered (a TV that has not finished
     waking up, a shell that returned nothing): comparing it with the saved one would pass."""
-    return not (ident.get("serial") or ident.get("manufacturer") or ident.get("model"))
+    return not (ident.get("serial") or ident.get("android_id") or ident.get("manufacturer") or ident.get("model"))
 
 
 def same_tv(saved, now):
-    """Same device? Two serials that both exist must match; and the make and model, where both are known, must match
-    (some cheap boxes all carry one placeholder serial). No serial on one side: the make and model decide."""
-    if saved.get("serial") and now.get("serial") and saved["serial"].lower() != now["serial"].lower():
-        return False
+    """Same device? The first unique id both sides have (serial, then Android id) decides, and a model never overrides it. A saved unique id
+    that the TV cannot show now is NOT a reason to fall back to the model (two TVs of one model are the case this guards). Only when the
+    saved identity has no unique id at all (an older record, a placeholder serial) do the make and model decide."""
+    for k in ("serial", "android_id"):
+        if saved.get(k) and now.get(k):
+            if saved[k].lower() != now[k].lower():
+                return False   # another id: another TV, whatever the model says
+            break              # the same id: still not the same TV if the make or model say otherwise (one made-up serial on many boxes)
+    else:
+        if saved.get("serial") or saved.get("android_id"):
+            return False
     for k in ("manufacturer", "model"):
         if saved.get(k) and now.get(k) and saved[k].lower() != now[k].lower():
             return False
@@ -135,6 +159,10 @@ def check_identity(out):
     if saved is None:
         save_identity(now)
         return
+    if same_tv(saved, now):   # an older record learns the ids it did not have (the Android id) once the TV is confirmed
+        merged = {**saved, **{k: v for k, v in now.items() if v and not saved.get(k)}}
+        if merged != saved:
+            save_identity(merged)
     if not same_tv(saved, now):
         was, is_now = tv_name(saved), tv_name(now)
         if was.lower() == is_now.lower():
@@ -585,6 +613,14 @@ def main():
         hint = address_hint()
         if hint:
             print(hint)
+        return
+    if a[:1] == ["--is-placeholder"]:   # exit 0 when the value is not an id (run.sh uses the same list)
+        sys.exit(0 if is_placeholder(a[1] if len(a) > 1 else "") else 1)
+    if a == ["--id"]:   # the TV's unique id for run.sh: the serial, else aid:<android id>, else nothing (read-only)
+        tv = TV()
+        ident = parse_identity(tv.shell(IDENT_CMD))
+        tv.close()
+        print(unique_id(ident))
         return
     if a == ["--wait"]:
         wait_for_tv()
