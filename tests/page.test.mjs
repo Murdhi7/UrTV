@@ -4280,19 +4280,21 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
   const NOISE = 8;
   const pixelDiff = async (a, b) => {
     const ctx = await browser.newContext(), p = await ctx.newPage();
-    const r = await p.evaluate(async ([a, b]) => {
+    const r = await p.evaluate(async ([a, b, noise]) => {
       const load = async s => { const i = new Image(); i.src = 'data:image/png;base64,' + s; await i.decode();
         const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const g = c.getContext('2d'); g.drawImage(i, 0, 0);
         return g.getImageData(0, 0, c.width, c.height); };
       const x = await load(a), y = await load(b);
       if (x.width !== y.width || x.height !== y.height) return { n: -1, max: 255 };
-      let n = 0, max = 0;
+      let n = 0, max = 0, box = null;   // box: where the pixels above the noise are (x0, y0, x1, y1), to tell which part of the screen moved
       for (let k = 0; k < x.data.length; k += 4) {
         const d = Math.max(Math.abs(x.data[k] - y.data[k]), Math.abs(x.data[k + 1] - y.data[k + 1]), Math.abs(x.data[k + 2] - y.data[k + 2]));
         if (d) { n++; if (d > max) max = d; }
+        if (d > noise) { const px = (k >> 2) % x.width, py = Math.floor((k >> 2) / x.width);
+          box = box ? [Math.min(box[0], px), Math.min(box[1], py), Math.max(box[2], px), Math.max(box[3], py)] : [px, py, px, py]; }
       }
-      return { n, max };
-    }, [a.toString('base64'), b.toString('base64')]);
+      return box ? { n, max, box } : { n, max };
+    }, [a.toString('base64'), b.toString('base64'), NOISE]);
     await ctx.close();
     return r;
   };
