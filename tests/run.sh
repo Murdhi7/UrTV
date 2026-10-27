@@ -117,6 +117,8 @@ python3 tests/pin_store_test.py
 python3 tests/parental_policy_test.py
 python3 tests/parental_wiring_test.py
 python3 tests/dock_pin_test.py
+python3 tests/tvports_test.py   # BETA LG/Samsung packages: manifests, files, sizes (docs/LG-SAMSUNG.md)
 node tests/prayer_crosscheck_page.mjs
 node tests/hijri_crosscheck_page.mjs
 node tests/page.test.mjs
+node tests/tvports_page.test.mjs   # the packaged page with simulated webOS and Tizen keys
