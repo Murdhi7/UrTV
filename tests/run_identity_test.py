@@ -15,24 +15,37 @@ def check(name, ok, detail=""):
     print(("PASS " if ok else "FAIL ") + name + ("" if ok else f"  -> {detail}"))
     failed += not ok
 
-def run(serial, host, saved=None):
+def run(serial, host, saved=None, boot="", aid=""):
     t = Path(tempfile.mkdtemp()); run_dir = t / "run"; run_dir.mkdir()
     (t / "optimize").mkdir(); (t / "optimize/.tv_host").write_text("")
-    (run_dir / "backup.txt").write_text("== all packages\n"); (run_dir / ".done-backup").write_text("")
+    for f in ("backup.txt", "tweaks-journal.txt"): (run_dir / f).write_text("x\n")
+    (run_dir / ".done-backup").write_text("")
     if saved is not None: (run_dir / ".tv").write_text(saved + "\n")
-    script = f'tv() {{ printf "%s" "$SERIAL"; }}\nRUN="{run_dir}"\ncd "{t}"\n' + block
-    r = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env={"PATH": "/usr/bin:/bin", "SERIAL": serial, "TV_HOST": host})
-    return r.stdout + r.stderr, (run_dir / "backup.txt").exists(), (run_dir / ".tv").read_text().strip()
+    stub = ('tv() { case "$1" in "getprop ro.serialno") printf "%s" "$SERIAL" ;; "getprop ro.boot.serialno") printf "%s" "$BOOT" ;; '
+            '"settings get secure android_id") printf "%s" "$AID" ;; esac; }\n')
+    script = stub + f'RUN="{run_dir}"\ncd "{t}"\n' + block
+    r = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env={"PATH": "/usr/bin:/bin", "SERIAL": serial, "BOOT": boot, "AID": aid, "TV_HOST": host})
+    return r.stdout + r.stderr, (run_dir / "backup.txt").exists() and (run_dir / "tweaks-journal.txt").exists(), (run_dir / ".tv").read_text().strip(), (run_dir / ".done-backup").exists()
 
-out, kept, ident = run("ABC123", "h1")
+out, kept, ident, marks = run("ABC123", "192.0.2.1")
 check("a real serial is the id", ident == "ABC123", ident)
-out, kept, ident = run("ABC123", "h2", saved="ABC123")
-check("the same serial at another address: the same TV, nothing wiped", kept and ident == "ABC123", out)
+out, kept, ident, marks = run("ABC123", "192.0.2.2", saved="ABC123")
+check("the same serial at another address: the same TV, nothing wiped", kept and marks and ident == "ABC123", out)
+out, kept, ident, marks = run("ABC123", "192.0.2.2", saved="ZZZ999")
+check("another real serial: a different TV, marks and journals wiped", not kept and not marks and "A different TV" in out, out)
 for ph in ("unknown", "0123456789ABCDEF", "null", "1234567890", ""):
-    out, kept, ident = run(ph, "h1")
-    check(f"placeholder serial «{ph}»: the address is the id", ident == "h1", ident)
-    out, kept, ident = run(ph, "h2", saved="h1")
-    check(f"placeholder serial «{ph}»: another TV at another address starts from the top, its backup is not kept", not kept and "A different TV" in out and ident == "h2", f"{out} {kept} {ident}")
-out, kept, ident = run("unknown", "h2", saved="unknown")
-check("an id saved by an older run that was a placeholder is replaced, nothing wiped (it said nothing about which TV it was)", kept and ident == "h2", f"{out} {kept} {ident}")
+    out, kept, ident, marks = run(ph, "192.0.2.1", aid="deadbeef01234567")
+    check(f"placeholder serial «{ph}»: the Android id is the id", ident == "aid:deadbeef01234567", ident)
+    out, kept, ident, marks = run(ph, "192.0.2.2", saved="aid:deadbeef01234567", aid="deadbeef01234567")
+    check(f"placeholder serial «{ph}»: the same Android id at another address is the same TV, nothing wiped", kept and marks, out)
+    out, kept, ident, marks = run(ph, "192.0.2.2", saved="aid:0000aaaa1111bbbb", aid="deadbeef01234567")
+    check(f"placeholder serial «{ph}»: another Android id is another TV, wiped", not kept and not marks, out)
+out, kept, ident, marks = run("unknown", "192.0.2.1", boot="BOOT77")
+check("the boot serial is tried before the Android id", ident == "BOOT77", ident)
+out, kept, ident, marks = run("unknown", "192.0.2.1", aid="unknown")
+check("nothing but the address: the address is the id", ident == "192.0.2.1", ident)
+out, kept, ident, marks = run("unknown", "192.0.2.2", saved="192.0.2.1", aid="unknown")
+check("the id is only an address and it changed (DHCP): the step marks restart, the backup and journals are KEPT", kept and not marks and ident == "192.0.2.2" and "backup and journals are kept" in out, f"{out} {kept} {marks}")
+out, kept, ident, marks = run("unknown", "192.0.2.2", saved="unknown", aid="unknown")
+check("an id saved by an older run that was a placeholder is replaced, nothing wiped (it said nothing about which TV it was)", kept and marks and ident == "192.0.2.2", f"{out} {kept} {ident}")
 sys.exit(1 if failed else 0)

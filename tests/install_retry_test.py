@@ -84,6 +84,8 @@ case "$1" in
   "pm disable-user --user 0 com.google.android.tungsten.setupwraith") log wraith-off ;;
   *resolve-activity*) [ "$RESOLVE" = empty ] && exit 0
        [ "$RESOLVE" = after ] && ls "$T"/marker.* > /dev/null 2>&1 && exit 0
+       [ "$RESOLVE" = chooser ] && { echo "android/com.android.internal.app.ResolverActivity"; exit 0; }
+       [ "$RESOLVE" = stockpkg ] && ! ls "$T"/marker.* > /dev/null 2>&1 && { echo "com.google.android.apps.tv.launcherx/.home.HomeActivity"; exit 0; }
        [ "$(cat "$T/home" 2>/dev/null)" = ours ] && echo sa.urtv.home/.MainActivity || echo stock/.Home ;;
   "cmd role get-role-holders"*) echo "$ROLE" ;;
   *dumpsys*) n=$(( $(cat "$T/dumps" 2>/dev/null || echo 0) + 1 )); echo $n > "$T/dumps"
@@ -277,12 +279,15 @@ cases += [
     ("no role holder named and Home cannot be read either: the switch is not made (undoing it could not put the right app back)",
      run("ra", 0, "", resolve="empty", role=""),
      lambda c, o, l: c == 1 and "!! Could not tell which app is the TV's home now" in o and "arm" not in l and "switch" not in l),
-    ("no role holder named, but the app that answers Home is read: it is the «before» in the journal",
-     run("rb", 0, "", role=""),
-     lambda c, o, l: c == 0 and "rhb-stock" in l and "arm" in l),
+    ("no role holder named, but the stock home answers Home: it is the «before» in the journal",
+     run("rb", 0, "", role="", resolve="stockpkg"),
+     lambda c, o, l: c == 0 and "rhb-com.google.android.apps.tv.launcherx" in l and "arm" in l),
+    ("no role holder named, and what answers Home is the chooser (android) or anything but the stock home: not recorded, a restore goes to the stock home",
+     run("rd", 0, "", role="", resolve="chooser"),
+     lambda c, o, l: "rhb-" in l and "rhb-android" not in l and "arm" in l),
     ("Home cannot be read after the switch (empty each time): not called «restored», the journal stays «switching», and it says so",
      run("rc", 0, "", resolve="after"),
-     lambda c, o, l: "!! The TV did not say what Home is now" in o and "journal-restored" not in l),
+     lambda c, o, l: c == 1 and "!! The TV did not say what Home is now" in o and "journal-restored" not in l and "trying the switch again" not in o and l.count("arm") == 1),
     ("restore-home.sh: from the journal, the role goes back to who held it, the helpers come back, the journal says restored, ADB is said",
      run("ad", 0, "", seed=("done", "other.launcher"), seed_home="ours", script="restore-home.sh", args=()),
      lambda c, o, l: c == 0 and "holder-other" in l and "helpers" in l and l[-1] == "journal-restored" and "needs ADB" in o.replace("this needs ADB", "needs ADB")),

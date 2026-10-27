@@ -218,16 +218,27 @@ is_placeholder() {   # a serial that cheap boxes all carry is not an id
   return 1
 }
 tv_id=$(tv "getprop ro.serialno" 2> /dev/null | tr -d '\r\n ' || true)
-# a placeholder is not a serial: the address tells two such TVs apart
-if is_placeholder "$tv_id"; then tv_id="${TV_HOST:-$(cat optimize/.tv_host 2> /dev/null || true)}"; fi
+# a placeholder is not a serial: the boot serial, then the Android id (random, per TV), then the address tells two such TVs apart
+if is_placeholder "$tv_id"; then tv_id=$(tv "getprop ro.boot.serialno" 2> /dev/null | tr -d '\r\n ' || true); fi
+if is_placeholder "$tv_id"; then
+  aid=$(tv "settings get secure android_id" 2> /dev/null | tr -d '\r\n ' || true)
+  if is_placeholder "$aid"; then tv_id=""; else tv_id="aid:$aid"; fi
+fi
+if [ -z "$tv_id" ]; then tv_id="${TV_HOST:-$(cat optimize/.tv_host 2> /dev/null || true)}"; fi
 saved_id=$(cat "$RUN/.tv" 2> /dev/null || true)
+looks_like_address() { [[ "$1" =~ ^[0-9]+(\.[0-9]+){3}(:[0-9]+)?$ ]] || [[ "$1" =~ ^[A-Za-z0-9.-]+:[0-9]+$ ]]; }
 # an id saved by an older run that was a placeholder says nothing about which TV it was: it is replaced without wiping (as before this check)
 if [ -n "$saved_id" ] && is_placeholder "$saved_id" && [ -n "$tv_id" ]; then echo "$tv_id" > "$RUN/.tv"; saved_id=$tv_id; fi
 if [ -n "$tv_id" ] && [ "$saved_id" != "$tv_id" ]; then
-  [ -f "$RUN/.tv" ] && echo "A different TV than the last run: starting from the first step."
   rm -f "$RUN"/.done-* "$RUN/steps.log"
-  # what the last TV had is not this TV's (its backup, tweaks and home switch journals)
-  rm -f "$RUN/backup.txt" "$RUN/tweaks-journal.txt" "$RUN/family-dns-journal.txt" "$RUN/family-dns-journal.done" "$RUN/grants-journal.txt" "$RUN/disabled-by-us.txt" "$RUN/.package-change" "$RUN/community-applied.txt" "$RUN/community-ask.txt" "$RUN/tweaks-journal.done" "$RUN/home-switch.json" "$RUN/accessibility-before.txt" "$RUN/.screen-off-timeout"
+  if looks_like_address "$tv_id" || { [ -n "$saved_id" ] && looks_like_address "$saved_id"; }; then
+    # the id is only an address (or was): a new address may be the same TV after a DHCP change, so its backup and journals are kept; only the step marks restart
+    [ -z "$saved_id" ] || echo "Another address than the last run (no serial to tell if it is the same TV): the steps start again, the backup and journals are kept."
+  else
+    [ -z "$saved_id" ] || echo "A different TV than the last run: starting from the first step."
+    # what the last TV had is not this TV's (its backup, tweaks and home switch journals)
+    rm -f "$RUN/backup.txt" "$RUN/tweaks-journal.txt" "$RUN/family-dns-journal.txt" "$RUN/family-dns-journal.done" "$RUN/grants-journal.txt" "$RUN/disabled-by-us.txt" "$RUN/.package-change" "$RUN/community-applied.txt" "$RUN/community-ask.txt" "$RUN/tweaks-journal.done" "$RUN/home-switch.json" "$RUN/accessibility-before.txt" "$RUN/.screen-off-timeout"
+  fi
   echo "$tv_id" > "$RUN/.tv"
 fi
 

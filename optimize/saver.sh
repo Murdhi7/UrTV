@@ -70,6 +70,10 @@ send() {   # $1 action, $2 extras; prints the receiver's answer (the "data" of a
   raw=$("$PY" -I optimize/tv.py "am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.$1 ${2:-}" | tr -d '\r') || raw=""
   # no «data=» at all = the receiver never ran (app missing, another signature, just updated): that is not «done»
   if ! grep -q 'data=' <<< "$raw"; then
+    if [ "$1" = UPDATE ]; then   # the download can still be running: no answer yet is not «not installed»
+      echo "!! saver.sh: no answer to the update (it may still be downloading): wait a minute, then optimize/saver.sh show says the version; if it did not change, run the same command again." >&2
+      return 1
+    fi
     echo "!! saver.sh: no answer from the TV's screensaver app (it is not installed, was just updated, or the connection dropped), so nothing is known to have changed. Run optimize/install.sh saver, then the same command again." >&2
     return 1
   fi
@@ -92,7 +96,7 @@ active() {   # one line: which screensaver the TV uses now
 stock_dream() {   # a screensaver this TV lists besides ours: component, or nothing; returns 2 when the TV did not list its screensavers at all
   local raw list
   raw=$("$PY" -I optimize/tv.py "(cmd package query-services --brief -a android.service.dreams.DreamService || pm query-services --brief -a android.service.dreams.DreamService) 2> /dev/null" \
-    | tr -d '\r' | grep -E '^[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+$' || true)
+    | tr -d '\r' | sed 's/^[[:space:]]*//' | grep -E '^[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+$' || true)   # the real output is indented under «Service #N:»
   # a TV that answered lists at least one screensaver (ours, if it is installed); an empty answer is «the TV did not say», not «it has none of its own»
   [ -n "$raw" ] || return 2
   list=$(grep -v '^sa\.urtv\.' <<< "$raw" || true)

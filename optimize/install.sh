@@ -210,7 +210,7 @@ if [ "$what" = saver ] || [ "$what" = all ]; then
   held=0; held_rc=0; PY="$PY" optimize/precheck.sh held > /dev/null 2>&1 || held_rc=$?
   if [ "$held_rc" = 4 ]; then held=1; elif [ "$held_rc" != 0 ]; then held=2; fi
   if [ "$held" = 2 ]; then
-    echo "!! The screensaver is installed but NOT switched on: the TV did not say which «Android System WebView» it has, and an old one (older than 80) would not run the page. Run optimize/install.sh saver again; if it says this again, check the WebView in the TV's Play Store (optimize/precheck.sh webview-store opens it)."
+    echo "!! The screensaver is installed but this run did NOT switch it on (what the TV had selected is untouched): the TV did not say which «Android System WebView» it has, and an old one (older than 80) would not run the page. Run optimize/install.sh saver again; if it says this again, check the WebView in the TV's Play Store (optimize/precheck.sh webview-store opens it)."
   elif [ "$held" = 1 ]; then
     echo "!! The screensaver is installed but NOT switched on: this TV's WebView is older than 80 and the page would not run, so the TV keeps its own screensaver. Update «Android System WebView» in the Play Store (optimize/precheck.sh webview-store opens it), then run optimize/install.sh saver again."
   else
@@ -353,8 +353,9 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
       if [ -z "$role" ]; then   # no role holder named (older Android, or the TV said nothing): the app that answers Home now is "who it was before"
         res=$("$PY" -I optimize/tv.py "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN" 2> /dev/null | tr -d '\r' | tail -n 1) || res=""
         role=$(sed -n 's#^\([A-Za-z0-9_.]*\)/[A-Za-z0-9_.$]*$#\1#p' <<< "$res")
-        [ -n "$role" ] || return 9   # nothing says who has Home: undoing the switch could not put the right app back
-        [ "$role" != sa.urtv.home ] || role=""   # ours already (an interrupted switch): nobody earlier is known, a restore goes to the stock home
+        [ -n "$res" ] || return 9   # nothing says who has Home: undoing the switch could not put the right app back
+        # only the stock home counts as «before»: the chooser (android), the setup wizard or ours would send a restore to the wrong app
+        [ "$role" = "${STOCK%%/*}" ] || role=""   # anything else: no one earlier is known, a restore goes to the stock home
       fi
       wiz=absent; stk=absent
       if disabled=$("$PY" -I optimize/tv.py "pm list packages -d" 2> /dev/null | tr -d '\r'); then
@@ -469,7 +470,7 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
     done
     if [ -z "$res" ]; then   # still nothing: the journal stays «switching» (not «restored»), so a later run or restore-home.sh looks again
       echo "!! The TV did not say what Home is now; the safety switch is already off. Press Home on the remote; if it is not the new launcher, run optimize/restore-home.sh."
-      return 1
+      return 10   # its own code: ADB is up (it answered the touch), so this is not «ADB dropped» and nothing is retried
     fi
     grep -q sa.urtv.home <<< "$res" || { jstate restored; return 3; }   # the safety switch fired: the stock home is back
     jstate done
@@ -517,6 +518,7 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
        echo "Home switch skipped: this TV refuses to turn its own home screen off («This command is illegal», seen on a Nokia Streaming Box 8000). It keeps its own home; the stock home is back as it was. The screensaver and the rest of the setup work without it."
        mkdir -p "${URTV_RUN_DIR:-optimize/run}"
        echo "Home switch: skipped, this TV refuses to turn its own home screen off" > "${URTV_RUN_DIR:-optimize/run}/home-skipped.txt" ;;
+    10) exit 1 ;;   # the line was printed where it happened
     9) echo "!! Could not tell which app is the TV's home now, so the home was NOT switched (undoing it could not put the right one back). Run the same command again."
        exit 1 ;;
     8) echo "!! Could not read this TV's package list (it came back empty, or without the android package), so the home switch was not made and nothing was changed. Run the same command again."

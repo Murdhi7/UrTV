@@ -55,7 +55,7 @@ check("WebView 66: installed, the TV's own screensaver is not replaced, and it s
 rc, out, log = run(UPD.format("120.0.6099.144"))
 check("WebView 120: selected as before", rc == 0 and log == ["selected"] and "installed and selected" in out, f"{rc} {log} {out}")
 rc, out, log = run("")
-check("WebView unknown: NOT selected, and a !! line says the TV did not say", rc == 0 and log == [] and "!! The screensaver is installed but NOT switched on: the TV did not say which" in out, f"{rc} {log} {out}")
+check("WebView unknown: NOT selected, and a !! line says the TV did not say", rc == 0 and log == [] and "!! The screensaver is installed but this run did NOT switch it on" in out, f"{rc} {log} {out}")
 rc, out, log = run(UPD.format("120.0.6099.144"))
 check("selected and read back: no !! line", "!!" not in out, out)
 rc, out, log = run(UPD.format("120.0.6099.144"), takes="no")

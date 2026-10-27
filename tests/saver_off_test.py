@@ -80,7 +80,7 @@ fi
 echo "$3" >> "$SENT"
 case "$3" in
   "pm list packages sa.urtv.screensaver") [ "${INSTALLED:-1}" = 1 ] && echo "package:sa.urtv.screensaver" ;;
-  *query-services*) printf '%s' "$STOCK" ;;
+  *query-services*) [ -n "$STOCK" ] && { echo "2 services found:"; echo "  Service #0:"; printf '%s' "$STOCK" | sed 's/^/    /'; } ;;   # the real output is indented
   "am broadcast"*) [ "$SILENT" = 1 ] && { echo "Broadcast completed: result=0"; exit 0; }; echo 'Broadcast completed: result=0, data="UrTV 1"' ;;
 esac
 exit 0
@@ -145,6 +145,8 @@ rc, out, sent = run("show", silent="1")
 check("a receiver that never ran (no data= in the broadcast's answer) is a failure with a !! line, not a blank success", rc == 1 and "!! saver.sh: no answer from the TV's screensaver app" in out, out)
 rc, out, sent = run("show")
 check("a receiver that answers: exit 0", rc == 0 and "UrTV 1" in out, out)
+rc, out, sent = run("update", silent="1")
+check("update with no answer: it may still be downloading (not «not installed»)", rc == 1 and "may still be downloading" in out and "not installed" not in out, out)
 rc, out, sent = run("on")
 check("on: ours selected, as install.sh does",
       rc == 0 and puts(sent) == ["settings put secure screensaver_enabled 1", f"settings put secure screensaver_components {OURS}",

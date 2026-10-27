@@ -22,7 +22,7 @@ installed() { tv "pm list packages $1" | tr -d '\r' | grep -qx "package:$1"; }
 state() {   # what the TV says for this package: allow, ignore, deny, default… none when it says it has no such op, unknown when it said nothing
   local out got op silent=0
   for op in AUTO_START APP_AUTO_START; do
-    out=$(tv "appops get $1 $op 2> /dev/null" | tr -d '\r' || true)
+    out=$(tv "appops get $1 $op 2>&1" | tr -d '\r' || true)   # «Error: Unknown operation string» is written to stderr: it must be read
     got=$(sed -n "s/^$op: \([a-z_]*\).*/\1/p" <<< "$out" | head -1)
     [ -z "$got" ] || { echo "$got"; return; }
     # only an explicit «unknown operation» (or «no operations») is «this build has no such op»; an empty answer is «the TV did not say»

@@ -33,7 +33,9 @@ elif cmd.startswith("appops get "):
     _, _, p, op = cmd.split()[:4]
     if S.get("silent"): sys.exit(0)   # the TV says nothing at all
     if op in S["ops"] and p in S["ops"][op]: out("%s: %s; time=+1d\n" % (op, S["ops"][op][p]))
-    else: out("Error: Unknown operation string: %s\n" % op if op not in S["ops"] else "No operations.\n")
+    elif op not in S["ops"]:
+        (out if "2>&1" in cmd else lambda t: sys.stderr.write(t))("Error: Unknown operation string: %s\n" % op)   # stderr, as on the TV
+    else: out("No operations.\n")
 else:
     for m in re.finditer(r"(?:cmd )?appops set (\S+) (\S+) allow", cmd):
         p, op = m.groups()
