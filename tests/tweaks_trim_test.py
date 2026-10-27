@@ -11,6 +11,8 @@ shift 2
 case "$1" in
   --batch) cat >> "$T/batch" ;;
   "df -k /data"*) printf '%s\n' "$DF" ;;
+  "settings get global"*) echo 1.0 ;;        # readable, so nothing is skipped
+  "device_config get"*) echo null ;;
 esac
 exit 0
 '''

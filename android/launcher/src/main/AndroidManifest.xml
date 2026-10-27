@@ -92,6 +92,14 @@
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.Material.NoActionBar" />
 
+        <!-- «الرقابة الأبوية»: the PIN, the locks and kids mode; it asks for the PIN itself once one is set -->
+        <activity
+            android:name=".ParentalActivity"
+            android:exported="true"
+            android:label="الرقابة الأبوية"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
         <!-- «المهام»: the tasks kept by the screensaver app, with a mic (speech recognizer) -->
         <activity
             android:name=".TasksActivity"
@@ -113,6 +121,10 @@
                 <action android:name="sa.urtv.home.HIDDEN" />
                 <action android:name="sa.urtv.home.HIDE" />
                 <action android:name="sa.urtv.home.SHOW" />
+                <action android:name="sa.urtv.home.PIN_SET" />
+                <action android:name="sa.urtv.home.PIN_STATUS" />
+                <action android:name="sa.urtv.home.PIN_OFF" />
+                <action android:name="sa.urtv.home.PIN_RESET" />
             </intent-filter>
         </receiver>
 
@@ -193,6 +205,8 @@
                 <action android:name="sa.urtv.home.VOICE" />
                 <action android:name="sa.urtv.home.FAJR_VOICE" />
                 <action android:name="sa.urtv.home.ADHAN_SHORT" />
+                <action android:name="sa.urtv.home.ADHAN_STOPKEY" />
+                <action android:name="sa.urtv.home.STOP_ADHAN" />
                 <action android:name="sa.urtv.home.ADHAN_OWN" />
             </intent-filter>
         </receiver>

@@ -43,6 +43,7 @@ def run(installed=(), have=None, fail_push="", tree=None, silent=""):
     tree = tree or t / "tree"
     bin_ = t / "bin"; bin_.mkdir(); (tree / "optimize" / "lists").mkdir(parents=True, exist_ok=True)
     shutil.copy(ROOT / "optimize" / "install.sh", tree / "optimize")
+    shutil.copy(ROOT / "optimize" / "home-journal.sh", tree / "optimize")
     for f, body in (("py", STUB_PY), ("curl", STUB_CURL), ("sleep", "#!/bin/sh\nexit 0\n")):
         (bin_ / f).write_text(body); (bin_ / f).chmod(0o755)
     (t / "installed").write_text("".join(p + "\n" for p in installed))

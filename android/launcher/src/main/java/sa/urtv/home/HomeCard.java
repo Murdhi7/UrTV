@@ -92,7 +92,8 @@ final class HomeCard {
         web.resumeTimers();
     }
 
-    /** onPause: no timers or network while an app is in front. */
+    /** onPause: no timers or network while an app is in front. pauseTimers()/resumeTimers() are process-wide: safe here only because this card is the
+     *  launcher's only WebView (tests/home_card_test.py checks it), so whoever adds a second WebView has to revisit both. */
     void pause() {
         resumed = false;
         if (web != null) { web.onPause(); web.pauseTimers(); }

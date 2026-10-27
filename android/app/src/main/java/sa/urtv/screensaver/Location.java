@@ -8,10 +8,17 @@ import java.util.List;
  * the search, told by the city's zone, never saved on its own) and the first-run note while the city is still the install's Riyadh.
  */
 final class Location {
-    /** Open-Meteo's country code, the name, the country's zone (the one Cities.java gives its cities) */
+    /**
+     * The countries of the city list (Cities.REGIONS), in its order: Open-Meteo's country code, the name, then the country's zones (the ones
+     * Cities.java gives its cities; Palestine has two, and Morocco's search may answer Africa/El_Aaiun). The city search
+     * (PrayerMethod.SEARCH_COUNTRIES) takes all of them but Palestine (see there); tests/PrayerMethodRun.java keeps the two lists in step.
+     */
     static final String[][] COUNTRIES = {
         {"SA", "السعودية", "Asia/Riyadh"}, {"BH", "البحرين", "Asia/Bahrain"}, {"KW", "الكويت", "Asia/Kuwait"},
         {"QA", "قطر", "Asia/Qatar"}, {"AE", "الإمارات", "Asia/Dubai"}, {"OM", "سلطنة عُمان", "Asia/Muscat"},
+        {"EG", "مصر", "Africa/Cairo"}, {"JO", "الأردن", "Asia/Amman"}, {"SY", "سوريا", "Asia/Damascus"},
+        {"LB", "لبنان", "Asia/Beirut"}, {"PS", "فلسطين", "Asia/Hebron", "Asia/Gaza"},
+        {"MA", "المغرب", "Africa/Casablanca", "Africa/El_Aaiun"}, {"DZ", "الجزائر", "Africa/Algiers"}, {"TN", "تونس", "Africa/Tunis"},
     };
     /** the screensaver's first starts that show the note */
     static final int NOTE_STARTS = 3;
@@ -21,21 +28,29 @@ final class Location {
 
     /** The country of a city's zone, as an index of COUNTRIES; -1 for a place of one's own elsewhere. */
     static int countryOf(String tz) {
-        for (int i = 0; i < COUNTRIES.length; i++) if (COUNTRIES[i][2].equals(tz)) return i;
+        for (int i = 0; i < COUNTRIES.length; i++) if (inCountry(i, tz)) return i;
         return -1;
     }
+
+    private static boolean inCountry(int country, String tz) {
+        for (int k = 2; k < COUNTRIES[country].length; k++) if (COUNTRIES[country][k].equals(tz)) return true;
+        return false;
+    }
+
+    /** May the city search be asked for places in that country? (All but Palestine: PrayerMethod.SEARCH_COUNTRIES.) */
+    static boolean searchable(int country) { return PrayerMethod.searchable(COUNTRIES[country][0]); }
 
     static String countryLabel(String tz) {
         int i = countryOf(tz);
         return i < 0 ? "مكان من اختيارك" : COUNTRIES[i][1];
     }
 
-    /** The regions of the city list in that country: Saudi Arabia's thirteen, or the one region that is the country. */
+    /** The regions of the city list in that country: Saudi Arabia's thirteen, or the one region that is the country (by its first city's zone). */
     static Cities.Region[] regions(int country) {
         List<Cities.Region> out = new ArrayList<>();
         for (Cities.Region r : Cities.REGIONS) {
             String tz = r.cities.length == 0 ? "" : r.cities[0].length > 3 ? r.cities[0][3] : "Asia/Riyadh";
-            if (tz.equals(COUNTRIES[country][2])) out.add(r);
+            if (inCountry(country, tz)) out.add(r);
         }
         return out.toArray(new Cities.Region[0]);
     }

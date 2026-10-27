@@ -150,7 +150,7 @@ def check_identity(out):
 READ_ONLY = ("getprop", "dumpsys", "pm list", "pm path", "pm query-services", "pm resolve-activity", "settings get", "cat",
              "ls", "ps", "top", "df", "du", "grep", "egrep", "wc", "md5sum", "head", "tail", "echo", "printf", "id",
              "uname", "test", "[", "[[", "true", "sleep", "cmd package resolve-activity", "cmd package query-services",
-             "cmd package list", "device_config get", "appops get", "cmd package query-activities")
+             "cmd package list", "device_config get", "appops get", "am get-standby-bucket", "cmd package query-activities")
 # Commands that read in one form and write in another («wm size 1280x720», «wm density 240», «date -s …» change the TV): only
 # the reading form counts, whatever follows.
 READ_FORMS = (re.compile(r"wm (size|density)\s*$"), re.compile(r"date(\s+-u)?(\s+\+\S*)?\s*$"),

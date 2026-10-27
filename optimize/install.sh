@@ -15,6 +15,7 @@ PY="${PY:-optimize/venv/bin/python}"
 REL=https://github.com/tshi-dev/UrTV/releases/download/${APK_TAG:-apk-latest}   # APK_TAG=v3.N: that numbered build
 what="${1:?usage: optimize/install.sh saver|launcher|extras|all}"
 case "$what" in saver|launcher|extras|all) ;; *) echo "usage: optimize/install.sh saver|launcher|extras|all" >&2; exit 2;; esac
+. optimize/home-journal.sh   # the journal of the home switch (what the switch changed, to undo it after a restart)
 failed=0   # an extra that did not install: the rest are still tried, then run.sh must not count the step as done
 
 # curl with up to 3 tries. A Windows curl (Schannel) that can't reach the certificate revocation server fails every
@@ -160,6 +161,9 @@ for abi in [a for a in sys.argv[2].split(",") if a] + ["universal", ""]:
   else echo "!! Install of $name failed: $out"; failed=1; fi
 }
 
+# A home switch that a restart cut off (journal says «switching», Home is not ours, no marker) is undone first.
+[ "$what" = extras ] || jrecover || exit 1
+
 if [ "$what" = extras ]; then
   from_github truefedex/tv-bro com.phlox.tvwebbrowser 'tvbro-[0-9.]+-generic-geckoExcluded\.apk'   # light: the TV's WebView
   from_github yuliskov/SmartTube org.smarttube.stable 'SmartTube_stable_[0-9.]+_{abi}\.apk'
@@ -180,6 +184,12 @@ if [ "$what" = saver ] || [ "$what" = all ]; then
       "settings put secure screensaver_default_component sa.urtv.screensaver/.ScreenDream" \
       "am start --activity-clear-task -n sa.urtv.screensaver/.SettingsActivity" \
       | "$PY" -I optimize/tv.py --batch
+    # read back: some firmware keeps its own screensaver whatever is written (reset.sh puts back what backup.sh recorded)
+    got=$("$PY" -I optimize/tv.py "settings get secure screensaver_components" 2> /dev/null | tr -d '\r' | tail -n 1) || got=""
+    case "$got" in
+      *sa.urtv.screensaver/*) ;;
+      *) echo "!! screensaver_components: this TV did not take our screensaver (it says ${got:-nothing}); choose it in the TV's own settings (Settings, Device Preferences, Screen saver)" ;;
+    esac
     echo "Screensaver installed and selected. Its settings screen is open on the TV."
   fi
 fi
@@ -230,7 +240,7 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
   # Returns 0: the new home is on screen and the switch is disarmed; 1: tv.py failed (connection lost);
   # 2: Home did not open the new launcher; 3: the safety switch fired first.
   switch_home() {
-    local top res stepout ours=no _ wraith=no cmds
+    local top res stepout ours=no _ wraith=no cmds alive disabled
     if [ "${1:-}" != verify ]; then
       # before anything is changed: does the wizard answer Home, and can it go without taking the Wi-Fi with it?
       if wraith_answers_home; then
@@ -244,12 +254,47 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
         esac
       fi
       # 2. Arm the safety switch on the TV: it restores the stock home in 300 s unless we confirm (slow ADB needs time).
+      #    It carries a nonce (a marker of an older switch cannot disarm this one), and it must show it is alive before
+      #    anything is changed. The journal records what the switch changes, to undo it if the TV restarts in the middle.
+      local old_nonce role wiz stk
+      old_nonce=$(jget nonce)
+      NONCE="$(date +%s)-$$-$RANDOM"
+      role=$("$PY" -I optimize/tv.py "cmd role get-role-holders --user 0 android.app.role.HOME 2> /dev/null" 2> /dev/null | tr -d '\r' | sed -n 1p) || role=""
+      grep -qE '^[A-Za-z0-9_.]+$' <<< "$role" || role=""
+      # a second run starts with ours as the holder: the earlier journal still knows who it was before
+      if [ "$role" = sa.urtv.home ] || [ -z "$role" ]; then role=$(jget role_holder_before); fi
+      wiz=absent; stk=absent
+      if disabled=$("$PY" -I optimize/tv.py "pm list packages -d" 2> /dev/null | tr -d '\r'); then
+        grep -qx "package:$WRAITH" <<< "$disabled" && wiz=disabled || wiz=enabled
+        grep -qx "package:${STOCK%%/*}" <<< "$disabled" && stk=disabled || stk=enabled
+      fi
+      [ "$wiz" != disabled ] || [ "$(jget wizard_before)" != enabled ] || wiz=enabled   # we turned it off in an earlier run
+      [ "$stk" != disabled ] || [ "$(jget stock_before)" != enabled ] || stk=enabled
+      jwrite "$NONCE" switching "$STOCK" "$role" "$wiz" "$stk"
       "$PY" -I optimize/tv.py --push-b64 optimize/deadman.sh /data/local/tmp/deadman.sh || return 1
       printf '%s\n' \
-        "rm -f /data/local/tmp/home_ok" \
-        "nohup sh /data/local/tmp/deadman.sh $STOCK 300 > /dev/null 2>&1 &" \
-        | "$PY" -I optimize/tv.py --batch || return 1
-      echo "Safety switch armed: the stock home comes back by itself in 5 minutes unless the new home works."
+        "${old_nonce:+touch /data/local/tmp/home_ok.$old_nonce}" \
+        "rm -f /data/local/tmp/home_ok /data/local/tmp/home_ok.$NONCE" \
+        "for f in /data/local/tmp/home_ok.* /data/local/tmp/home_pid.* /data/local/tmp/home_hb.*; do case \$f in *.$NONCE|*.${old_nonce:-none}|*'*') ;; *) rm -f \$f ;; esac; done" \
+        "if command -v setsid > /dev/null 2>&1; then setsid sh /data/local/tmp/deadman.sh $STOCK 300 $NONCE < /dev/null > /dev/null 2>&1 & else nohup sh /data/local/tmp/deadman.sh $STOCK 300 $NONCE < /dev/null > /dev/null 2>&1 & fi" \
+        | grep . | "$PY" -I optimize/tv.py --batch || return 1
+      # alive = its pid answers and its heartbeat is under 25 s old (it writes one every 10 s)
+      alive=no
+      for _ in 1 2 3 4 5; do
+        sleep 2
+        res=$("$PY" -I optimize/tv.py "p=\$(cat /data/local/tmp/home_pid.$NONCE 2> /dev/null); h=\$(cat /data/local/tmp/home_hb.$NONCE 2> /dev/null); if [ -n \"\$p\" ] && kill -0 \$p 2> /dev/null && [ -n \"\$h\" ] && [ \$((\$(date +%s) - h)) -le 25 ]; then echo WATCHDOG_ALIVE; else echo WATCHDOG_DEAD; fi") || return 1
+        if grep -q WATCHDOG_ALIVE <<< "$res"; then alive=yes; break; fi
+      done
+      if [ "$alive" = yes ]; then
+        echo "Safety switch armed and running: the stock home comes back by itself in 5 minutes unless the new home works."
+      else
+        # Seen on a TCL with Android 14: a background job started over ADB ends the moment the ADB session closes (setsid and nohup
+        # did not help), so there is no safety switch on the TV itself. The switch is still checked and undone from this computer
+        # (below), and the journal restores it on the next run if this computer stops in the middle. Not an error: it is the
+        # protection every earlier install had.
+        jsafety unavailable
+        echo "This TV ends background jobs when the ADB session closes, so there is no safety switch on the TV itself. The switch is checked and undone from this computer, and the journal restores it on the next run."
+      fi
 
       # 3. Switch: the HOME role (Android 10+; the classic set-home-activity for older sets and as a backup), then
       #    the setup app off, then the stock home (this order avoided the black screen).
@@ -267,7 +312,8 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
       if grep -A2 -F "\$ pm disable-user --user 0 ${STOCK%%/*}" <<< "$stepout" | grep -qi 'illegal'; then
         printf '%s\n' "cmd role add-role-holder --user 0 android.app.role.HOME ${STOCK%%/*}" \
           "cmd package set-home-activity --user 0 $STOCK" "pm enable com.google.android.tungsten.setupwraith" \
-          "touch /data/local/tmp/home_ok" "input keyevent KEYCODE_HOME" | "$PY" -I optimize/tv.py --batch > /dev/null || true
+          "touch /data/local/tmp/home_ok.$NONCE" "input keyevent KEYCODE_HOME" | "$PY" -I optimize/tv.py --batch > /dev/null \
+          && jstate restored   # only when it went through: else the journal stays «switching» and the next run redoes it
         return 4
       fi
     fi
@@ -285,16 +331,26 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
       # wizard's recovery screen as Home (seen on a TCL G07 with the stock home off and the wizard on)
       printf '%s\n' "pm enable ${STOCK%%/*}" "pm enable $WRAITH" \
         "cmd role add-role-holder --user 0 android.app.role.HOME ${STOCK%%/*}" "cmd package set-home-activity --user 0 $STOCK" \
-        "touch /data/local/tmp/home_ok" "input keyevent KEYCODE_HOME" | "$PY" -I optimize/tv.py --batch > /dev/null || true
+        "touch /data/local/tmp/home_ok.$NONCE" "input keyevent KEYCODE_HOME" | "$PY" -I optimize/tv.py --batch > /dev/null \
+        && jstate restored   # (see above: not «restored» if the batch did not go through)
       return 2
     fi
-    "$PY" -I optimize/tv.py "touch /data/local/tmp/home_ok" || return 1
+    "$PY" -I optimize/tv.py "touch /data/local/tmp/home_ok.$NONCE" || return 1
     # the switch may have fired already if ADB was very slow: then the stock home is back
     res=$("$PY" -I optimize/tv.py "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN") || return 1
-    grep -q sa.urtv.home <<< "$res" || return 3
+    grep -q sa.urtv.home <<< "$res" || { jstate restored; return 3; }   # the safety switch fired: the stock home is back
+    jstate done
   }
 
-  rc=0; switch_home || rc=$?
+
+  # Home is already ours and no switch was cut off: there is nothing to switch and nothing to protect (no safety switch, no journal)
+  already=no
+  res=$("$PY" -I optimize/tv.py "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN" 2> /dev/null) || res=""
+  if grep -q sa.urtv.home <<< "$res" && [ "$(jget state)" != switching ]; then
+    already=yes
+    echo "Home is already the new launcher: nothing to switch, so no safety switch is started."
+  fi
+  rc=0; if [ "$already" = yes ]; then :; else switch_home || rc=$?; fi
   if [ "$rc" = 1 ]; then   # ADB dropped: wait for the TV, see what Home is now, and go on or start the switch again
     back=no
     for _ in $(seq 36); do   # every 10 s, about 6 minutes

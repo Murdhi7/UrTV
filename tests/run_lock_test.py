@@ -17,6 +17,7 @@ def tree(slow=False, fail=""):
     t = Path(tempfile.mkdtemp())
     (t / "optimize" / "lists").mkdir(parents=True); (t / "bin").mkdir()
     shutil.copy(ROOT / "optimize" / "run.sh", t / "optimize")
+    shutil.copy(ROOT / "optimize" / "home-journal.sh", t / "optimize")
     (t / "optimize" / "lists" / "tcl-safe.txt").write_text("# none\n")
     (t / "bin" / "py").write_text(STUB_PY); (t / "bin" / "py").chmod(0o755)
     for step in ("precheck", "autostart", "community", "backup", "keep", "measure", "disable", "tweaks", "install", "dock"):
@@ -94,6 +95,35 @@ t = tree()
 (t / "optimize/run/.lock").write_text(f"{os.getpid()}\n")
 code, out = run(t, "status")
 results.append(("status while locked: still answers", code == 0 and out and out[-1].startswith(("·", "✓")), out[-2:]))
+
+# a home switch cut off by a restart (journal «switching», Home not ours, no marker): run.sh undoes it first, and the run goes on
+t = tree()
+(t / "optimize/run").mkdir()
+(t / "optimize/run/.tv").write_text("0123456789\n")   # the TV the run started on
+(t / "optimize/run/home-switch.json").write_text('{\n  "nonce": "old1",\n  "state": "switching",\n  "stock": "a.b/.Home",\n  "role_holder_before": "",\n'
+                                                '  "wizard_before": "enabled",\n  "stock_before": "enabled",\n  "written": "x"\n}\n')
+code, out = run(t)
+results.append(("a cut-off home switch: undone from the journal before the steps, then the run is done",
+                code == 0 and out[-1] == "run.sh: done" and any("earlier home switch was cut off" in l for l in out)
+                and '"state": "restored"' in (t / "optimize/run/home-switch.json").read_text(), out[:6]))
+
+# run.sh again keeps the first run's backup (the TV as it came), a different TV starts with none of the last one's records
+t = tree()
+(t / "optimize/run").mkdir()
+(t / "optimize/run/.tv").write_text("0123456789\n")
+(t / "optimize/run/backup.txt").write_text("FIRST\n")
+code, out = run(t, "again")
+results.append(("run.sh again: the backup of the first run is kept, not replaced by one of the tweaked TV",
+                code == 0 and (t / "optimize/run/backup.txt").read_text() == "FIRST\n" and any("first run stays" in l for l in out), out[:8]))
+t = tree()
+(t / "optimize/run").mkdir()
+(t / "optimize/run/.tv").write_text("9999999999\n")   # another TV than the one answering
+for f in ("backup.txt", "tweaks-journal.txt", "home-switch.json"):
+    (t / "optimize/run" / f).write_text("OLD\n")
+code, out = run(t)
+left = [f for f in ("tweaks-journal.txt", "home-switch.json") if (t / "optimize/run" / f).exists()]
+results.append(("a different TV: the last TV's tweak and home-switch journals are not used, its backup is replaced",
+                code == 0 and not left and (t / "optimize/run/backup.txt").read_text() != "OLD\n", (out[:5], left)))
 
 for name, ok, info in results:
     print(f"run.sh: {name}: " + ("ok" if ok else f"WRONG {info}"))

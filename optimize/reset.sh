@@ -13,7 +13,7 @@ lists=(optimize/lists/tcl-safe.txt optimize/lists/tcl-optional.txt)
 for extra in optimize/lists/mine*.txt; do   # local lists, e.g. mine-bloat.txt; absent on a fresh clone
   [ -f "$extra" ] && lists+=("$extra")
 done
-[ -s optimize/run/community-applied.txt ] && lists+=(optimize/run/community-applied.txt)   # a community list the setup used
+[ -s "${URTV_RUN_DIR:-optimize/run}/community-applied.txt" ] && lists+=("${URTV_RUN_DIR:-optimize/run}/community-applied.txt")   # a community list the setup used
 optimize/restore.sh "${lists[@]}" > /dev/null
 stock=no
 for _ in 1 2 3 4; do   # a cold stock home can take a while to come up
@@ -36,8 +36,8 @@ echo "2/4 The TV's own screensaver…"
 printf '%s\n' "settings delete secure screensaver_components" "settings delete secure screensaver_default_component" \
   | tv --batch > /dev/null
 # install.sh switched screensaver_enabled on and set ours; backup.sh saved the values from before (null: it was never set)
-if [ -f optimize/run/backup.txt ]; then
-  vals=$(tr -d '\r' < optimize/run/backup.txt | awk '/^== /{s=($2=="screensaver")} s&&!/^==/{print}')
+if [ -f "${URTV_RUN_DIR:-optimize/run}/backup.txt" ]; then
+  vals=$(tr -d '\r' < "${URTV_RUN_DIR:-optimize/run}/backup.txt" | awk '/^== /{s=($2=="screensaver")} s&&!/^==/{print}')
   { read -r comps; read -r enabled; read -r timeout; } <<< "$vals"
   { # the screensaver the TV had (a component list; none then, or ours from an earlier setup: left deleted, the TV picks its own)
     if [[ "${comps:-}" =~ ^[A-Za-z0-9_.]+/[A-Za-z0-9_.\$]+(,[A-Za-z0-9_.]+/[A-Za-z0-9_.\$]+)*$ ]] && [[ "$comps" != *sa.urtv.screensaver/* ]]; then
@@ -53,6 +53,26 @@ else
   echo "   (no optimize/run/backup.txt: screensaver_enabled and screen_off_timeout left as they are)"
 fi
 
+# the sleep service (an accessibility service dock.sh sleep-setup turned on): our entry leaves the list, nothing else does; the
+# switch is put back as dock.sh recorded it (null: deleted) when no other service is left. Before our app is removed: Android
+# drops an uninstalled app's service from the list by itself, and the switch would be left on
+RUNDIR="${URTV_RUN_DIR:-optimize/run}"
+if [ -f "$RUNDIR/accessibility-before.txt" ]; then
+  svcs=$(tv "settings get secure enabled_accessibility_services" | tail -n 1 | tr -d '\r' || true)
+  [ "$svcs" != null ] || svcs=""
+  rest=$(tr ':' '\n' <<< "$svcs" | grep -v '^sa\.urtv\.home/' | grep . | paste -sd: - || true)
+  if [ -n "$rest" ]; then
+    if [ "$rest" = "$svcs" ]; then :   # ours was not in the list: nothing to take out
+    elif [[ "$rest" =~ ^[A-Za-z0-9_.\$/:]+$ ]]; then echo "settings put secure enabled_accessibility_services '$rest'" | tv --batch > /dev/null
+    else echo "!! enabled_accessibility_services: the list has a character this script does not send; our entry was left in it"; fi
+  else
+    before=$(sed -n 's/^accessibility_enabled=//p' "$RUNDIR/accessibility-before.txt" | head -n 1)
+    { [ -z "$svcs" ] || echo "settings delete secure enabled_accessibility_services"
+      if [ "$before" = null ]; then echo "settings delete secure accessibility_enabled"
+      elif [[ "$before" =~ ^[0-9]+$ ]]; then echo "settings put secure accessibility_enabled $before"; fi
+    } | tv --batch > /dev/null
+  fi
+fi
 echo "3/4 Removing our apps (old and new names; missing ones are skipped)…"
 # the appop the launcher was given for the adhan (it vanishes with the app anyway)
 tv "appops set sa.urtv.home SCHEDULE_EXACT_ALARM default" > /dev/null 2>&1 || true
@@ -61,17 +81,18 @@ for p in sa.urtv.home sa.urtv.screensaver sa.urtv.listening sa.yourtv.home sa.yo
 done
 # TV Bro and SmartTube: only if the setup put them there (not in the TV's package list saved before it)
 for p in com.phlox.tvwebbrowser org.smarttube.stable; do
-  if [ -f optimize/run/backup.txt ] && ! grep -qx "package:$p" optimize/run/backup.txt; then
+  if [ -f "${URTV_RUN_DIR:-optimize/run}/backup.txt" ] && ! grep -qx "package:$p" "${URTV_RUN_DIR:-optimize/run}/backup.txt"; then
     tv "pm uninstall $p" | grep -q Success && echo "   removed $p" || true
   fi
 done
 
-echo "4/4 Tweaks back to Android's defaults…"
-optimize/tweaks.sh restore > /dev/null
-# tweaks.sh restore puts Android's defaults; where backup.sh recorded what this TV had (animation scales, the cached-apps
-# freezer, the cached-processes limit), that is put back instead (null: it was never set, so it is deleted)
-if [ -f optimize/run/backup.txt ]; then
-  section() { tr -d '\r' < optimize/run/backup.txt | awk -v want="$1" '/^== /{s=($2==want)} s&&!/^==/{print}'; }
+echo "4/4 Tweaks back to what the TV had…"
+from_journal=0; [ -f "${URTV_RUN_DIR:-optimize/run}/tweaks-journal.txt" ] || [ -f "${URTV_RUN_DIR:-optimize/run}/tweaks-journal.done" ] && from_journal=1   # tweaks.sh keeps the TV's own values there
+{ optimize/tweaks.sh restore || echo "!! tweaks.sh restore failed: run optimize/tweaks.sh restore again"; } | grep '!!' || true
+# tweaks.sh restore puts Android's defaults when it has no journal; where backup.sh recorded what this TV had (animation scales,
+# the cached-apps freezer, the cached-processes limit), that is put back instead (null: it was never set, so it is deleted)
+if [ "${from_journal:-0}" != 1 ] && [ -f "${URTV_RUN_DIR:-optimize/run}/backup.txt" ]; then
+  section() { tr -d '\r' < "${URTV_RUN_DIR:-optimize/run}/backup.txt" | awk -v want="$1" '/^== /{s=($2==want)} s&&!/^==/{print}'; }
   { read -r w t a <<< "$(section animation | head -n 3 | paste -sd' ' -)" || true
     for kv in "window_animation_scale ${w:-}" "transition_animation_scale ${t:-}" "animator_duration_scale ${a:-}"; do
       read -r key val <<< "$kv"
@@ -87,7 +108,7 @@ if [ -f optimize/run/backup.txt ]; then
     fi
   } | tv --batch > /dev/null
 fi
-[ -d optimize/run ] && mv optimize/run "optimize/run-$(date +%Y%m%d-%H%M%S)"   # keep the old results apart
+[ -d "${URTV_RUN_DIR:-optimize/run}" ] && mv "${URTV_RUN_DIR:-optimize/run}" "${URTV_RUN_DIR:-optimize/run}-$(date +%Y%m%d-%H%M%S)"   # keep the old results apart
 
 "$PY" -I optimize/offlist.py clear 2> /dev/null || true   # the apps kept on by request: a reset starts like new
 echo "Done. Still disabled on this TV (made so by the manufacturer, or by something else):"

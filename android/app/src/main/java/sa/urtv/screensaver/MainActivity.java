@@ -12,6 +12,7 @@ public class MainActivity extends Activity {
     private WebView web;
     private final RenderGuard guard = new RenderGuard();
     private boolean alive;
+    private final AdhanKeys adhanKeys = new AdhanKeys();
 
     @Override
     protected void onCreate(Bundle b) {
@@ -41,6 +42,13 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
+        // as in the dream: while the adhan plays, OK (or any key, with «إيقاف الأذان بأي زر») stops it and the preview stays
+        boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
+        org.json.JSONObject adhan = down ? NowPlayingBridge.adhanState(this) : null;
+        boolean live = adhan != null && adhan.optBoolean("live");
+        int d = adhanKeys.decide(e.getKeyCode(), e.getAction(), e.getRepeatCount(), live, new Prefs(this).adhanBar(), true, live && adhan.optBoolean("any"));
+        if (d == AdhanKeys.STOP) NowPlayingBridge.stopAdhan(this);
+        if (d != AdhanKeys.PASS) return true;
         if (e.getAction() == KeyEvent.ACTION_UP) finish();
         return true;
     }

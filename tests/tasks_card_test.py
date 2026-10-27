@@ -35,5 +35,5 @@ check("MainActivity: the order is re-wired when the settings bring the card or t
 check("TasksActivity: from the card the first render focuses «🎤 تكلّم», later ones the list as before",
       'EXTRA_MIC = "mic"' in tasks and "if (micFirst && mic.getVisibility() == View.VISIBLE) f = mic;" in tasks and "micFirst = false;" in tasks)
 check("TasksActivity: the mic still starts the voice adding on OK", 'mic = pill("🎤 تكلّم", GOLD, v -> listen());' in tasks)
-check("the «المهام» pill still opens the list as it did (no mic-first)", 'tasks.setOnClickListener(v -> launch(new Intent(this, TasksActivity.class)))' in main)
+check("the «المهام» pill still opens the list as it did (no mic-first)", 'tasks.setOnClickListener(v -> launchGuarded(ParentalPolicy.PILL_TASKS, new Intent(this, TasksActivity.class), "المهام"))' in main)   # through the family lock; still no mic extra
 sys.exit(1 if failed else 0)

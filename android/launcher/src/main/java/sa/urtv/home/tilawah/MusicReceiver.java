@@ -12,6 +12,8 @@ import android.content.Intent;
  *   VOICE --ei voice 1..21 (a recording of ours, not a Fajr one) or 0 (the person's own, when there is one): the other prayers' muezzin
  *   FAJR_VOICE --ei voice 1..21 or 0: «مؤذن الفجر», the one for Fajr (the four Fajr recordings and the normal ones)
  *   ADHAN_SHORT --ez on true|false: «أذان مختصر»
+ *   ADHAN_STOPKEY --ez on true|false: «إيقاف الأذان بأي زر»
+ *   STOP_ADHAN: stop the adhan that is playing (nothing else)
  */
 public class MusicReceiver extends BroadcastReceiver {
 
@@ -29,7 +31,7 @@ public class MusicReceiver extends BroadcastReceiver {
             case "sa.urtv.home.ADHAN": {
                 int voice = intent.getIntExtra(MusicService.EXTRA_VOICE, prefs.playVoiceFor(context, intent.getBooleanExtra("fajr", false)));
                 if (voice == Prefs.OWN && !OwnAdhan.exists(context)) return;   // nothing of theirs to play
-                MusicService.adhan(context, voice, null, 0);
+                MusicService.adhan(context, voice, null, 0, intent.getBooleanExtra("fajr", false) ? PrayerTimes.FAJR : -1);
                 return;
             }
             case "sa.urtv.home.ADHAN_RESCHEDULE":   // optimize/saver.sh prayeradj: the alarm for the minutes as they are now
@@ -83,6 +85,10 @@ public class MusicReceiver extends BroadcastReceiver {
             case "sa.urtv.home.ADHAN_SHORT":   // optimize/music.sh adhan short on|off
                 prefs.setAdhanShort(intent.getBooleanExtra("on", false));
                 setResultData("saved\nshort=" + (prefs.adhanShort() ? "on" : "off"));
+                return;
+            case "sa.urtv.home.ADHAN_STOPKEY":   // optimize/music.sh adhan stopkey on|off
+                prefs.setAdhanStopKey(intent.getBooleanExtra("on", false));
+                setResultData("saved\nstopkey=" + (prefs.adhanStopKey() ? "on" : "off"));
                 return;
             case "sa.urtv.home.ADHAN_OWN":
                 setResultData(own(context, prefs, intent));
@@ -210,6 +216,8 @@ public class MusicReceiver extends BroadcastReceiver {
                 + "|voice=" + (prefs.playVoice(context) == Prefs.OWN ? "own" : String.valueOf(prefs.voice()))
                 + "|fajr_voice=" + (prefs.playFajrVoice(context) == Prefs.OWN ? "own" : String.valueOf(prefs.fajrVoice()))
                 + "|adhan_short=" + (prefs.adhanShort() ? "on" : "off")
+                + "|adhan_stopkey=" + (prefs.adhanStopKey() ? "on" : "off")
+                + "|adhan_live=" + (MusicService.adhanLive() ? 1 : 0)
                 + "|adhan_volume=" + prefs.adhanVolume()
                 + "|adhan_exact=" + (AdhanScheduler.exactAllowed(context) ? 1 : 0)
                 + "|own_bytes=" + (OwnAdhan.exists(context) ? OwnAdhan.bytes(context) : 0)

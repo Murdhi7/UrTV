@@ -246,10 +246,10 @@ public class SettingsActivity extends Activity {
 
     private void pickCity() { pickCity(-1); }
 
-    /** country: an index of Location.COUNTRIES, or -1 for every region of the list and a search of the six countries */
+    /** country: an index of Location.COUNTRIES, or -1 for every region of the list and a search of all the searchable countries */
     private void pickCity(final int country) {
         final Cities.Region[] regions = country < 0 ? Cities.REGIONS : Location.regions(country);
-        if (country > 0 && regions.length == 1) { pickCityIn(regions[0], country); return; }   // a Gulf state is one region: its cities
+        if (country > 0 && regions.length == 1) { pickCityIn(regions[0], country); return; }   // any other country is one region: its cities
         String[] labels = new String[regions.length + 1];
         labels[0] = "بحث عن مدينة أو قرية…";
         for (int i = 0; i < regions.length; i++) labels[i + 1] = regions[i].name + "  (" + regions[i].cities.length + ")";
@@ -271,12 +271,13 @@ public class SettingsActivity extends Activity {
                 d.dismiss();
                 render();
             });
-        if (country > 0) b.setNeutralButton("بحث", (d, w) -> searchCity(country));   // a place not in the list, in that country
+        if (country > 0 && Location.searchable(country)) b.setNeutralButton("بحث", (d, w) -> searchCity(country));   // a place not in the list, in that country (not Palestine: PrayerMethod)
         b.show();
     }
 
-    // any place in Saudi Arabia or the other Gulf states, from Open-Meteo's GeoNames search (it takes one country at a time, so the
-    // hundred best matches of the world are asked for and the Gulf ones kept)
+    // any place in Saudi Arabia, the other Gulf states, Egypt, the Levant and North Africa (PrayerMethod.SEARCH_COUNTRIES), or in the one
+    // country picked, from Open-Meteo's GeoNames search (it takes one country at a time, so without a country the hundred best matches of
+    // the world are asked for and those countries' kept)
     private void searchCity(final int country) {
         ask("اسم المدينة أو القرية", q -> fetch("https://geocoding-api.open-meteo.com/v1/search?count=100&language=ar&name="
             + Uri.encode(q) + (country < 0 ? "" : "&countryCode=" + Location.COUNTRIES[country][0]), json -> {

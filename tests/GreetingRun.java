@@ -23,7 +23,7 @@ public final class GreetingRun {
                 }
                 case "weather": r = GreetingText.weather(Integer.parseInt(f[1]), Double.parseDouble(f[2]), f[3], Double.parseDouble(f[4]), "latin".equals(f[5])); break;
                 case "seen": r = String.valueOf((int) GreetingText.seenDust(Double.parseDouble(f[1]), Double.parseDouble(f[2]))); break;
-                case "sun": r = GreetingText.sun(f[1], f[2], "latin".equals(f[3])); break;
+                case "sun": r = GreetingText.sun(f[1], f[2], "latin".equals(f[3]), false); break;
                 default: r = "?";
             }
             out.append(r).append('\n');

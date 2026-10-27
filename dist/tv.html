@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- the build: UTC time (YYYYMMDDHHMMSS) of the newest commit of the page's sources, put in by src/build.py. The app loads the page with the newer stamp (its own
      copy or a downloaded one), never by file time, and does not keep a download whose stamp is older than its own (Updater, PageStamp). -->
-<meta name="urtv-build" content="20261027052016">
+<meta name="urtv-build" content="20261027052352">
 <title>شاشة تلفزيونك</title>
 <style>
   @font-face{font-family:'Thmanyah';font-weight:300;font-style:normal;font-display:block;src:url("https://raw.githubusercontent.com/tshi-dev/UrTV/master/assets/fonts/Thmanyah-Light.woff2") format("woff2")}
@@ -135,13 +135,14 @@
   .week li.mg .mr > *{flex:0 0 auto;max-width:none;overflow:visible;text-overflow:clip;padding:0;margin:0}
   .week li.mg .mr .mwhen{flex:1 0 auto;text-align:center;font-size:.84em}
   .week li.mg .mr .dt{margin-inline-start:auto;min-width:0;font-size:.84em;text-align:left}
-  .week li.mg .mr.nocr img.cr{display:none}
+  .week li.mg .mr.nocr img.cr, .week li.mg .mr.nocr .crgap{display:none}
   .week li.mg .tm{display:inline-flex;align-items:center;gap:.32em}
   .week li .tm .nm{max-width:none;overflow:visible;text-overflow:clip;padding:0;margin:0}   /* a name is never cut by the first-name rule above */
   .week li.mg .tm .cr{margin:0}
   .week li.mg .sc{font-variant-numeric:tabular-nums;color:var(--gold-hi);font-weight:600}
   .week li .dt{flex:1 1 auto;color:#9C9279;font-size:.72em;min-width:3.2em;text-align:left}
   .week li .tm .cr{width:1.25em;height:1.25em;object-fit:contain;vertical-align:middle;margin-block:-.25em}
+  .week li .tm .crgap{display:inline-block;flex:0 0 auto;width:1.25em;height:1.25em}   /* a club with no crest, beside clubs that have one */
   .week li .tm .cr:not([src]){visibility:hidden}   /* a restored row waits for its picture: the same room */
   .week ul.flip li{animation:weekIn .5s ease both}
   .week ul.flip li:nth-child(2){animation-delay:.06s}
@@ -672,6 +673,8 @@ const CONFIG = {
   ownMode: _Q.get('ownmode') === 'only' ? 'only' : 'mix',
   // digits everywhere: #digits=hindi (١٢٣, the default) or latin (123); anything else = hindi
   digits: _Q.get('digits') === 'latin' ? 'latin' : 'hindi',
+  // «ساعة ٢٤»: #clock=24 shows every time of day as 24-hour (١٩:٣٠); anything else, or nothing, is the 12-hour clock (٧:٣٠ م)
+  clock24: _Q.get('clock') === '24',
   // the look of the card beside the clock: #cardstyle=current|dark1|glass1|dark3|glass3 (anything else = current)
   // the size of the clock: #clocksize=large|medium|small (anything else = large)
   clockSize: (v => ['medium','small'].includes(v) ? v : 'large')(_Q.get('clocksize')),
@@ -708,6 +711,9 @@ const CONFIG = {
   // such numbers = none). The sunrise is not a prayer and is never moved. The screensaver sends it only while the setting is on.
   prayerAdj: (a => a.length === 5 && a.every(x => /^-?\d{1,2}$/.test(x.trim())) ? a.map(x => Math.max(-20, Math.min(20, parseInt(x, 10)))) : [0,0,0,0,0])(
     (_Q.get('adj') || '').split(',')),
+  // «فرق التاريخ الهجري»: #hijri=-2..2 moves every Hijri date by that many days, for places that start the month by moon sighting
+  // (Egypt, Jordan, the Levant, Morocco). The screensaver sends it only when it is not 0; anything else here = 0 = Umm al-Qura as it is.
+  hijri: (v => /^-?[0-2]$/.test(v) ? +v || 0 : 0)(_Q.get('hijri') || ''),
   // the slim year strip under the clock: #yearstrip=1 turns it on (anything else = off); the screensaver only, never the widget
   yearStrip: _Q.get('yearstrip') === '1',
   // #live=1 (the launcher): the «المهام» card is a button there (OK opens the list with the mic ready), so it carries a mic mark and
@@ -723,10 +729,10 @@ const CONFIG = {
 // the prayer calculation (Aladhan's id): #pm=jafari everywhere, else the country's by the zone, else Umm al-Qura 4; PrayerMath.methodFor
 // (launcher) and PrayerMethod (app) say the same, tests/prayer_method_test.py compares them
 CONFIG.prayerMethod = _Q.get('pm') === 'jafari' ? 0
-  : ({'Asia/Kuwait':9, 'Asia/Qatar':10, 'Asia/Dubai':16, 'Asia/Bahrain':8, 'Asia/Muscat':8})[CONFIG.timezone] || 4;
+  : ({'Asia/Kuwait':9, 'Asia/Qatar':10, 'Asia/Dubai':16, 'Asia/Bahrain':8, 'Asia/Muscat':8, 'Africa/Cairo':5, 'Asia/Amman':23, 'Asia/Damascus':5, 'Asia/Beirut':5, 'Asia/Gaza':5, 'Asia/Hebron':5, 'Asia/Jerusalem':5, 'Africa/Casablanca':21, 'Africa/El_Aaiun':21, 'Africa/Algiers':19, 'Africa/Tunis':18})[CONFIG.timezone] || 4;
 // the calculation's name under the clock when it is not Umm al-Qura: «بتوقيت المنامة · حساب الخليج» (ClockZone.calendar in the launcher
 // says the same on the home screen); Umm al-Qura says nothing, «بتوقيت الرياض» as it always was
-const CAL_LABEL = {0:'الحساب الجعفري', 8:'حساب الخليج', 9:'حساب الكويت', 10:'حساب قطر', 16:'حساب الإمارات'};
+const CAL_LABEL = {0:'الحساب الجعفري', 8:'حساب الخليج', 9:'حساب الكويت', 10:'حساب قطر', 16:'حساب الإمارات', 5:'حساب الهيئة المصرية', 23:'حساب الأردن', 21:'حساب المغرب', 19:'حساب الجزائر', 18:'حساب تونس'};
 const clockSubText = () => 'بتوقيت ' + CONFIG.city + (CAL_LABEL[CONFIG.prayerMethod] ? ' · ' + CAL_LABEL[CONFIG.prayerMethod] : '');
 CONFIG.cards = (CONFIG.widget && _Q.has('home_panel') ? _list('home_panel') : [CONFIG.panel])
   .filter((k, i, a) => CARD_KINDS.includes(k) && a.indexOf(k) === i).slice(0, 3);
@@ -790,10 +796,16 @@ function tzOffsetMs(ms){
   const p = riyadhParts(new Date(ms));
   return Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi, p.s) - Math.floor(ms / 1000) * 1000;
 }
-function fmt12(h, mi){
-  h %= 24;   // 24:30 (an Isha after midnight) is 12:30 ص
+// Every time of day on the screen is written here, so #clock=24 changes them all: {t:'٧:٣٠', u:'م', h:'٧'} (12-hour), {t:'١٩:٣٠', u:''} (24-hour).
+function timeParts(h, mi){
+  h %= 24;   // 24:30 (an Isha after midnight) is 12:30 ص, or 00:30
+  if(CONFIG.clock24) return {t: `${ar(pad(h))}:${ar(pad(mi))}`, u: ''};
   const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${ar(h12)}:${ar(pad(mi))} ${h < 12 ? 'ص' : 'م'}`;
+  return {t: `${ar(h12)}:${ar(pad(mi))}`, u: h < 12 ? 'ص' : 'م', h: ar(h12)};
+}
+function fmtTime(h, mi){
+  const x = timeParts(h, mi);
+  return x.u ? x.t + ' ' + x.u : x.t;
 }
 
 // An identical write still restyles and repaints, so the timers below write only what changed.
@@ -802,15 +814,17 @@ function setHTML(el, h, force){ if(force || el.__h !== h){ el.__h = h; el.innerH
 
 function tickClock(){
   const p = riyadhParts();
-  const h12 = p.h % 12 === 0 ? 12 : p.h % 12;
+  const h12 = p.h % 12 === 0 ? 12 : p.h % 12, h24 = CONFIG.clock24;
   // one box per digit: browsers ignore letter-spacing on Arabic digits, and ٤ reaches into the next digit
   const digits = s => [...s].map(ch => '<i>' + ch + '</i>').join('');
-  const key = h12 + ':' + p.mi;
+  const key = (h24 ? p.h : h12) + ':' + p.mi;
   if(key === tickClock.last) return;   // ticks every second, redraws once a minute
   tickClock.last = key;
-  document.getElementById('ck-h').innerHTML = digits(ar(h12));
+  document.getElementById('ck-h').innerHTML = digits(ar(h24 ? pad(p.h) : h12));   // 24-hour: «٠٧», still one box per digit
   document.getElementById('ck-m').innerHTML = digits(ar(pad(p.mi)));
-  setText(document.getElementById('ck-ap'), p.h < 12 ? 'ص' : 'م');
+  const ap = document.getElementById('ck-ap');
+  if(h24) ap.style.display = 'none';   // no ص or م on a 24-hour clock
+  else setText(ap, p.h < 12 ? 'ص' : 'م');
   if(CONFIG.yearStrip) renderYearStrip();   // the day may have turned; the clock's width may have changed
 }
 
@@ -830,6 +844,18 @@ function nationalNow(){
   return null;
 }
 
+// «فرق التاريخ الهجري»: the instant to give the Umm al-Qura calendar (formatted in the city's zone) so that it answers for the city's day
+// plus CONFIG.hijri days. At 0 it is `d` itself; otherwise noon of that day (the time of day does not matter to a date).
+function hijriAt(d){
+  const k = CONFIG.hijri;
+  if(!k) return d;
+  const p = riyadhParts(d);
+  const t = Date.UTC(p.y, p.mo - 1, p.d + k, 12);   // noon of the target day: a spring-forward at midnight cannot move it off its day
+  return new Date(t - tzOffsetMs(t));
+}
+// the same for a date held as UTC noon of a day (formatted with timeZone UTC): whole days, no summer time there
+const hijriUtc = d => CONFIG.hijri ? new Date(d.getTime() + CONFIG.hijri*86400000) : d;
+
 function tickDates(){
   const now = new Date();
   const nat = nationalNow(), nl = document.getElementById('natline');
@@ -837,9 +863,15 @@ function tickDates(){
   nl.hidden = !nat;
   if(nat) setText(nl, nat.name + ' ' + ar(nat.n) + nat.unit);
   try{
-    let h = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-' + NU,{
+    const hf = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-' + NU,{
       timeZone: CONFIG.timezone, weekday:'long', day:'numeric', month:'long', year:'numeric'
-    }).format(now);
+    });
+    let h;
+    if(!CONFIG.hijri) h = hf.format(now);
+    else{   // the day, month and year move; the weekday is today's
+      const wd = hf.formatToParts(now).find(x => x.type === 'weekday');
+      h = hf.formatToParts(hijriAt(now)).map(x => x.type === 'weekday' && wd ? wd.value : x.value).join('');
+    }
     h = h.replace(/\s*هـ\s*$/,'').replace(/،\s*$/,'');
     setText(document.getElementById('hijri'), h + ' هـ');
   }catch(e){}
@@ -907,11 +939,16 @@ const PRAYER_METHODS = {
   9:  {fajr:18,   isha:17.5, ishaMin:0,  maghrib:.833, tune:[0,0,0,0]},      // Kuwait
   10: {fajr:18,   isha:0,    ishaMin:90, maghrib:.833, tune:[0,0,0,0]},      // Qatar
   16: {fajr:18.2, isha:18.2, ishaMin:0,  maghrib:.833, tune:[-3,3,3,3]},     // Dubai (the UAE)
+  5:  {fajr:19.5, isha:17.5, ishaMin:0,  maghrib:.833, tune:[0,0,0,0]},      // Egypt, and Syria, Lebanon, Palestine (no Aladhan method of their own; praytimes.org: Egyptian for Syria and Lebanon)
+  23:  {fajr:18, isha:18, ishaMin:0, maghrib:.833, tune:[0,0,0,5]},  // Jordan (the Ministry of Awqaf): Maghrib 5 minutes after sunset
+  21:  {fajr:19, isha:17, ishaMin:0, maghrib:.833, tune:[0,5,0,5]},  // Morocco (the Awqaf ministry): Dhuhr and Maghrib +5
+  19:  {fajr:18, isha:17, ishaMin:0, maghrib:.833, tune:[0,0,0,0]},  // Algeria (Ministry of Religious Affairs)
+  18:  {fajr:18, isha:18, ishaMin:0, maghrib:.833, tune:[0,0,0,0]},  // Tunisia (Ministry of Religious Affairs)
 };
 function computePrayers(){
   const p = riyadhParts(), lat = CONFIG.latitude, lng = CONFIG.longitude;
   const M = PRAYER_METHODS[CONFIG.prayerMethod] || PRAYER_METHODS[4];
-  const tz = Math.round((Date.UTC(p.y,p.mo-1,p.d,p.h,p.mi,p.s) - Date.now()) / 60000) / 60;
+  const noonUtc = Date.UTC(p.y,p.mo-1,p.d,12), tz = tzOffsetMs(noonUtc - tzOffsetMs(noonUtc)) / 3600000;   // the city's offset at its local noon (a change of clocks the same day does not move the whole day)
   const rad = d => d*Math.PI/180, deg = r => r*180/Math.PI;
   const fix = (a,b) => { a = a - b*Math.floor(a/b); return a < 0 ? a + b : a; };
   const jd0 = Date.UTC(p.y,p.mo-1,p.d)/86400000 + 2440587.5 - lng/(15*24);
@@ -944,7 +981,7 @@ function computePrayers(){
   const abs = m => pad(Math.floor(m/60)) + ':' + pad(m%60);
   const [tSun, tDhr, tAsr, tMag] = M.tune;
   const magM = Math.round(maghrib*60) + tMag;
-  const ishaM = M.ishaMin ? magM + M.ishaMin + (CONFIG.prayerMethod === 4 && hijriMonthNow() === 9 ? 30 : 0)
+  const ishaM = M.ishaMin ? magM + M.ishaMin + (CONFIG.prayerMethod === 4 && hijriMonthNow(true) === 9 ? 30 : 0)
                           : Math.max(magM, Math.round(adj(angleTime(M.isha, 18, false))*60));
   const at = (h, d) => hm(h + d/60);
   return {Fajr:hm(fajr), Sunrise:at(sunrise, tSun), Dhuhr:at(dhuhr, tDhr), Asr:at(asr, tAsr), Maghrib:at(maghrib, tMag), Isha:abs(ishaM)};
@@ -1008,8 +1045,28 @@ const ADHAN_BAR_MIN = 10;
 // «٤ دقائق»: what is left to an adhan, in the same words at the same second on the bar and in the panel below (whole minutes of the
 // rounded second; never less than one)
 const untilAdhan = leftMin => humanRemaining(Math.max(60, Math.round(leftMin * 60)));
+// while the adhan plays in the launcher (the screensaver only: window.UrtvNative.adhan() answers {"live":true,"prayer":4,"any":false}, "" otherwise)
+// the bar names it and says how to stop it: «أذان المغرب  ·  أي زر يوقف الأذان» (the default; «اختيار: إيقاف الأذان» when «إيقاف الأذان بأي زر» is off). The same words
+// as the launcher's bar (AdhanBarText.playing). Any key (or only OK, when the setting is off) is handled by the app, which also keeps the dream open.
+let ADHAN_LIVE = null;
+const ADHAN_PRAYER_NAMES = {0:'الفجر', 2:'الظهر', 3:'العصر', 4:'المغرب', 5:'العشاء'};
+function adhanLiveText(){
+  if(!ADHAN_LIVE) return '';
+  const n = ADHAN_LIVE.prayer === 2 && isFriday() ? 'الجمعة' : ADHAN_PRAYER_NAMES[ADHAN_LIVE.prayer];
+  return (n ? 'أذان ' + n : 'الأذان') + '  ·  ' + (ADHAN_LIVE.any ? 'أي زر يوقف الأذان' : 'اختيار: إيقاف الأذان');
+}
+function adhanLiveTick(){
+  if(CONFIG.widget || !CONFIG.adhanBar || !(window.UrtvNative && window.UrtvNative.adhan)) return;
+  // asked every 3 s whenever the app answers (a call to the app's provider, about a millisecond): an adhan started by hand has no time to wait for
+  let s = null;
+  try{ const raw = window.UrtvNative.adhan(); s = raw ? JSON.parse(raw) : null; }catch(e){}
+  ADHAN_LIVE = s && s.live && typeof s.prayer === 'number' && isFinite(s.prayer) ? {prayer: +s.prayer, any: !!s.any} : null;
+  tickAdhanBar();
+}
 function adhanBarText(){
-  if(!CONFIG.adhanBar || !PRAYERS.length) return '';
+  if(!CONFIG.adhanBar) return '';
+  if(ADHAN_LIVE) return adhanLiveText();
+  if(!PRAYERS.length) return '';
   const p = riyadhParts(), mins = p.h*60 + p.mi + p.s/60;
   for(const x of PRAYERS){
     const at = x.h*60 + x.mi, toAdhan = at - mins;
@@ -1052,7 +1109,7 @@ function tickPrayer(){
     if(!panel.classList.contains('now')) panel.classList.add('now');
     setText(elL, 'حان الآن');
     setText(elN, prayerName(cur));
-    setText(elT, fmt12(cur.h, cur.mi));
+    setText(elT, fmtTime(cur.h, cur.mi));
     setHTML(elC, 'الإقامة بعد <b>' + humanRemaining(Math.max(60, Math.ceil(left)*60)) + '</b>');
     return;
   }
@@ -1067,7 +1124,7 @@ function tickPrayer(){
   const last = PRAYERS.filter(x => x.h*60 + x.mi <= mins).pop(), lastAt = last ? last.h*60 + last.mi : PRAYERS[PRAYERS.length-1].h*60 + PRAYERS[PRAYERS.length-1].mi - 1440;
   progress((mins - lastAt) / Math.max(1, mins + leftM - lastAt));
   setText(elN, prayerName(next));
-  setText(elT, fmt12(next.h, next.mi));
+  setText(elT, fmtTime(next.h, next.mi));
   setHTML(elC, 'بعد <b>' + untilAdhan(leftM) + '</b>');
 }
 
@@ -1080,14 +1137,14 @@ function sunrisePanel(mins, elL, elN, elT, elC, progress){
   if(!DAY_TIMES || !DAY_TIMES.Sunrise || !fajr) return false;
   const [sh, sm] = String(DAY_TIMES.Sunrise).split(':').map(Number), at = sh*60 + sm, from = fajr.h*60 + fajr.mi + (CONFIG.iqama.Fajr || 0);
   if(mins >= from && mins < at){
-    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmt12(sh, sm));
+    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmtTime(sh, sm));
     setHTML(elC, 'بعد <b>' + untilAdhan(at - mins) + '</b>');
     progress((mins - from) / Math.max(1, at - from));
     return true;
   }
   const ago = mins - at;
   if(ago >= 0 && ago < SUNRISE_AFTER_MIN){
-    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmt12(sh, sm));
+    setText(elL, 'الشروق'); setText(elN, 'الشروق'); setText(elT, fmtTime(sh, sm));
     setHTML(elC, ago < 1 ? 'الآن' : 'قبل <b>' + humanRemaining(Math.max(60, Math.floor(ago) * 60)) + '</b>');
     progress(ago / SUNRISE_AFTER_MIN);
     return true;
@@ -1116,7 +1173,7 @@ function occasionNow(){
   const dayKey = FMT_DATE.format(new Date());
   if(OCC_CACHE.day === dayKey) return OCC_CACHE.val;
   const fmt = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura',{timeZone:CONFIG.timezone,year:'numeric',month:'numeric',day:'numeric'});
-  const hijri = d => fmt.formatToParts(d).reduce((a,x) => (a[x.type] = +x.value.replace(/[^0-9]/g,''), a), {});
+  const hijri = d => fmt.formatToParts(hijriAt(d)).reduce((a,x) => (a[x.type] = +x.value.replace(/[^0-9]/g,''), a), {});
   const base = Date.now();
   let val = null, found = {};
   for(let i = 0; i < 400 && !val; i++){
@@ -1138,10 +1195,11 @@ function occasionNow(){
   return val;
 }
 
-function hijriMonthNow(){
+// `raw`: the calendar's own month, without «فرق التاريخ الهجري»: prayer times never follow the offset (only what is shown does)
+function hijriMonthNow(raw){
   try{
     return +new Intl.DateTimeFormat('en-u-ca-islamic-umalqura',{timeZone:CONFIG.timezone,month:'numeric'})
-      .format(new Date()).replace(/[^0-9]/g,'');
+      .format(raw ? new Date() : hijriAt(new Date())).replace(/[^0-9]/g,'');
   }catch(e){ return 0; }
 }
 function tickOccasion(){
@@ -1171,8 +1229,8 @@ function tickOccasion(){
     else { label = 'الإمساك'; targetM = fajrM + 1440; }
     const th = Math.floor((targetM % 1440) / 60), tm = targetM % 60;
     setText(elL, label);
-    setHTML(elD, ar(th%12===0?12:th%12) + ':' + ar(String(tm).padStart(2,'0'))
-                  + ' <span class="unit">' + (th < 12 ? 'ص' : 'م') + '</span>');
+    const at = timeParts(th, tm);
+    setHTML(elD, at.t + (at.u ? ' <span class="unit">' + at.u + '</span>' : ''));
     setHTML(elS, 'بعد <b>' + humanRemaining(Math.max(0, Math.round((targetM - mins)*60))) + '</b>');
     return;
   }
@@ -1231,7 +1289,7 @@ const JITTER_MS = (()=>{
 const spread = ms => Math.floor(JITTER_MS * Math.min(ms, 30*60000) / (30*60000));
 const periodic = (fn, ms) => setTimeout(() => { fn(); setInterval(fn, ms); }, ms + spread(ms));   // the first periodic run is late by the offset
 const later = fn => setTimeout(fn, JITTER_MS);   // the same offset for the refresh at midnight
-const fmtAgo = ms => { const p = riyadhParts(new Date(ms)); return 'آخر تحديث ' + fmt12(p.h, p.mi); };
+const fmtAgo = ms => { const p = riyadhParts(new Date(ms)); return 'آخر تحديث ' + fmtTime(p.h, p.mi); };
 
 // ---------- team names in Arabic ----------
 // 1) built-in table, 2) the Arabic label on Wikidata (cached on the device), 3) transliteration meanwhile
@@ -1324,8 +1382,8 @@ async function fetchNext(id){
   const r = await fetchT(`https://www.thesportsdb.com/api/v1/json/${CONFIG.sportsKey}/eventsnext.php?id=${id}`, 12000);
   if(!r.ok) throw 0;
   const j = await r.json();
-  if(j?.events) NEXT_LIST[id] = j.events;
-  return (j?.events || [])[0] || null;
+  if(j && j.events) NEXT_LIST[id] = j.events;
+  return ((j && j.events) || [])[0] || null;
 }
 function toDate(ev){
   const s = ev.strTimestamp || `${ev.dateEvent}T${ev.strTime || '00:00:00'}`;
@@ -1372,7 +1430,7 @@ function resultsFor(id){
 function matchWhen(d){
   const p = hmParts(d);
   return FMT_DAY_MONTH.format(d).replace('،','')
-    + ' · ' + fmt12(+p.hour % 24, +p.minute);
+    + ' · ' + fmtTime(+p.hour % 24, +p.minute);
 }
 
 // «الخميس ٢٢ أكتوبر»: the day of a finished game
@@ -1381,7 +1439,7 @@ const FMT_DM = gregFmt({timeZone:CONFIG.timezone,day:'numeric',month:'long'});
 // the short form of matchWhen: «الجمعة ٩:٠٠ م» for a game this week, «٢٤ أكتوبر» for any other (and for a game already played)
 function matchWhenShort(d, now, done){
   const p = hmParts(d), ahead = d - now;
-  return !done && ahead > 0 && ahead < 6 * 86400000 ? FMT_WEEKDAY.format(d) + ' ' + fmt12(+p.hour % 24, +p.minute) : FMT_DM.format(d);
+  return !done && ahead > 0 && ahead < 6 * 86400000 ? FMT_WEEKDAY.format(d) + ' ' + fmtTime(+p.hour % 24, +p.minute) : FMT_DM.format(d);
 }
 
 // the final score of a finished game: «الهلال 2 - 1 النصر» and «النتيجة النهائية · السبت»
@@ -1399,11 +1457,11 @@ function gameBlock(ev, now, big){
     return `<div class="mblock"><div class="big"><span><span class="tm">${home}</span> × <span class="tm">${away}</span></span></div><div class="sub">${matchWhen(d)}</div></div>`;
   if(diff < -durMs(ev) || diff > CONFIG.weekWindowDays * 86400000) return '';   // in progress stays on screen
   const p = hmParts(d);
-  const t12 = ar(fmt12(+p.hour % 24, +p.minute));
+  const clk = ar(fmtTime(+p.hour % 24, +p.minute));
   const live = diff <= 0 && ev.intHomeScore != null && ev.intAwayScore != null;
   // «بعد ٣ أيام» and under it the date and time, small: «السبت ٢٤ أكتوبر · ٩:١٦ م»
   const dateLine = matchWhen(d);
-  const sub = diff > 0 ? `بعد ${shortRemaining(diff)}</div><div class="sub when">${dateLine}` : `<span class="live">مباشر</span> · ${liveStatus(ev, t12)}`;
+  const sub = diff > 0 ? `بعد ${shortRemaining(diff)}</div><div class="sub when">${dateLine}` : `<span class="live">مباشر</span> · ${liveStatus(ev, clk)}`;
   const mid = live ? ` <span class="sc">${ar(+ev.intHomeScore)} - ${ar(+ev.intAwayScore)}</span> ` : ' × ';
   return `<div class="mblock${big ? ' lvb' : ''}">`
        + `<div class="big"><span><span class="tm">${home}</span>${mid}<span class="tm">${away}</span></span></div>`
@@ -1477,12 +1535,12 @@ function leagueShow(now, shown){
   }).filter(Boolean).sort(byRank);
 }
 
-function liveStatus(ev, t12){
+function liveStatus(ev, clk){
   const st = (ev.strStatus || '').toUpperCase();
   if(st === 'HT') return 'استراحة';
   if(['FT','AET','PEN'].includes(st)) return 'انتهت';
   const m = parseInt(ev.strProgress, 10);
-  return isNaN(m) || (ev.strSport && ev.strSport !== 'Soccer') ? `بدأت ${t12}` : `الدقيقة ${ar(m)}`;   // minutes are football's
+  return isNaN(m) || (ev.strSport && ev.strSport !== 'Soccer') ? `بدأت ${clk}` : `الدقيقة ${ar(m)}`;   // minutes are football's
 }
 
 // while a picked team is playing, refresh that event every 2 minutes; so is a game of a followed league (a few at most)
@@ -1615,12 +1673,12 @@ function eventsOf(key, now){
 }
 function eventWhen(i, now){
   const p = hmParts(new Date(i.t));
-  const t12 = i.dateOnly ? '' : ar(fmt12(+p.hour % 24, +p.minute));
+  const clk = i.dateOnly ? '' : ar(fmtTime(+p.hour % 24, +p.minute));
   const sameDay = FMT_DATE.format(new Date(i.t + (i.dateOnly ? 3600000 : 0))) === FMT_DATE.format(new Date(now));
   const dayName = sameDay ? 'اليوم' : FMT_WEEKDAY.format(new Date(i.t + (i.dateOnly ? 3600000 : 0)));
   if(i.dateOnly) return {live:false, text: sameDay ? 'اليوم' : dayName, row: dayName};
-  if(now >= i.t) return {live:true, text: `<span class="live">مباشر</span> · بدأ ${t12}`, row: '<span class="live">مباشر</span>'};
-  return {live:false, text: `${dayName} · ${t12}`, row: `${dayName} ${t12}`};
+  if(now >= i.t) return {live:true, text: `<span class="live">مباشر</span> · بدأ ${clk}`, row: '<span class="live">مباشر</span>'};
+  return {live:false, text: `${dayName} · ${clk}`, row: `${dayName} ${clk}`};
 }
 function eventSlot(key, now){
   const x = eventsOf(key, now)[0];
@@ -1739,7 +1797,7 @@ function fitMatches(row){
   return false;   // the caller may show these games apart
 }
 // A game is one line (clubs, crests, score, date, «بعد …»), and never ends in «…». When it is too long for the card the steps are, in this
-// order: the clubs' short names, the date's short form, a slightly smaller size, and only then no crests. Every step starts from the full
+// order: no crests on that row (the full names stay), the clubs' short names, the date's short form, a slightly smaller size. Every step starts from the full
 // row again (the names and the date keep their full form in data-full), so a card that gets smaller redoes it.
 const rowCut = row => {
   const r = row.getBoundingClientRect();
@@ -1755,11 +1813,12 @@ function fitGameRow(li){
   row.classList.remove('nocr');
   const size = (steps = FIT_STEPS) => steps.find(k => { row.style.fontSize = k === 1 ? '' : k + 'em'; return !rowCut(row); });
   if(size([1])) return;
+  row.classList.add('nocr');   // this row only: the full names are kept, the crests go (a row that fits with its crests keeps them)
+  if(size([1])) return;
   shorten(row);
   if(size([1])) return;
   if(when && when.dataset.s) when.textContent = when.dataset.s;
   if(size()) return;
-  row.classList.add('nocr');
   size([...FIT_STEPS, .64, .56, .5]);   // a narrow card: smaller still, never two lines
 }
 function shortenRows(ul){
@@ -1888,7 +1947,7 @@ function fastingNext(now){
   const p = riyadhParts(now), base = Date.UTC(p.y, p.mo - 1, p.d, 12);
   for(let i = 0; i < 12; i++){
     const date = new Date(base + i*86400000);
-    const h = FAST_HIJRI.formatToParts(date).reduce((a, x) => (a[x.type] = +x.value.replace(/[^0-9]/g, ''), a), {});
+    const h = FAST_HIJRI.formatToParts(hijriUtc(date)).reduce((a, x) => (a[x.type] = +x.value.replace(/[^0-9]/g, ''), a), {});
     const why = fastReasons(h.month, h.day, date.getUTCDay());
     if(!why.length || (i === 0 && p.h >= FAST_TODAY_UNTIL && why[0] !== 'ramadan')) continue;
     return {key:why[0], days:i, day:h.day, wd:date.getUTCDay(), date};
@@ -2060,7 +2119,7 @@ async function directQuote(j){
       if(!r.ok) throw 0;
       const c = (await r.json())[j.cg];
       if(!c || typeof c.usd !== 'number') throw 0;
-      return {p:c.usd, v:null, c:[], pct:c.usd_24h_change ?? c.usd_24hr_change ?? null, at:Date.now()};
+      return {p:c.usd, v:null, c:[], pct:c.usd_24h_change != null ? c.usd_24h_change : (c.usd_24hr_change != null ? c.usd_24hr_change : null), at:Date.now()};
     }
     const res = (await yahooChart(j.key, j.intra ? 'interval=15m&range=1d' : 'interval=1d&range=5d')).chart.result[0];
     const price = res.meta.regularMarketPrice;
@@ -2160,7 +2219,7 @@ const loadWeek = guarded('week', async function(){
       lists.push(await ask(`https://api.tvmaze.com/schedule/web?date=${dt}`));
       for(const c of F.countries) lists.push(await ask(`https://api.tvmaze.com/schedule?country=${encodeURIComponent(c)}&date=${dt}`));
     }
-    lists.filter(Array.isArray).flat().forEach(e => {
+    lists.filter(Array.isArray).reduce((all, list) => all.concat(list), []).forEach(e => {
       const s = e.show || (e._embedded && e._embedded.show) || {};
       if(s.type && SKIP_TYPES.includes(s.type)) return;
       if(s.genres && s.genres.includes('Soap')) return;   // no daytime soaps
@@ -2285,7 +2344,7 @@ function todayCard(){
     const p = riyadhParts(), mins = p.h * 60 + p.mi + p.s / 60;
     let n = PRAYERS.find(x => x.h * 60 + x.mi > mins), tomorrow = false;
     if(!n){ n = PRAYERS[0]; tomorrow = true; }
-    rows.push(tdRow('الصلاة القادمة', `${prayerName(n)} · ${fmt12(n.h, n.mi)}`, 'بعد ' + shortHM(Math.max(0, Math.round((n.h * 60 + n.mi + (tomorrow ? 1440 : 0) - mins) * 60)))));
+    rows.push(tdRow('الصلاة القادمة', `${prayerName(n)} · ${fmtTime(n.h, n.mi)}`, 'بعد ' + shortHM(Math.max(0, Math.round((n.h * 60 + n.mi + (tomorrow ? 1440 : 0) - mins) * 60)))));
   }
   const g = nextFollowedGame(now);
   if(g){
@@ -2303,10 +2362,10 @@ function todayCard(){
 }
 
 // ---- a followed team's game under way, big: its score, the minute and «مباشر» (item 2). The matches card and the bottom slot
-// show it alone, with both crests where there are crests (the launcher's card), until it ends; then they go back to the list.
+// show it alone, with both crests where there are crests (on both match surfaces), until it ends; then they go back to the list.
 function liveWhen(ev){   // «مباشر» and «الدقيقة ٦٧» / «استراحة» / «بدأت ٦:٣٠ م»
   const p = hmParts(toDate(ev));
-  return `<span class="live">مباشر</span> · ${liveStatus(ev, ar(fmt12(+p.hour % 24, +p.minute)))}`;
+  return `<span class="live">مباشر</span> · ${liveStatus(ev, ar(fmtTime(+p.hour % 24, +p.minute)))}`;
 }
 const liveScore = ev => ev.intHomeScore != null && ev.intAwayScore != null ? `<span class="sc">${ar(+ev.intHomeScore)} - ${ar(+ev.intAwayScore)}</span>` : '<span class="sc">×</span>';
 function liveRow(ev){   // a row of the card: «الهلال [شعار] ٢ - ١ [شعار] النصر», the crests next to the score
@@ -2554,7 +2613,7 @@ function prayerRows(){
   return Object.keys(names).filter(k => DAY_TIMES[k]).map(k => {
     const [h, mi] = String(DAY_TIMES[k]).split(':').map(Number);
     const cls = k === lit ? 'next' : at(k) <= mins && !(tomorrow && k === lit) ? 'past' : '';
-    return `<li class="${cls}"><span>${names[k]}</span><span class="dt">${fmt12(h, mi)}</span></li>`;
+    return `<li class="${cls}"><span>${names[k]}</span><span class="dt">${fmtTime(h, mi)}</span></li>`;
   });
 }
 
@@ -2574,12 +2633,12 @@ function forecastRows(){
   });
 }
 
-// ---- club crests on the launcher's matches card: TheSportsDB's badge, which the events already carry
+// ---- club crests on match cards: TheSportsDB's badge, which the events already carry
 // (strHomeTeamBadge / strAwayTeamBadge, with idHomeTeam / idAwayTeam). No request of its own except the picture,
 // once per club: kept as a 48 px copy in localStorage and fetched again only when the badge's address changes.
 // The launcher's page is a file:// document and the badge host may send no Access-Control-Allow-Origin: fetch() is then refused (or
 // the answer is no picture). The club keeps its address alone and the row shows a plain <img> of it, which needs no CORS.
-const CRESTS_ON = CONFIG.widget && USES('matches');
+const CRESTS_ON = USES('matches');
 const CREST_PX = 48, CREST_KEEP = 60, CREST_PER_ROUND = 10;
 let CRESTS = {};   // team id -> {u: badge address, d: data: URI of the small copy, none when only the address could be kept}
 try{ CRESTS = JSON.parse(localStorage.getItem('crests') || '{}') || {}; }catch(e){}
@@ -2664,7 +2723,7 @@ function nextPrayerRows(){
   if(!n){ n = PRAYERS[0]; tomorrow = true; }
   // in the words of the bar and of the screensaver's own «الصلاة القادمة» (untilAdhan): the same minutes at the same second
   const left = untilAdhan(n.h * 60 + n.mi + (tomorrow ? 1440 : 0) - mins);
-  return [`<li class="np"><b>${prayerName(n)}</b><span class="t">${fmt12(n.h, n.mi)}،</span><span class="r">بعد ${left}</span></li>`];   // «،», not «·»: beside «م» it reads as «٠»
+  return [`<li class="np"><b>${prayerName(n)}</b><span class="t">${fmtTime(n.h, n.mi)}،</span><span class="r">بعد ${left}</span></li>`];   // «،», not «·»: beside «م» it reads as «٠»
 }
 
 function prayerRowCard(){
@@ -2676,7 +2735,7 @@ function prayerRowCard(){
   return {
     title: `${prayerName(n)} بعد ${shortHM(Math.max(0, Math.round(left * 60)))}`,
     rows: ['<li class="prow">' + PRAYERS.map((x, i) =>
-      `<div class="pc${i === next ? ' next' : tomorrow || x.h * 60 + x.mi <= mins ? ' past' : ''}"><b>${prayerName(x)}</b><i>${fmt12(x.h, x.mi)}</i></div>`).join('') + '</li>'],
+      `<div class="pc${i === next ? ' next' : tomorrow || x.h * 60 + x.mi <= mins ? ' past' : ''}"><b>${prayerName(x)}</b><i>${fmtTime(x.h, x.mi)}</i></div>`).join('') + '</li>'],
   };
 }
 
@@ -2712,8 +2771,8 @@ function hourlyRows(){
   const next = HOURLY.filter(x => x.t > hourKey() && x.temp != null).slice(0, 6);
   if(!next.length) return [];
   return ['<li class="hrs">' + next.map(x => {
-    const h = +x.t.slice(11, 13), h12 = h % 12 === 0 ? 12 : h % 12;
-    return `<div class="hc"><b>${ar(h12)} ${h < 12 ? 'ص' : 'م'}</b>${wxIcon(x.code, isNight(x.t))}<i>${ar(Math.round(x.temp))}°</i></div>`;
+    const h = +x.t.slice(11, 13), at = timeParts(h, 0), hr = at.u ? at.h + ' ' + at.u : at.t;   // «٦ م», or «١٨:٠٠»
+    return `<div class="hc"><b>${hr}</b>${wxIcon(x.code, isNight(x.t))}<i>${ar(Math.round(x.temp))}°</i></div>`;
   }).join('') + '</li>'];
 }
 
@@ -2739,11 +2798,16 @@ function matchRows(card){
   const smart = card && card.kind === 'smart';
   if(smart){ const ids = new Set(focusGames(now).map(ev => ev.idEvent)); evs = evs.filter(ev => ids.has(ev.idEvent)); }   // only the game that brought the smart card here
   const others = smart ? [] : eventRows(now);
-  return [...evs.map(ev => ({ev, t: toDate(ev).getTime(), r: gameRank(ev, now)}))
+  const shown = evs.map(ev => ({ev, t: toDate(ev).getTime(), r: gameRank(ev, now)}))
     .filter(x => finishedRecently(x.ev, now) || pendingResult(x.ev, now)
       || (now < x.t + durMs(x.ev) && !FINAL.includes((x.ev.strStatus || '').toUpperCase())
           && x.t - now <= CONFIG.weekWindowDays * 86400000))
-    .sort(byRank)
+    .sort(byRank);
+  // a club with no crest keeps a crest-wide empty space, but only in a card where other rows have crests (the rows line up);
+  // a card with no crest at all is as it was
+  const anyCrest = shown.some(x => crestImg(x.ev, 'Home') || crestImg(x.ev, 'Away'));
+  const crestOrGap = (ev, side) => crestImg(ev, side) || (anyCrest ? '<span class="crgap"></span>' : '');
+  return [...shown
     .map(({ev, t, r}) => {
       const d = new Date(t), scored = ev.intHomeScore != null && ev.intAwayScore != null;
       const mid = scored && now >= t ? `<span class="sc">${ar(+ev.intHomeScore)} - ${ar(+ev.intAwayScore)}</span>` : '<span class="x">×</span>';
@@ -2755,7 +2819,7 @@ function matchRows(card){
       // the date is always there but for a game under way: the day and time of a game to come or one with no result yet, the day of a finished one
       const date = upcoming || pending ? matchWhen(d) : done ? matchDay(d) : '';
       const dateEl = date ? `<i class="mwhen" data-s="${esc(matchWhenShort(d, now, done))}">${date}</i>` : '';
-      const club = (id, name, home) => `<span class="tm">${home ? '' : crestImg(ev, 'Away')}<span class="nm">${esc(teamAr(name, id))}</span>${home ? crestImg(ev, 'Home') : ''}</span>`;
+      const club = (id, name, home) => `<span class="tm">${home ? '' : crestOrGap(ev, 'Away')}<span class="nm">${esc(teamAr(name, id))}</span>${home ? crestOrGap(ev, 'Home') : ''}</span>`;
       return {t, r, html: `<li class="mg"><span class="mr">${club(ev.idHomeTeam, ev.strHomeTeam, true)} ${mid} ${club(ev.idAwayTeam, ev.strAwayTeam, false)} ${dateEl} <span class="dt">${when}</span></span></li>`};
     }), ...others.map(o => ({...o, r: o.t <= now ? 1 : 2}))].sort(byRank).map(x => x.html);
 }
@@ -2974,18 +3038,19 @@ async function loadWeather(){
     const d = document.getElementById('wx-desc');
     setText(d, WX_CODES[j.current.weather_code] || '');
     wxSource();
-    const hi = j.daily?.temperature_2m_max?.[0], lo = j.daily?.temperature_2m_min?.[0];
+    const hi = j.daily && j.daily.temperature_2m_max && j.daily.temperature_2m_max[0];
+    const lo = j.daily && j.daily.temperature_2m_min && j.daily.temperature_2m_min[0];
     setText(document.getElementById('wx-range'),
       (hi != null && lo != null) ? `${ar(Math.round(hi))}° / ${ar(Math.round(lo))}°` : '');
     const dl = j.daily || {};
-    FORECAST = (dl.time || []).map((t, i) => ({date:t, code:dl.weather_code?.[i],
-      hi:dl.temperature_2m_max?.[i], lo:dl.temperature_2m_min?.[i]})).filter(x => x.hi != null && x.lo != null);
+    FORECAST = (dl.time || []).map((t, i) => ({date:t, code:dl.weather_code && dl.weather_code[i],
+      hi:dl.temperature_2m_max && dl.temperature_2m_max[i], lo:dl.temperature_2m_min && dl.temperature_2m_min[i]})).filter(x => x.hi != null && x.lo != null);
     try{ localStorage.setItem(LS.forecast, JSON.stringify(FORECAST)); }catch(e){}
     if(hours){
       const hr = j.hourly || {}, from = hourKey();
-      HOURLY = (hr.time || []).map((t, i) => ({t, code:hr.weather_code?.[i], temp:hr.temperature_2m?.[i]})).filter(x => x.t > from && x.temp != null).slice(0, 12);
+      HOURLY = (hr.time || []).map((t, i) => ({t, code:hr.weather_code && hr.weather_code[i], temp:hr.temperature_2m && hr.temperature_2m[i]})).filter(x => x.t > from && x.temp != null).slice(0, 12);
       SUN = {};
-      (dl.time || []).forEach((d, i) => { const up = dl.sunrise?.[i], down = dl.sunset?.[i]; if(up && down) SUN[d] = [up.slice(11, 16), down.slice(11, 16)]; });
+      (dl.time || []).forEach((d, i) => { const up = dl.sunrise && dl.sunrise[i], down = dl.sunset && dl.sunset[i]; if(up && down) SUN[d] = [up.slice(11, 16), down.slice(11, 16)]; });
       try{ localStorage.setItem(LS.hourly, JSON.stringify({h:HOURLY, s:SUN})); }catch(e){}
     }
     renderPanel(false, 'forecast', 'hourly');
@@ -3360,6 +3425,7 @@ function boot(){
 
   nowPlayingTick();
   setInterval(nowPlayingTick, 60*1000);
+  setInterval(adhanLiveTick, 3000);
   setInterval(tickClock, 1000);
   setInterval(()=>{ tickDates(); tickPrayer(); tickOccasion(); wxExpire(); wxSource(); if(!SLOT_MATCHES) renderSlot(); }, 15000);
   if(SLOT_MATCHES){   // the matches timers run only while the slot shows matches

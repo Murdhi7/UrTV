@@ -99,6 +99,8 @@ exec > >(tee -a "$RUN/run.log") 2>&1   # everything it says, for optimize/share.
 # remembered in $RUN/tv-id.json; another one stops here, before the backup (which would overwrite the first TV's).
 tv --check
 
+. optimize/home-journal.sh
+
 check_list() {   # never disable what UAD-ng rates Unsafe; show everything that is not "Recommended"
   local out
   out=$("$PY" -I optimize/check-packages.py "$1")
@@ -124,6 +126,8 @@ report() {
     fi
   done
   echo
+  optimize/tweaks.sh status 2> /dev/null || true   # «- tweak …: was …, now …» (the measurements above show whether it helped)
+  [ "$(jget safety_switch)" != unavailable ] || echo "Home switch: no safety switch on the TV itself (this TV ends background jobs with the ADB session); it was checked and can be undone from this computer and the journal"
   echo "Home: $(tv "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN" | tail -1)"
   optimize/autostart.sh check 2> /dev/null || true   # TCL: «Auto-start (TCL): …» or a !! line
   [ ! -f "$RUN/home-skipped.txt" ] || cat "$RUN/home-skipped.txt"   # a TV that won't let its home be switched (Nokia Streaming Box 8000)
@@ -167,7 +171,10 @@ do_step() {
     precheck)    rc=0; optimize/precheck.sh > "$RUN/precheck.txt" 2>&1 || rc=$?   # 3: not an Android TV, stop (nothing was changed)
                  cat "$RUN/precheck.txt"; [ "$rc" = 0 ] || exit "$rc" ;;
     probe)       tv --probe | tee "$RUN/tv.txt" ;;
-    backup)      optimize/backup.sh && cp "$(ls -t optimize/backup-*.txt | head -1)" "$RUN/backup.txt" ;;
+    backup)      optimize/backup.sh
+                 # the TV as it came is the first run's: a run.sh again after the tweaks would record the tweaked TV
+                 if [ -f "$RUN/backup.txt" ]; then echo "(the backup from the first run stays: optimize/reset.sh puts back what the TV had then)"
+                 else cp "$(ls -t optimize/backup-*.txt | head -1)" "$RUN/backup.txt"; fi ;;
     keep)        optimize/keep.sh | tee "$RUN/keep.txt" ;;
     before)      optimize/measure.sh before ;;
     before-saver) optimize/measure.sh before-screensaver --screensaver ;;
@@ -198,8 +205,13 @@ tv_id=$(tv "getprop ro.serialno" 2> /dev/null | tr -d '\r\n ' || true)
 if [ -n "$tv_id" ] && [ "$(cat "$RUN/.tv" 2> /dev/null || true)" != "$tv_id" ]; then
   [ -f "$RUN/.tv" ] && echo "A different TV than the last run: starting from the first step."
   rm -f "$RUN"/.done-* "$RUN/steps.log"
+  # what the last TV had is not this TV's (its backup, tweaks and home switch journals)
+  rm -f "$RUN/backup.txt" "$RUN/tweaks-journal.txt" "$RUN/tweaks-journal.done" "$RUN/home-switch.json" "$RUN/accessibility-before.txt" "$RUN/.screen-off-timeout"
   echo "$tv_id" > "$RUN/.tv"
 fi
+
+# A home switch that a restart cut off is undone from its journal first (see optimize/home-journal.sh). Never stops the run.
+jrecover || true
 
 for s in "${STEPS[@]}"; do
   [ -f "$RUN/.done-$s" ] && continue

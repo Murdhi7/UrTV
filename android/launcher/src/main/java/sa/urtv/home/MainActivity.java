@@ -119,7 +119,8 @@ public class MainActivity extends Activity {
     private HomeCard homeCard;
     private NowCard nowCard;   // «يُتلى الآن»: at the right end of the pills row while a surah or a station is on
     private Pill sleepPill;   // «مؤقت النوم», with the minutes left while it runs (shown while it has the focus)
-    private TextView adhanBar;   // «أذان المغرب بعد ٨ دقائق», over the top edge
+    private TextView adhanBar;   // «أذان المغرب بعد ٨ دقائق», over the top edge; while the adhan plays «أذان المغرب · أي زر يوقف الأذان»
+    private final AdhanKeys adhanKeys = new AdhanKeys();
     private View clockBlock, bottomBlock;   // the greeting, clock and date; the app title and the dock under it
 
     private final BroadcastReceiver tick = new BroadcastReceiver() {
@@ -131,7 +132,10 @@ public class MainActivity extends Activity {
     };
     // «تلاوة» started, paused, changed or stopped a surah or a station (MusicService says so; nothing polls): the «يُتلى الآن» card follows
     private final BroadcastReceiver nowPlayingChanged = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { updateNowPlaying(); }
+        @Override public void onReceive(Context c, Intent i) {
+            updateNowPlaying();
+            updateAdhanBar(ConfigSnapshot.read(MainActivity.this));   // the adhan began or ended: the bar names it, or goes
+        }
     };
     // the sleep timer started, ended or was cancelled (here, or from the computer): the pill follows at once
     private final BroadcastReceiver sleepChanged = new BroadcastReceiver() {
@@ -175,6 +179,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        Parental.SESSION.clear();   // the home screen is in front again: an app opened with the PIN asks again next time
         IntentFilter tf = new IntentFilter(Intent.ACTION_TIME_TICK);
         tf.addAction(Intent.ACTION_TIME_CHANGED);
         tf.addAction(Intent.ACTION_TIMEZONE_CHANGED);
@@ -205,6 +210,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        PinPrompt.dismiss(this);
         handler.removeCallbacks(rotateWallpaper);
         unregisterReceiver(tick);
         if (inputsPopup != null) inputsPopup.dismiss();
@@ -225,6 +231,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        Parental.SESSION.clear();
         // Home pressed while already home: jump back to the first dock app.
         if (inputsPopup != null) inputsPopup.dismiss();
         if (!dockCards.isEmpty()) dockCards.get(0).requestFocus();
@@ -285,6 +292,11 @@ public class MainActivity extends Activity {
         adhanBar.setGravity(Gravity.CENTER);
         adhanBar.setMaxLines(1);   // «إقامة العشاء بعد ١٣ دقيقة» is the longest: one line, even at 960×540
         adhanBar.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0x00DCB86F, 0x57DCB86F, 0x57DCB86F, 0x00DCB86F}));
+        adhanBar.setOnFocusChangeListener((v, focused) -> {   // the bar is focusable only while the adhan plays: it lights up when OK would stop it
+            v.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                    focused ? new int[]{0x00DCB86F, 0xB3DCB86F, 0xB3DCB86F, 0x00DCB86F} : new int[]{0x00DCB86F, 0x57DCB86F, 0x57DCB86F, 0x00DCB86F}));
+            ((TextView) v).setTextColor(focused ? 0xFFFFFFFF : 0xFFFFE9B8);
+        });
         adhanBar.setVisibility(View.GONE);
         root.addView(adhanBar, new FrameLayout.LayoutParams(-1, dp(26), Gravity.TOP));
 
@@ -301,7 +313,7 @@ public class MainActivity extends Activity {
                 if (has) { lastFocusedId = target.getId(); scroll.smoothScrollTo(0, 0); fadeGlow(1f); }
             }
             @Override public void open() {   // OK: the list, with the focus on «🎤 تكلّم» so one more OK starts the voice adding
-                launch(new Intent(MainActivity.this, TasksActivity.class).putExtra(TasksActivity.EXTRA_MIC, true));
+                launchGuarded(ParentalPolicy.CARD_TASKS, new Intent(MainActivity.this, TasksActivity.class).putExtra(TasksActivity.EXTRA_MIC, true), "المهام");
             }
         });
         hero.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> homeCard.fit());
@@ -410,21 +422,21 @@ public class MainActivity extends Activity {
         right.setGravity(Gravity.CENTER_VERTICAL);
         right.setClipChildren(false);
         Pill saver = pill(PillText.SAVER, R.drawable.ic_screensaver);
-        saver.setOnClickListener(v -> startSaver());   // OK starts it, as optimize/start-saver.sh --preview does
-        saver.setOnLongClickListener(v -> { openPackage(SAVER_PKG); return true; });   // a long OK: its settings, where OK used to go
+        saver.setOnClickListener(v -> guarded(ParentalPolicy.PILL_SAVER, SAVER_PKG, "شاشة التوقف", this::startSaver));   // OK starts it, as optimize/start-saver.sh --preview does
+        saver.setOnLongClickListener(v -> { guarded(ParentalPolicy.PILL_SAVER_SETTINGS, SAVER_PKG, "شاشة التوقف", () -> openPackage(SAVER_PKG)); return true; });   // a long OK: its settings, where OK used to go
         Pill inputs = pill("المصادر", R.drawable.ic_input);
-        inputs.setOnClickListener(v -> showInputs(v));
+        inputs.setOnClickListener(v -> showInputs(v, ParentalPolicy.PILL_INPUTS));
         wifiPill = pill("واي فاي", R.drawable.ic_wifi);
-        wifiPill.setOnClickListener(v -> launch(new Intent(Settings.ACTION_WIFI_SETTINGS)));
+        wifiPill.setOnClickListener(v -> launchGuarded(ParentalPolicy.PILL_WIFI, new Intent(Settings.ACTION_WIFI_SETTINGS), "واي فاي"));
         Pill tasks = pill("المهام", R.drawable.ic_mic);   // the list lives in the screensaver app
-        tasks.setOnClickListener(v -> launch(new Intent(this, TasksActivity.class)));
+        tasks.setOnClickListener(v -> launchGuarded(ParentalPolicy.PILL_TASKS, new Intent(this, TasksActivity.class), "المهام"));
         Pill settings = pill("الإعدادات", R.drawable.ic_settings);
-        settings.setOnClickListener(v -> launch(new Intent(Settings.ACTION_SETTINGS)));
+        settings.setOnClickListener(v -> launchGuarded(ParentalPolicy.PILL_TV_SETTINGS, new Intent(Settings.ACTION_SETTINGS), "إعدادات التلفزيون"));
         // the «تلاوة وأذان» pill: the Quran, the radio and the adhan are part of this app, so it opens them right here
         Pill tilawah = pill("تلاوة وأذان", R.drawable.ic_listen);
-        tilawah.setOnClickListener(v -> launch(new Intent(this, sa.urtv.home.tilawah.MainActivity.class)));
+        tilawah.setOnClickListener(v -> launchGuarded(ParentalPolicy.PILL_LISTEN, new Intent(this, sa.urtv.home.tilawah.MainActivity.class), "تلاوة وأذان"));
         sleepPill = pill("مؤقت النوم", R.drawable.ic_sleep);
-        sleepPill.setOnClickListener(v -> showSleep(v));
+        sleepPill.setOnClickListener(v -> guarded(ParentalPolicy.PILL_SLEEP, null, "مؤقت النوم", () -> showSleep(v)));
         List<Pill> row = new ArrayList<>(Arrays.asList(inputs, wifiPill, settings, sleepPill));
         if (isInstalled(SAVER_PKG)) { row.add(tasks); row.add(saver); }
         if (getResources().getBoolean(R.bool.show_listening)) row.add(tilawah);
@@ -437,7 +449,7 @@ public class MainActivity extends Activity {
         nowCard.setId(View.generateViewId());
         nowCard.setVisibility(View.GONE);
         nowCard.setOnClickListener(v -> NowPlaying.toggle(this));   // OK: pause or play
-        nowCard.setOnLongClickListener(v -> { startActivity(NowPlaying.player(this)); return true; });   // a long OK: the player
+        nowCard.setOnLongClickListener(v -> { launchGuarded(ParentalPolicy.PILL_LISTEN, NowPlaying.player(this), "تلاوة وأذان"); return true; });   // a long OK: the player, behind the same lock as the «تلاوة وأذان» pill
         nowCard.setOnFocusChangeListener((v, has) -> {
             if (has) { lastFocusedId = v.getId(); scroll.smoothScrollTo(0, 0); fadeGlow(1f); }
         });
@@ -502,8 +514,10 @@ public class MainActivity extends Activity {
         PackageManager pm = getPackageManager();
         List<App> out = new ArrayList<>();
         Map<String, String> given = AppNames.given(this);   // names the owner's agent set (dock.sh name)
+        ParentalPolicy.State family = Parental.state(this);   // «وضع الأطفال»: only the allowed apps, when it is on
         for (ResolveInfo ri : Dock.catalogue(this)) {
             ActivityInfo ai = ri.activityInfo;
+            if (!ParentalPolicy.visible(family, ai.packageName)) continue;
             App a = new App();
             a.pkg = ai.packageName;
             a.label = AppNames.label(this, ri, given);
@@ -657,10 +671,10 @@ public class MainActivity extends Activity {
         label.setAlpha(0f);
         if (!inDock) box.addView(label, llp(-1, -2, 0, dp(10), 0, 0));
 
-        card.setOnClickListener(v -> launch(new Intent(Intent.ACTION_MAIN)
+        card.setOnClickListener(v -> guarded(inDock ? ParentalPolicy.TILE : ParentalPolicy.GRID, app.pkg, app.label, () -> launch(new Intent(Intent.ACTION_MAIN)
                 .addCategory(app.category)
                 .setComponent(app.component)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)));
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED))));
         card.setOnFocusChangeListener((v, has) -> {
             float s = has ? (inDock ? 1.12f : 1.1f) : 1f;
             v.animate().scaleX(s).scaleY(s).translationZ(has ? dp(GlowLook.LIFT_DP) : 0)
@@ -779,6 +793,10 @@ public class MainActivity extends Activity {
     }
 
     private void showAppMenu(View anchor, String pkg, boolean inDock) {
+        guarded(ParentalPolicy.MENU, null, "قائمة التطبيق", () -> showAppMenuNow(anchor, pkg, inDock));
+    }
+
+    private void showAppMenuNow(View anchor, String pkg, boolean inDock) {
         List<String> dock = new ArrayList<>();
         // The dock as shown, including apps added automatically to reach MIN_DOCK.
         for (View c : dockCards) for (Map.Entry<String, View> e : cardByPkg.entrySet()) if (e.getValue() == c) dock.add(e.getKey());
@@ -786,7 +804,7 @@ public class MainActivity extends Activity {
         List<String> labels = new ArrayList<>();
         List<Runnable> actions = new ArrayList<>();
         labels.add("ترتيب المفضلة…");
-        actions.add(() -> launch(new Intent(this, DockActivity.class)));
+        actions.add(() -> launchGuarded(ParentalPolicy.MENU_ARRANGE, new Intent(this, DockActivity.class), "ترتيب المفضلة"));
         if (inDock) {
             if (dock.size() > MIN_DOCK) {
                 labels.add("إزالة من المفضلة");
@@ -808,6 +826,8 @@ public class MainActivity extends Activity {
             dockApps = getResources().getStringArray(R.array.dock_apps);
             buildApps();
         });
+        labels.add("الرقابة الأبوية…");
+        actions.add(() -> launchGuarded(ParentalPolicy.PARENTAL_SCREEN, new Intent(this, ParentalActivity.class), "الرقابة الأبوية"));
         showMenu(anchor, labels, actions);
     }
 
@@ -842,7 +862,11 @@ public class MainActivity extends Activity {
         rows.get(0).requestFocus();
     }
 
-    private void showInputs(View anchor) {
+    private void showInputs(View anchor, int path) {
+        guarded(path, null, "المصادر", () -> showInputsNow(anchor));
+    }
+
+    private void showInputsNow(View anchor) {
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         list.setPadding(dp(8), dp(8), dp(8), dp(8));
@@ -864,10 +888,10 @@ public class MainActivity extends Activity {
         for (TvInputInfo t : inputs) {
             rows.add(inputRow(inputLabel(t), () -> openPassthroughInput(t)));
         }
-        if (isInstalled(liveTvPkg)) rows.add(inputRow("البث التلفزيوني", () -> openPackage(liveTvPkg)));
-        if (inputs.isEmpty() && isInstalled(inputPickerPkg)) rows.add(inputRow("كل المصادر…", () -> openPackage(inputPickerPkg)));
+        if (isInstalled(liveTvPkg)) rows.add(inputRow("البث التلفزيوني", () -> guarded(ParentalPolicy.INPUT_LIVE_TV, liveTvPkg, "البث التلفزيوني", () -> openPackage(liveTvPkg))));
+        if (inputs.isEmpty() && isInstalled(inputPickerPkg)) rows.add(inputRow("كل المصادر…", () -> guarded(ParentalPolicy.INPUT_PICKER, inputPickerPkg, "كل المصادر", () -> openPackage(inputPickerPkg))));
 
-        if (rows.isEmpty()) rows.add(inputRow("الإعدادات", () -> launch(new Intent(Settings.ACTION_SETTINGS))));
+        if (rows.isEmpty()) rows.add(inputRow("الإعدادات", () -> launchGuarded(ParentalPolicy.PILL_TV_SETTINGS, new Intent(Settings.ACTION_SETTINGS), "إعدادات التلفزيون")));
         for (TextView r : rows) {
             r.setOnClickListener(v -> { pw.dismiss(); ((Runnable) v.getTag()).run(); });
             list.addView(r, new LinearLayout.LayoutParams(-1, dp(36)));
@@ -902,7 +926,7 @@ public class MainActivity extends Activity {
         for (int m : SleepTimer.MINUTES) rows.add(inputRow(arabicDigits(String.valueOf(m)) + " دقيقة", () -> SleepTimer.start(this, m)));
         if (SleepTimer.minutesLeft(this) > 0) rows.add(inputRow("إلغاء", () -> SleepTimer.start(this, 0)));
         if (!SleepService.enabled()) {   // without it the end only stops the sound and brings the screensaver: say so, and where to turn it on
-            rows.add(inputRow("لإطفاء الشاشة: فعّل «تلفزيونك: إطفاء الشاشة»", () -> launch(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))));
+            rows.add(inputRow("لإطفاء الشاشة: فعّل «تلفزيونك: إطفاء الشاشة»", () -> launchGuarded(ParentalPolicy.SLEEP_ACCESSIBILITY, new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS), "إعدادات التلفزيون")));
         }
         for (TextView r : rows) {
             r.setOnClickListener(v -> { pw.dismiss(); ((Runnable) v.getTag()).run(); });
@@ -958,7 +982,7 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------- status
 
     // The two date formats are made once and given the city's zone when it changes: the tick runs every minute.
-    private android.icu.text.SimpleDateFormat hijriFormat;
+    private android.icu.text.SimpleDateFormat hijriFormat, hijriWeekday, hijriDay;
     private SimpleDateFormat gregFormat;
     private String formatZone = "";
 
@@ -973,9 +997,10 @@ public class MainActivity extends Activity {
         Calendar now = ClockZone.at(ms, tz);   // the city's time, like the prayer times beside it
         int h = now.get(Calendar.HOUR_OF_DAY);
         greetingLine.update(h, cfg);
-        int hh = h % 12 == 0 ? 12 : h % 12;   // always 12-hour
-        clock.setText(arabicDigits(hh + ":" + String.format(Locale.ROOT, "%02d", now.get(Calendar.MINUTE))));
-        ampm.setText(h < 12 ? "ص" : "م");
+        boolean h24 = cfg.clock24();   // «ساعة ٢٤»: off (12-hour with the ص or م) unless the owner turned it on
+        clock.setText(ClockText.face(h, now.get(Calendar.MINUTE), h24, Digits.latin()));
+        ampm.setText(ClockText.suffix(h, h24));
+        ampm.setVisibility(h24 ? View.GONE : View.VISIBLE);
         String cal = zone == null ? "" : ClockZone.calendar(zone[1], zone[2]);
         boolean other = zone != null && ClockZone.showLine(ClockZone.differs(tvTz, tz, ms), cal);
         zoneLine.setVisibility(other ? View.VISIBLE : View.GONE);
@@ -984,16 +1009,24 @@ public class MainActivity extends Activity {
             gregFormat = new SimpleDateFormat("d MMMM", new Locale("ar"));
             try {
                 hijriFormat = new android.icu.text.SimpleDateFormat("EEEE، d MMMM y", new android.icu.util.ULocale("ar_SA@calendar=islamic-umalqura"));
+                hijriDay = new android.icu.text.SimpleDateFormat("d MMMM y", new android.icu.util.ULocale("ar_SA@calendar=islamic-umalqura"));
             } catch (Exception ignored) { }
         }
         if (!tz.equals(formatZone)) {
             gregFormat.setTimeZone(java.util.TimeZone.getTimeZone(tz));
             if (hijriFormat != null) hijriFormat.setTimeZone(android.icu.util.TimeZone.getTimeZone(tz));
+            if (hijriDay != null) hijriDay.setTimeZone(android.icu.util.TimeZone.getTimeZone(tz));
             formatZone = tz;
         }
         String hijri = "";
         try {
-            if (hijriFormat != null) hijri = hijriFormat.format(now.getTime()).replaceAll("\\s*هـ\\s*$", "") + " هـ";
+            int shift = HijriShift.fromFragment(cfg.fragment);   // «فرق التاريخ الهجري»: 0 unless the settings say so
+            if (hijriFormat != null && shift == 0) hijri = hijriFormat.format(now.getTime()).replaceAll("\\s*هـ\\s*$", "") + " هـ";
+            else if (hijriFormat != null) {   // the day, month and year move by the offset; the weekday is today's
+                if (hijriWeekday == null) hijriWeekday = new android.icu.text.SimpleDateFormat("EEEE", new android.icu.util.ULocale("ar_SA@calendar=islamic-umalqura"));
+                hijriWeekday.setTimeZone(android.icu.util.TimeZone.getTimeZone(tz));
+                hijri = hijriWeekday.format(now.getTime()) + "، " + hijriDay.format(HijriShift.date(now, shift)).replaceAll("\\s*هـ\\s*$", "") + " هـ";
+            }
         } catch (Exception ignored) { }
         String greg = MonthNames.of(gregFormat.format(now.getTime()), MonthNames.levant(cfg.fragment));   // «تشرين الأول» when chosen
         date.setText(arabicDigits(hijri.isEmpty() ? greg : hijri + "  –  " + greg));
@@ -1007,6 +1040,8 @@ public class MainActivity extends Activity {
         String words = AdhanBar.text(this, cfg);
         adhanBar.setVisibility(words == null ? View.GONE : View.VISIBLE);
         if (words != null) adhanBar.setText(words);
+        // any key stops the adhan (AdhanKeys) and the focus stays where it was; with «إيقاف الأذان بأي زر» off the bar is focusable (UP reaches it) and OK on it stops it
+        adhanBar.setFocusable(words != null && AdhanBar.playing(cfg));
     }
 
     private static String arabicDigits(String s) { return Digits.of(s); }   // the setting's digits (hindi or latin)
@@ -1380,7 +1415,28 @@ public class MainActivity extends Activity {
                 if (launch(explicit)) return;
             }
         }
-        openPackage(inputPickerPkg);
+        guarded(ParentalPolicy.INPUT_PICKER, inputPickerPkg, "كل المصادر", () -> openPackage(inputPickerPkg));
+    }
+
+    // ---------------------------------------------------------------- the family lock (Parental)
+
+    /**
+     * Everything the home screen opens for a person comes through here: it runs {@code go} now, or after the PIN when one of the
+     * path's targets is locked (ParentalPolicy). With nothing set it is a plain call.
+     */
+    private void guarded(int path, String pkg, String name, Runnable go) {
+        Parental.guard(this, this::adhanTakes, name, ParentalPolicy.targets(path, pkg), go, () -> { });
+    }
+
+    /** An intent behind a pill or the menu: locked by the pill's own name, or by the app it opens. */
+    private void launchGuarded(int path, Intent i, String name) {
+        guarded(path, packageOf(i), name, () -> launch(i));
+    }
+
+    private String packageOf(Intent i) {
+        if (i.getComponent() != null) return i.getComponent().getPackageName();
+        ResolveInfo ri = getPackageManager().resolveActivity(i, 0);
+        return ri == null || ri.activityInfo == null ? null : ri.activityInfo.packageName;
     }
 
     private boolean launch(Intent i) {
@@ -1466,11 +1522,22 @@ public class MainActivity extends Activity {
         return Color.rgb((int) (Color.red(c) * f), (int) (Color.green(c) * f), (int) (Color.blue(c) * f));
     }
 
+    /** The adhan's rule for a key; the PIN keypad (a dialog, with a key path of its own) asks it first too, so nothing in the family lock can hold the adhan. */
+    private boolean adhanTakes(KeyEvent e) {
+        boolean adhan = NowPlaying.adhanLive();
+        int stop = adhanKeys.decide(e.getKeyCode(), e.getAction(), e.getRepeatCount(), adhan, adhanBar.getVisibility() == View.VISIBLE,
+                getCurrentFocus() == adhanBar, adhan && NowPlaying.adhanStopKey(this));
+        if (stop == AdhanKeys.STOP) NowPlaying.stopAdhan(this);
+        return stop != AdhanKeys.PASS;
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
+        // while the adhan plays: OK on its bar stops it, and with «إيقاف الأذان بأي زر» any key does; that press is consumed whole
+        if (adhanTakes(e)) return true;
         // Menu key on the remote opens the Inputs dropdown.
         if (e.getKeyCode() == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP && !pills.isEmpty()) {
-            showInputs(pills.get(0));
+            showInputs(pills.get(0), ParentalPolicy.MENU_KEY);
             return true;
         }
         // On the «يُتلى الآن» card ◀ is the previous surah and ▶ the next (a station has none: ◀ goes back to the pills as on any pill)

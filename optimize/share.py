@@ -4,6 +4,7 @@
 Only what helps fix the setup for others: the TV (maker, model, firmware, Android), the computer's system, the agent,
 UrTV's version and the apps', how long each step took and where it stopped, the errors and dropped connections,
 memory before and after, the checks, the agent's notes and the owner's own words if they want to add any.
+Only these fields can be in a report (an allowlist, see restrict()); scrub() is a second net over all of it.
 Nothing personal: no city, clubs, favourites or apps of theirs, no names, network addresses or file paths.
 
     optimize/share.sh --preview --agent "Codex (gpt-…)" --owner "the owner's words, if any" "the agent's notes"
@@ -45,12 +46,81 @@ FORM_FIELD = "1457112794"   # the question's number: entry.<FORM_FIELD>=… in t
 PAGE = "https://tshi-dev.github.io/UrTV/share/"
 
 
+# --- what a report may contain -------------------------------------------------------------------------------------
+# 1. ALLOWLIST: every line the script builds must start like one of these (the fields above: TV, computer, steps, ADB,
+#    memory, checks). A line that does not is dropped, whatever it says. Only the agent's notes and the owner's words are
+#    free text, after their own heading.
+# 2. scrub(): a second net over everything, free text included, for what still slips through.
+FREE_HEADINGS = ("Notes from the agent:", "From the owner:")
+ALLOWED_LINE = re.compile(
+    r"UrTV (problem|setup) report, |TV: |Computer: |Steps, minutes:seconds:$|Memory:$|Checks:$|Setup results: |ADB: "
+    r"|Protected features on: |(Device|WebView|Home|Home switch|Screensaver|Versions|Extras):|Auto-start|Optional picks|!! |- |  (off|on): "
+    r"|home hides|[\w-]+: \d+ off, |\(no steps\.log: an older run\.sh\)$|\(not measured\)$|\(no report\.md yet: the setup didn't finish\)$|\d+ min in all$|\[\d+:\d\d until it was run again\]$"
+    r"|[A-Za-z0-9_.-]+ \d+:\d\d( STOPPED.*)?(, [A-Za-z0-9_.-]+ \d+:\d\d( STOPPED.*)?)*(, \[.*\])?$")
+MAX_LINE = 400
+# The `!! ` lines (and the `- !! ` ones of the problems list) carry what the scripts printed: free text. They pass the
+# allowlist by their start only, so they are scrubbed here, visibly, and the scrub is their one real net.
+FREE_LINE = re.compile(r"(- )?!! ")
+
+
+def restrict(text):
+    """The allowlist: lines before the free-text headings must look like a field this script builds; others are dropped."""
+    out, free = [], False
+    for line in text.splitlines():
+        if line.strip() in FREE_HEADINGS:
+            free = True
+        elif not free and line.strip() and not ALLOWED_LINE.match(line):
+            continue
+        if not free and FREE_LINE.match(line):
+            line = scrub(line)
+        out.append(line if free else line[:MAX_LINE])
+    return "\n".join(out) + ("\n" if text.endswith("\n") else "")
+
+
+def own_names():   # this computer's user and host: wherever they show up, they are not for the report
+    names = set()
+    for get in (lambda: __import__("getpass").getuser(), platform.node, lambda: Path.home().name):
+        try:
+            names.add(get())
+        except Exception:  # noqa: BLE001
+            pass
+    return {n for n in names if len(n) >= 3 and n.lower() not in ("root", "user", "admin", "runner")}
+
+
+WIFI_KEY = r"(?:ssid|wi-?fi(?:\s+name)?|network(?:\s+name)?|wlan|(?:ال)?شبكة|(?:ال)?واي\s?فاي)"
+QUOTED = r"""(?:"[^"\r\n]*"|'[^'\r\n]*'|\u201c[^\u201d\r\n]*\u201d|\u00ab[^\u00bb\r\n]*\u00bb)"""
+
+
 def scrub(text):   # in case a note or an output carries something personal
-    text = re.sub(r"\b\d{1,3}(\.\d{1,3}){3}(:\d+)?\b", "<ip>", text)
-    text = re.sub(r"\b([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b", "<mac>", text)
-    # the user folder may hold spaces ("Ann Lee"): it runs to the next separator or the end of the line
-    text = re.sub(r"(?i)\b[A-Z]:[\\/]+(Users|Documents and Settings)[\\/]+[^\\/\r\n]+", "<home>", text)
+    # a link keeps its address but not what follows ?, # or a user:password@ (tokens, sessions, keys)
+    text = re.sub(r"(?i)(https?://)[^/\s@]+@", r"\1", text)
+    text = re.sub(r"(?i)(https?://[^\s?#]*)[?#]\S*", r"\1", text)
+    text = re.sub(r"(?i)([?&](?:token|key|apikey|api_key|secret|auth|sig|session|password|pass|code)=)[^&\s]*", r"\1<x>", text)
+    # lookarounds, not \b: Arabic prefixes stick to the next word («على192.168.1.5», «فيC:\Users»)
+    text = re.sub(r"(?<![\d.])\d{1,3}(\.\d{1,3}){3}(:\d+)?(?!\d)", "<ip>", text)
+    hexg = r"[0-9A-Fa-f]{1,4}"
+    text = re.sub(rf"(?<![0-9A-Fa-f:])\[?(?:(?:{hexg}:){{7}}{hexg}|(?:{hexg}:){{0,6}}[0-9A-Fa-f]{{0,4}}::(?:{hexg}:){{0,6}}[0-9A-Fa-f]{{0,4}})"
+                  r"(?:%[\w.-]+)?\]?(?![0-9A-Za-z_:])", "<ip>", text)
+    text = re.sub(r"(?<![0-9A-Fa-f])([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])", "<mac>", text)
+    # the user folder may hold spaces ("Ann Lee") or any script: it runs to the next separator or the end of the line
+    text = re.sub(r"(?i)(?<![A-Za-z])[A-Z]:[\\/]+(Users|Documents and Settings)[\\/]+[^\\/\r\n]+", "<home>", text)
     text = re.sub(r"(?i)(/c)?/Users/[^/\r\n]+|/home/[^/\r\n]+", "<home>", text)
+    # a Wi-Fi name: after ssid / Wi-Fi / network with = or : or in quotes, and after «connected to» on a !! line
+    text = re.sub(rf"(?i)\b({WIFI_KEY})(\s*[=:]\s*)({QUOTED}|[^\s,;)]+)", r"\1\2<wifi>", text)
+    text = re.sub(rf"(?i)\b({WIFI_KEY}\s+){QUOTED}", r"\1<wifi>", text)
+    text = "\n".join(re.sub(r"(?i)\b(connected to|joined|associated with|connecting to)\s+(?!the\b|a\b|<).*$", r"\1 <wifi>", l)
+                     if "!!" in l else l for l in text.split("\n"))
+    # an email, a serial (also inside the ADB mDNS name adb-<serial>-xxx) and the usual tokens
+    text = re.sub(r"[^\s@<>()\[\]\"']+@[^\s@<>()\[\]\"']+\.\w+", "<email>", text)
+    text = re.sub(r"(?i)\badb-[A-Za-z0-9]+(?=-)", "adb-<serial>", text)
+    text = re.sub(r"(?i)\b(ro\.serial\w*|serial(?:\s?(?:no|number))?)(\s*[=:]\s*|\s+)(?!<)[A-Za-z0-9]{6,}", r"\1\2<serial>", text)
+    text = re.sub(r"(?i)\b(adb\s+device|device)\s+[A-Z0-9]{8,}\b(?=\s+(offline|unauthorized|device|no permissions))", r"\1 <serial>", text)
+    text = re.sub(r"(?i)\bBearer\s+\S+", "Bearer <token>", text)
+    text = re.sub(r"\bgh[pousr]_\w{20,}", "<token>", text)
+    text = re.sub(r"\beyJ[\w-]+\.[\w-]+\.[\w-]*", "<token>", text)
+    for name in sorted(own_names(), key=len, reverse=True):
+        # a whole word or a whole run of letters: user «dev» is not the start of «Device:» (Arabic prefixes still match)
+        text = re.sub(rf"(?<![A-Za-z0-9]){re.escape(name)}(?![A-Za-z0-9])", "<user>", text, flags=re.I)
     return text
 
 
@@ -271,7 +341,7 @@ def main():
         if not OUT.exists():
             sys.exit(f"!! Nothing to send: {OUT.relative_to(RUN.parent.parent)} is not there yet. "
                      "Run optimize/share.sh --preview \"<notes>\" first, show the owner the text, then --send.")
-        deliver(scrub(OUT.read_text(encoding="utf-8")))
+        deliver(scrub(restrict(OUT.read_text(encoding="utf-8"))))
         return
     notes = " ".join(args.notes).strip()
     summary = RUN / "summary.md"
@@ -289,7 +359,7 @@ def main():
         parts += ["", "Notes from the agent:", notes]
     if args.owner.strip():
         parts += ["", "From the owner:", args.owner.strip()]
-    text = scrub("\n".join(parts)) + "\n"
+    text = scrub(restrict("\n".join(parts))) + "\n"
     OUT.write_text(text, encoding="utf-8")
     print(text)
     print(f"Saved in {OUT.relative_to(RUN.parent.parent)}.")

@@ -80,6 +80,10 @@ final class Prefs {
     boolean adhanShort() { return sp.getBoolean("adhan_short", false); }
     void setAdhanShort(boolean on) { sp.edit().putBoolean("adhan_short", on).apply(); }
 
+    /** «إيقاف الأذان بأي زر»: while the adhan plays, any key stops it (once) and is consumed; ON by default (the owner's decision), off only when someone turns it off. The screensaver asks for it. */
+    boolean adhanStopKey() { return sp.getBoolean("adhan_stopkey", true); }
+    void setAdhanStopKey(boolean on) { sp.edit().putBoolean("adhan_stopkey", on).apply(); }
+
     /** The last adhan that played (a preview too), for `music.sh adhan`. */
     long lastAdhan() { return sp.getLong("adhan_at", 0); }
     void setLastAdhan(long at) { sp.edit().putLong("adhan_at", at).apply(); }

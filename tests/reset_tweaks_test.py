@@ -8,7 +8,7 @@ import os, subprocess, sys, tempfile
 
 here = os.path.dirname(os.path.abspath(__file__))
 src = open(os.path.join(here, "..", "optimize", "reset.sh"), encoding="utf-8").read()
-step = src[src.index("# tweaks.sh restore puts"):src.index('[ -d optimize/run ] && mv')]
+step = src[src.index("# tweaks.sh restore puts"):src.index('[ -d "${URTV_RUN_DIR:-optimize/run}" ] && mv')]
 tmp = tempfile.mkdtemp()
 failed = 0
 def check(name, ok, detail=""):

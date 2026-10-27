@@ -76,6 +76,11 @@ final class ClockZone {
             case "Asia/Qatar": return "حساب قطر";
             case "Asia/Dubai": return "حساب الإمارات";
             case "Asia/Bahrain": case "Asia/Muscat": return "حساب الخليج";
+            case "Africa/Cairo": case "Asia/Damascus": case "Asia/Beirut": case "Asia/Gaza": case "Asia/Hebron": case "Asia/Jerusalem": return "حساب الهيئة المصرية";
+            case "Asia/Amman": return "حساب الأردن";
+            case "Africa/Casablanca": case "Africa/El_Aaiun": return "حساب المغرب";
+            case "Africa/Algiers": return "حساب الجزائر";
+            case "Africa/Tunis": return "حساب تونس";
             default: return "";
         }
     }

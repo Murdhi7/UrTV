@@ -25,6 +25,7 @@ case "$1" in
     case "$in" in *"pm list features"*)
       printf '$ pm list features\nfeature:android.software.leanback\n$ getprop ro.product.manufacturer\nTCL\n$ dumpsys webviewupdate\n%s\n' "$WEBVIEW" ;;
     esac ;;
+  "settings get secure screensaver_components") [ "$TAKES" = yes ] && echo sa.urtv.screensaver/.ScreenDream || echo com.tv.own/.Saver ;;
   "pm install"*) echo Success ;;
   "pm list packages "*) echo "package:sa.urtv.screensaver" ;;
 esac
@@ -36,15 +37,15 @@ def check(name, ok, detail=""):
     print(("PASS " if ok else "FAIL ") + name + ("" if ok else f"  -> {detail}"))
     failed += not ok
 
-def run(webview_line):
+def run(webview_line, takes="yes"):
     t = Path(tempfile.mkdtemp()); tree = t / "tree"; bin_ = t / "bin"
     (tree / "optimize" / "lists").mkdir(parents=True); bin_.mkdir()
-    for f in ("install.sh", "precheck.sh", "precheck.py"):
+    for f in ("install.sh", "home-journal.sh", "precheck.sh", "precheck.py"):
         shutil.copy(ROOT / "optimize" / f, tree / "optimize")
     for f, body in (("py", STUB_PY), ("curl", "#!/bin/sh\nwhile [ $# -gt 0 ]; do [ \"$1\" = -o ] && : > \"$2\"; shift; done\n"), ("sleep", "#!/bin/sh\nexit 0\n")):
         (bin_ / f).write_text(body); (bin_ / f).chmod(0o755)
     (t / "log").write_text("")
-    env = dict(os.environ, T=str(t), PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), WEBVIEW=webview_line)
+    env = dict(os.environ, T=str(t), PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), WEBVIEW=webview_line, TAKES=takes)
     r = subprocess.run(["bash", str(tree / "optimize" / "install.sh"), "saver"], env=env, capture_output=True, text=True)
     return r.returncode, r.stdout + r.stderr, (t / "log").read_text().split()
 
@@ -55,5 +56,9 @@ rc, out, log = run(UPD.format("120.0.6099.144"))
 check("WebView 120: selected as before", rc == 0 and log == ["selected"] and "installed and selected" in out, f"{rc} {log} {out}")
 rc, out, log = run("")
 check("WebView unknown: selected as before (nothing says it cannot run)", rc == 0 and log == ["selected"], f"{rc} {log} {out}")
+rc, out, log = run(UPD.format("120.0.6099.144"))
+check("selected and read back: no !! line", "!!" not in out, out)
+rc, out, log = run(UPD.format("120.0.6099.144"), takes="no")
+check("a TV that keeps its own screensaver whatever is written: a !! line says so and how to choose ours", rc == 0 and "!! screensaver_components: this TV did not take our screensaver" in out, out)
 print("\nall saver-webview checks passed" if not failed else f"\n{failed} failed")
 sys.exit(1 if failed else 0)

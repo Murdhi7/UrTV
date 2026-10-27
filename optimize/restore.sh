@@ -7,10 +7,13 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PY:-optimize/venv/bin/python}"
 STOCK_LAUNCHER="${STOCK_LAUNCHER:-com.google.android.apps.tv.launcherx/.home.HomeActivity}"
+. optimize/home-journal.sh
+nonce=$(jget nonce)
 {
   for LIST in "$@" optimize/lists/home-replaced.txt; do grep -vE '^\s*(#|$)' "$LIST" | awk '{print "pm enable " $1}'; done
   echo "pm enable com.google.android.tungsten.setupwraith"
   echo "touch /data/local/tmp/home_ok"      # stop a running safety switch, we restore by hand
+  [ -z "$nonce" ] || echo "touch /data/local/tmp/home_ok.$nonce"   # (the one of the last home switch)
   echo "pm enable com.google.android.apps.tv.launcherx"
   echo "pm enable com.google.android.tvlauncher"
   echo "pm enable ${STOCK_LAUNCHER%%/*}"
@@ -20,4 +23,5 @@ STOCK_LAUNCHER="${STOCK_LAUNCHER:-com.google.android.apps.tv.launcherx/.home.Hom
   echo "cmd package set-home-activity --user 0 $STOCK_LAUNCHER"
   echo "input keyevent KEYCODE_HOME"
 } | "$PY" -I optimize/tv.py --batch
+jstate restored
 echo "Restored. Press Home on the remote."

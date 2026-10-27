@@ -7,7 +7,7 @@ optimize/precheck.sh: `tv.py --batch` blocks) and prints what to tell the person
     precheck.py held < answers      exit 4 when the WebView is known and older than 80 (the TV's own screensaver stays
                                     selected until it is updated), else 0; prints nothing
 
-The screensaver page uses `?.` and `??`, which need Chrome/WebView 80 or newer. One report had «system WebView is 66» and
+The screensaver page's CSS (clamp, gap, inset) needs Chrome/WebView 80 or newer. One report had «system WebView is 66» and
 the page never ran. The page is not rewritten for old WebViews: the person updates «Android System WebView» instead.
 """
 import re
@@ -82,7 +82,7 @@ def lines(answers):
                          "no": "!! not an Android TV (no android.software.leanback)"}[k]),
            f"WebView: {wv}" + (f" ({pkg})" if pkg else "")]
     if ver is not None and ver < MIN_WEBVIEW:
-        out[1] = (f"!! WebView: system WebView is {ver} ({pkg}): the screensaver page needs {MIN_WEBVIEW} or newer (it uses ?. and ??) and "
+        out[1] = (f"!! WebView: system WebView is {ver} ({pkg}): the screensaver page needs {MIN_WEBVIEW} or newer (its CSS needs clamp, gap and inset) and "
                   "would not run. Update «Android System WebView» from the Play Store")
     return out
 

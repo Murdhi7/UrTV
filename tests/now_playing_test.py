@@ -36,7 +36,9 @@ check("MainActivity: the sleep timer's minutes follow the clock's existing minut
 check("NowPlaying: shown only for a surah or a station, never for the adhan or nothing",
       "source != Prefs.SOURCE_SURAH && !radio) return new State(false" in now)
 check("MainActivity: OK pauses or plays, a long OK opens the player",
-      "nowCard.setOnClickListener(v -> NowPlaying.toggle(this))" in main and "nowCard.setOnLongClickListener(v -> { startActivity(NowPlaying.player(this)); return true; })" in main)
+      "nowCard.setOnClickListener(v -> NowPlaying.toggle(this))" in main
+      and ("nowCard.setOnLongClickListener(v -> { startActivity(NowPlaying.player(this)); return true; })" in main
+           or "nowCard.setOnLongClickListener(v -> { launchGuarded(ParentalPolicy.PILL_LISTEN, NowPlaying.player(this)" in main))   # the second once the family lock is in
 check("MainActivity: ◀ is the previous surah and ▶ the next while the card has the focus, for a surah only (a station: ◀ goes on to the pills)",
       "NowPlaying.prev(this); else NowPlaying.next(this)" in main and "if (s.show && !s.radio) {" in main and "KEYCODE_DPAD_LEFT) NowPlaying.prev" in main)
 check("MainActivity: it is the first child of the pills row, hung evenly over its top and bottom so the row stays a pill's height,"
@@ -77,8 +79,8 @@ check("screen card: the provider needs a signature permission only the screensav
       'android:name="sa.urtv.home.READ_NOW_PLAYING"' in manifest_h and 'android:protectionLevel="signature"' in manifest_h
       and 'android:authorities="sa.urtv.home.nowplaying"' in manifest_h and 'android:readPermission="sa.urtv.home.READ_NOW_PLAYING"' in manifest_h
       and 'uses-permission android:name="sa.urtv.home.READ_NOW_PLAYING"' in manifest_s)
-check("screen card: the page gets one call, window.UrtvNative.nowPlaying(), on the screen only (not on the settings' previews); errors give an empty answer",
-      '@JavascriptInterface' in bridge and bridge.count("@JavascriptInterface") == 1 and "catch (Exception ignored)" in bridge
+check("screen card: the page gets two read-only calls, window.UrtvNative.nowPlaying() and adhan() (the adhan bar), on the screen only (not on the settings' previews); errors give an empty answer",
+      '@JavascriptInterface' in bridge and bridge.count("@JavascriptInterface") == 2 and "public String adhan()" in bridge and "catch (Exception ignored)" in bridge
       and 'if (screen) w.addJavascriptInterface(new NowPlayingBridge(c), "UrtvNative")' in screenview)
 check("screen card: the page asks once at the start and then once a minute, no faster",
       "nowPlayingTick();\n  setInterval(nowPlayingTick, 60*1000);" in (ROOT / "src/template.html").read_text(encoding="utf-8"))

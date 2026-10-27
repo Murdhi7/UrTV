@@ -52,7 +52,7 @@ Package `sa.urtv.home` · classes `sa.urtv.home.tilawah` · label «تلاوة»
 | Key | Action |
 |---|---|
 | OK / Enter | play / pause (in the lists: open / choose) |
-| ◀ / ▶ | seek −10 s / +10 s (switches the section on the تلاوة screen) |
+| ◀ / ▶ | seek −10 s / +10 s (switches the section on the تلاوة screen); held, one step of 10 s every 250 ms, never faster (the service also drops any burst closer than 100 ms) |
 | ▼ | sleep timer (30, 60 or 90 minutes; off; stop now) |
 | Back | back to the list — playback continues |
 | media play/pause, next, previous | work through the media session |
@@ -143,6 +143,8 @@ optimize/music.sh adhan off | on
 optimize/music.sh adhan voice 7            # the recording used at Dhuhr, Asr, Maghrib and Isha (not the Fajr ones: 10 13 17 20)
 optimize/music.sh adhan fajr-voice 10      # «مؤذن الفجر»: Fajr's own muezzin (default 10)
 optimize/music.sh adhan short on|off       # «أذان مختصر»: stops after the first minute, 3-second fade
+optimize/music.sh adhan stopkey on|off     # «إيقاف الأذان بأي زر»: ON by default, any key stops the adhan (volume keys and Power excepted); off: only OK on the adhan bar
+optimize/music.sh adhan stop               # stop the adhan that is playing
 optimize/music.sh adhan volume 60          # its own volume, 10-100
 optimize/music.sh adhan add my-adhan.mp3   # the person's own recording (ffmpeg here makes it small); `adhan voice own`, `adhan own-clear`
 ```

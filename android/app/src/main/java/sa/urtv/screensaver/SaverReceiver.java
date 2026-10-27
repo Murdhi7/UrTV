@@ -22,7 +22,7 @@ import java.util.Locale;
  *       [--es city 'الرس'] [--es lat 25.86 --es lon 43.49 --es tz Asia/Kuwait]   (tz is needed for a place that is not in the list) [--es teams '136013:Al-Hilal,150643:Al-Zulfi']
  *       [--es panel prayers] [--es home_panel prayers,hourly,verse|none] [--es greeting on|off] [--es adhanbar on|off] [--es yearstrip on|off] [--es minrating 7]
  *       [--es sunrise on|off] [--es prayerbar on|off] [--es wxmore on|off] [--es months default|levant] [--es genres Drama,Comedy] [--es langs English]
- *       [--es photos 30] [--es idle 10] [--es digits hindi|latin]
+ *       [--es photos 30] [--es idle 10] [--es digits hindi|latin] [--es hijrioffset -2..2] [--es clock24 on|off]
  *       [--es cardstyle current|dark1|glass1|dark3|glass3] [--es national auto|off]
  *       [--es markets tasi,gold,btc] [--es mkstyle arrows|prices] [--es mkbar on|off] [--es clocksize large|medium|small] [--es stocks 2222,1120,AAPL]
  *       [--es leagues 'Saudi-Arabian Pro League,NBA']
@@ -51,6 +51,7 @@ import java.util.Locale;
  * mkbar = the markets line at the top, on (default) or off (the weather stays; the list is kept); clocksize = the screensaver's clock.
  * markets = up to four of Prefs.MARKETS at the top left, in order; mkstyle = arrows only (as always) or the price and the day's change.
  * stocks = the watchlist of the stocks card (panel stocks): up to Prefs.MAX_STOCKS Tadawul codes (4 digits) or US tickers.
+ * clock24 = «ساعة ٢٤»: every time of day as 24-hour (on) or 12-hour with ص and م (off, the default; ClockSetting).
  * digits = hindi (١٢٣, as always) or latin (123). photos = minutes between background photos (Prefs.PHOTO_MINUTES). idle = minutes before the TV starts the
  * screensaver (Prefs.IDLE_MINUTES): this is the system's screen_off_timeout, which a receiver (it runs as this
  * app, not as the shell) may write only when the app holds WRITE_SETTINGS; otherwise it says so and
@@ -190,6 +191,12 @@ public class SaverReceiver extends BroadcastReceiver {
             if (adj == null) adj = p.prayerAdj();
             adj[k] = n;
         }
+        Integer hijriOffset = null;   // «فرق التاريخ الهجري»: a whole number of days, -2..2
+        String hijriExtra = i.getStringExtra("hijrioffset");
+        if (hijriExtra != null) {
+            hijriOffset = HijriOffset.parse(hijriExtra.trim());
+            if (hijriOffset == null) return "error: hijrioffset is a whole number of days from -" + HijriOffset.MAX + " to " + HijriOffset.MAX + ", like -1 or +1 (0 = Umm al-Qura as it is)";
+        }
         String yearStrip = i.getStringExtra("yearstrip");
         if (yearStrip != null && !"on".equals(yearStrip) && !"off".equals(yearStrip))
             return "error: yearstrip is one of on off";
@@ -210,6 +217,9 @@ public class SaverReceiver extends BroadcastReceiver {
         String digits = i.getStringExtra("digits");
         if (digits != null && !isChoice(Prefs.DIGITS, digits))
             return "error: digits is one of " + choices(Prefs.DIGITS);
+        String clock24 = i.getStringExtra("clock24");
+        if (clock24 != null && !ClockSetting.valid(clock24))
+            return "error: clock24 is one of on off";
         String national = i.getStringExtra("national");
         if (national != null && !isChoice(Prefs.NATIONAL, national))
             return "error: national is one of " + choices(Prefs.NATIONAL);
@@ -299,10 +309,12 @@ public class SaverReceiver extends BroadcastReceiver {
         if (months != null) p.setMonths(months);
         if (prayerMethod != null) p.setPrayerMethod(PrayerMethod.parse(prayerMethod));
         if (adj != null) p.setPrayerAdj(adj);
+        if (hijriOffset != null) p.setHijriOffset(hijriOffset);
         if (prayerAdj != null) p.setPrayerAdjOn("on".equals(prayerAdj));
         if (rating != null) p.setMinRating(rating);
         if (photos != null) p.setPhotoMinutes(photos);
         if (digits != null) p.setDigits(digits);
+        if (clock24 != null) p.setClock24("on".equals(clock24));
         if (national != null) p.setNational(national);
         if (cardStyle != null) p.setCardStyle(cardStyle);
         if (mkStyle != null) p.setMkStyle(mkStyle);
@@ -421,9 +433,11 @@ public class SaverReceiver extends BroadcastReceiver {
             + "\nwxmore: " + (p.wxMore() ? "on" : "off") + "\nmonths: " + p.months()
             + "\nprayermethod: " + p.prayerMethod()
             + "\nprayeradj: " + (p.prayerAdjOn() ? "on" : "off") + " " + PrayerAdj.describe(p.prayerAdj())
+            + "\nhijrioffset: " + HijriOffset.describe(p.hijriOffset())
             + "\nminrating: " + p.minRating()
             + "\nphotos: " + p.photoMinutes()
             + "\ndigits: " + p.digits()
+            + "\nclock24: " + ClockSetting.describe(p.clock24())
             + "\nnational: " + p.national()
             + "\ncardstyle: " + p.cardStyle()
             + "\nmarkets: " + (p.marketsOn() ? "" : "off ") + Prefs.join(p.markets(), ",") + "\nclocksize: " + p.clockSize() + "\nmkstyle: " + p.mkStyle()
