@@ -91,7 +91,7 @@ served = set(re.findall(r'case "(/api/[a-z_/]+)"', api)) | {"/api/state"} | ({"/
 used = set(re.findall(r"['\"](/api/[a-z_/]+)['\"]", page))
 check("every call of the page is an endpoint the server has, and the reverse", used == served, (used ^ served))
 check("the page says plainly what it cannot do: keys to other apps, and text outside our screens",
-      "أندرويد يسمح لتطبيقنا بإرسال الأسهم والاختيار والرجوع إلى شاشاته هو فقط" in page and "أندرويد لا يسمح لتطبيق بالكتابة داخل تطبيق آخر" in page, "")
+      "أندرويد يسمح لتطبيقنا بإرسال الأسهم والاختيار والرجوع إلى شاشاته هو فقط" in page and "يُكتب في حقلها بعد تفعيل خدمة إمكانية الوصول" in page and "/api/text" in page, "")
 check("the page has no reset, uninstall, ADB or PIN-changing control", not re.search(r"reset|uninstall|adb|إعادة ضبط|حذف التطبيق", page, re.I), "")
 
 # ---- docs and registration
