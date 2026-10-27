@@ -53,7 +53,15 @@ check("the settings' «ترتيب التطبيقات المفضلة» opens the 
 check("the settings have «تعديل المفضلة», which asks the home screen for the mode", 'row("تعديل المفضلة"' in settings and '"edit_favourites"' in settings and 'EXTRA_EDIT = "edit_favourites"' in main)
 check("nothing else in the app starts DockActivity (the screensaver app's only way in is the settings row)",
       len(re.findall(r"sa\.urtv\.home\.DockActivity", "".join(src(p) for p in APP.glob("*.java")))) == 1)
-check("dock.sh is as it was (the agent's way)", subprocess.run(["git", "diff", "--quiet", "origin/next", "--", "optimize/dock.sh"], cwd=ROOT).returncode == 0)
+d = main[main.index("public boolean dispatchKeyEvent"):]
+check("keys: the adhan rule first, then the remote's shortcut keys (one that acts ends the edit, saved), then «تعديل المفضلة»",
+      d.index("if (adhanTakes(e)) return true;") < d.index("remoteKeys.decide(") < d.index("if (edit != null && editKey(e)) return true;")
+      and "if (edit != null) leaveEdit();   // a shortcut key" in d)
+check("the long-press menu: «تعديل المفضلة» on a favourite, and no «ترتيب المفضلة…» (that list is the settings' only)",
+      'labels.add("تعديل المفضلة")' in main and "ترتيب المفضلة…" not in main)
+dock_sh = (ROOT / "optimize/dock.sh").read_text(encoding="utf-8")
+check("dock.sh keeps the agent's way (apps, set, show, reset) and knows nothing of the edit mode",
+      all(a in dock_sh for a in ("send LIST_APPS", "send SET_DOCK", "send GET_DOCK", "send RESET_DOCK")) and "edit_favourites" not in dock_sh and "FavEdit" not in dock_sh)
 
 if not shutil.which("javac"):
     print("SKIP fav edit cases: no javac here")

@@ -40,6 +40,8 @@ import java.util.List;
 public class SettingsActivity extends Activity {
     private Prefs prefs;
     private LinearLayout list;
+    private ScrollView scroll;
+    private String pendingFocus;   // the row to focus once the window has the focus back (a dialog was still open when the list was rebuilt)
 
     /** Arabic locale for this screen, so every dialog title, list and button is laid out right-to-left. */
     @Override
@@ -67,7 +69,7 @@ public class SettingsActivity extends Activity {
             bg.setAlpha(0.42f);
             root.addView(bg, new FrameLayout.LayoutParams(-1, -1));
         }
-        ScrollView scroll = new ScrollView(this);
+        scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
         FrameLayout frame = new FrameLayout(this);
         list = new LinearLayout(this);
@@ -99,8 +101,16 @@ public class SettingsActivity extends Activity {
         render();
     }
 
+    /**
+     * Builds the list again (on every change, and back in front): the focus stays on the row that had it, by its key (FocusKey), and the
+     * list stays where it was scrolled to; only the first build puts it on «معاينة الشاشة».
+     */
     private void render() {
         latinDigits = DigitsText.isLatin(prefs.digits());
+        List<View> before = rows();
+        View had = focusedRow();
+        final String want = had == null ? null : (String) had.getTag();
+        final int wasIndex = had == null ? 0 : before.indexOf(had), scrollY = scroll.getScrollY();
         list.removeAllViews();
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
@@ -123,8 +133,9 @@ public class SettingsActivity extends Activity {
         list.addView(head);
         if (prefs.cityNoteDue()) line(Location.note(prefs.city()[0]), 0xFFD6AF6B, dp(14));   // still the install's Riyadh: say where to change it
 
-        row("معاينة الشاشة", "شاهد الشاشة الآن", R.drawable.ic_play, new Runnable() { public void run() {
-            startActivity(new Intent(SettingsActivity.this, MainActivity.class)); } }).requestFocus();
+        View preview = row("معاينة الشاشة", "شاهد الشاشة الآن", R.drawable.ic_play, new Runnable() { public void run() {
+            startActivity(new Intent(SettingsActivity.this, MainActivity.class)); } });
+        if (want == null) preview.requestFocus();   // the first build; afterwards the row that had the focus keeps it (restoreFocus)
 
         // the place, then how its times are worked out, then the minutes of one's own mosque; the line under them says which is which
         header("الموقع");
@@ -155,6 +166,15 @@ public class SettingsActivity extends Activity {
         noConv = false;
         row("تنبيه قبل الأذان", prefs.adhanBar() ? "يعمل · شريط في أعلى الشاشة آخر ١٠ دقائق، ثم حتى الإقامة" : "متوقف", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setAdhanBar(!prefs.adhanBar()); render(); } });
+        // from PR #28 and the requests: each off until chosen, OK flips it
+        row("الشروق بعد الفجر", prefs.sunrise() ? "يعمل · بعد إقامة الفجر: كم باقي على الشروق، ثم نصف ساعة بعده" : "متوقف", R.drawable.ic_eye,
+            new Runnable() { public void run() { prefs.setSunrise(!prefs.sunrise()); render(); } });
+        row("شريط الوقت بين الصلاتين", prefs.prayerBar() ? "يعمل · خط رفيع تحت الصلاة القادمة يمتلئ حتى وقتها" : "متوقف", R.drawable.ic_eye,
+            new Runnable() { public void run() { prefs.setPrayerBar(!prefs.prayerBar()); render(); } });
+        row("الرطوبة والرياح", prefs.wxMore() ? "يعمل · تحت المدينة أعلى اليسار" : "متوقف", R.drawable.ic_eye,
+            new Runnable() { public void run() { prefs.setWxMore(!prefs.wxMore()); render(); } });
+        row("أسماء الأشهر الميلادية", Prefs.monthsLabel(prefs.months()), R.drawable.ic_language,
+            new Runnable() { public void run() { prefs.setMonths("levant".equals(prefs.months()) ? "default" : "levant"); render(); } });
         row("شريط السنة تحت الساعة", prefs.yearStrip() ? "يعمل · نقاط السنة تحت الساعة، واليوم يلمع" : "متوقف", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setYearStrip(!prefs.yearStrip()); render(); } });
         row("المناسبات الوطنية", Prefs.nationalLabel(prefs.national()), R.drawable.ic_eye,
@@ -193,6 +213,13 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { openDockSettings(); } });
         row("تعديل المفضلة", "تحريك التطبيقات على الشاشة الرئيسية وحذفها", R.drawable.ic_star,
             new Runnable() { public void run() { openDockEdit(); } });
+        row("تحديث تلفزيوني", "يعرض الإصدار ويتحقق من التحديث", R.drawable.ic_sync,
+            new Runnable() { public void run() { openUpdate(); } });
+        row("تحكم من الجوال", "متوقف حتى تشغّله أنت", R.drawable.ic_settings,
+            new Runnable() { public void run() { openPhoneControl(); } });
+
+        row("حماية العائلة", "تفعيل أو إيقاف، ويرجع الإعداد القديم تلقائياً", R.drawable.ic_eye,
+            new Runnable() { public void run() { openFamilyDns(); } });
 
         if ("shows".equals(prefs.panel()) || prefs.homePanels().contains("shows")) {   // only matter for the shows card
         header("جديد المسلسلات");
@@ -224,6 +251,45 @@ public class SettingsActivity extends Activity {
             prefs.setAutoUpdate(!prefs.autoUpdate()); render(); } });
         View last = row("تحديث الشاشة الآن", "ينزّل أحدث نسخة من الشاشة", R.drawable.ic_sync, new Runnable() { public void run() { updateNow(); } });
         note(last, Updater.versionLines(this));
+        if (want != null) restoreFocus(want, wasIndex, scrollY);
+    }
+
+    /** The rows of the list now (the views row() made: their tag is their FocusKey), in order. */
+    private List<View> rows() {
+        List<View> out = new ArrayList<>();
+        for (int i = 0; i < list.getChildCount(); i++) if (list.getChildAt(i).getTag() instanceof String) out.add(list.getChildAt(i));
+        return out;
+    }
+
+    /** The row that has the focus in this window (a dialog over it leaves it there), or null. */
+    private View focusedRow() {
+        View v = getCurrentFocus();
+        while (v != null && v.getParent() != list) v = v.getParent() instanceof View ? (View) v.getParent() : null;
+        return v != null && v.getTag() instanceof String ? v : null;
+    }
+
+    /** After a rebuild: back to where the list was, then the focus on the same row (FocusKey.pick), once the layout has run. */
+    private void restoreFocus(final String want, final int wasIndex, final int scrollY) {
+        pendingFocus = want;
+        scroll.post(() -> {
+            List<View> now = rows();
+            List<String> keys = new ArrayList<>();
+            for (View r : now) keys.add((String) r.getTag());
+            int at = FocusKey.pick(keys, want, wasIndex);
+            if (at < 0) return;
+            scroll.scrollTo(0, scrollY);
+            now.get(at).requestFocus();
+            if (hasWindowFocus()) pendingFocus = null;   // done; with a dialog still open, again when the window has the focus back
+        });
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean has) {
+        super.onWindowFocusChanged(has);
+        if (!has || pendingFocus == null) return;
+        final String want = pendingFocus;
+        pendingFocus = null;
+        for (View r : rows()) if (want.equals(r.getTag())) { r.requestFocus(); break; }
     }
 
     // ---------- pickers ----------
@@ -512,6 +578,20 @@ public class SettingsActivity extends Activity {
         }));
     }
 
+    /** «حماية العائلة (DNS)» lives in the launcher too: it holds the permission to write the Private DNS setting. */
+    private void openFamilyDns() {
+        try {
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.FamilyDnsActivity"));
+        } catch (SecurityException | ActivityNotFoundException e) {   // permission not granted, or an old launcher without the activity
+            boolean installed = true;
+            try { getPackageManager().getPackageInfo("sa.urtv.home", 0); }
+            catch (android.content.pm.PackageManager.NameNotFoundException gone) { installed = false; }
+            toast(installed ? "ما قدرنا نفتح حماية العائلة: حدّث الواجهة الرئيسية «تلفزيونك»" : "ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
     /** «ترتيب المفضلة» lives in the launcher (it owns the row). */
     private void openDockSettings() {
         try {
@@ -526,6 +606,24 @@ public class SettingsActivity extends Activity {
         try {
             startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setClassName("sa.urtv.home", "sa.urtv.home.MainActivity")
                 .putExtra("edit_favourites", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
+    /** «تحديث تلفزيوني» lives in the launcher (it is the app that gets replaced last). */
+    private void openUpdate() {
+        try {
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.UpdateActivity"));
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
+    /** «تحكم من الجوال» lives in the launcher (it holds the server and the pairing screen). */
+    private void openPhoneControl() {
+        try {
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.PhoneActivity"));
         } catch (RuntimeException e) {
             toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
         }
@@ -1152,6 +1250,7 @@ public class SettingsActivity extends Activity {
         card.setFocusable(true);
         card.setClickable(true);
         card.setBackgroundResource(R.drawable.glass_row);   // glass; the gold-tinted one while it has the focus
+        card.setTag(FocusKey.key(label));   // which row it is when the list is built again (render keeps the focus on it)
 
         final android.widget.ImageView ic = new android.widget.ImageView(this);
         final android.graphics.drawable.Drawable d = getDrawable(icon).mutate();

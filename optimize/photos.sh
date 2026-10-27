@@ -84,6 +84,7 @@ case "${1:-}" in
     n=$(count)
     [ "$n" -gt 0 ] || { echo "error: no photos on the TV yet (photos.sh add FILE...)"; exit 1; }
     was=$(send "--es op list" | sed -n 's/^mode: \([a-z]*\).*/\1/p')
+    [ -n "$was" ] || { echo "!! photos.sh: the TV did not say its photo mode, so nothing was changed. Run the same command again." >&2; exit 1; }
     if [ "$was" != only ]; then   # only theirs rotate, so what is on screen is one of them; the owner's mode comes back after
       trap 'send "--es op mode --es mode ${was:-mix}" > /dev/null || true; cleanup' EXIT
       send "--es op mode --es mode only" > /dev/null

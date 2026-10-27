@@ -9,7 +9,7 @@
     tv.py --shot out.png                     screenshot from the TV
     tv.py --bg NAME 'cmd'                    a long command, run in the background on the TV and polled (no 60 s silence)
     tv.py --reboot                           restart the TV (sent once, never retried) and wait until it is back from a new boot
-    tv.py --wait                             wait until the TV answers again (after a reboot), up to 5 min
+    tv.py --wait                             wait until the TV answers again (after a reboot), up to 10 min
     tv.py --check                            is the device answering the TV the setup started on? (saves it if none yet)
     tv.py --new-tv                           the device answering now is the TV to work on from here (replaces the saved one)
 
@@ -210,7 +210,8 @@ def new_dev(timeout):
 
 
 def upload_chunk():
-    return wireless.AdbCli.chunk if "TV_PORT" not in os.environ and wireless.state_for(HOST) else 96_000
+    # 40 000 characters: the size reports from Android 12 TVs say works (96 000 stalled with TcpTimeoutException on some)
+    return wireless.AdbCli.chunk if "TV_PORT" not in os.environ and wireless.state_for(HOST) else 40_000
 
 
 def signer():
@@ -242,15 +243,16 @@ def send_once(cmd):
 class TV:
     """One connection, reopened on failure; every call retried with a growing pause."""
 
-    def __init__(self, guard=False, tries=None):
+    def __init__(self, guard=False, tries=None, transport_s=60.0):
         self.dev = None
+        self.transport_s = transport_s   # how long one read from the TV may stay silent: 180 s for uploads, decodes, installs
         self.guard = guard   # this run changes the TV: every new connection first checks it is the right one
         self.tries = tries or TRIES
         self.last_ok = 0.0
 
     def _open(self):
         self.close()
-        dev = new_dev(60.0)
+        dev = new_dev(self.transport_s)
         dev.connect(rsa_keys=[signer()], auth_timeout_s=120)
         if self.guard:
             try:
@@ -355,6 +357,7 @@ def is_git_folder(folder):   # Git Bash's own folder is the one with its bash in
 
 
 JOB = "/data/local/tmp/urtv-job-"
+SLOW_READ_S = 180.0   # read timeout for the upload, md5, decode and pm install steps (the library's own is 60 s)
 POLL_S = 3                                              # between two looks at a background job
 LIMIT_S = int(os.environ.get("TV_JOB_LIMIT_S", "600"))  # a job silent for longer than this is given up on
 
@@ -381,7 +384,7 @@ def run_bg(tv, name, cmd, progress=None, limit_s=None):
         waited = int(time.time() - began)
         # alive is checked first: the job writes .rc before it lets go of .pid, so "not alive, no .rc" means it died
         got = tv.soft(f"if {alive}; then echo running $({progress or 'echo'}); elif [ -f {j}.rc ]; then echo done; "
-                      f"else echo dead; fi")
+                      f"else echo dead; fi", timeout=SLOW_READ_S)
         state = (got or "").split()
         if got is None:
             silent += 1
@@ -451,11 +454,11 @@ def push_b64(tv, local, remote, chunk=None):   # one argument may not exceed 128
         print(f"resuming upload at {done * 100 // len(enc)}%")
     for i in range(done, len(enc), chunk):
         piece, want = enc[i:i + chunk], str(min(i + chunk, len(enc)))
-        size = tv.shell(f"echo -n '{piece}' >> {tmp}; wc -c < {tmp}").strip()   # write and check in one call
+        size = tv.shell(f"echo -n '{piece}' >> {tmp}; wc -c < {tmp}", SLOW_READ_S).strip()   # write and check in one call
         for _ in range(5):    # a retried call wrote the piece twice, or not at all: cut back and write it again
             if size == want:
                 break
-            size = tv.shell(cut_back(tmp, i) + f"; echo -n '{piece}' >> {tmp}; wc -c < {tmp}").strip()
+            size = tv.shell(cut_back(tmp, i) + f"; echo -n '{piece}' >> {tmp}; wc -c < {tmp}", SLOW_READ_S).strip()
         if size != want:
             free = tv.shell(f"df -h {folder} | tail -1").strip()
             sys.exit(f"!! upload keeps failing at {i * 100 // len(enc)}% (the TV wrote {size or 'nothing'} of {want}; "
@@ -502,12 +505,51 @@ def is_new_boot(before, now):
     return True if now[1] < before[1] else None
 
 
-def wait_for_tv(limit_s=300, before=None, restart=False):
-    """Try every 10 s until the TV answers and has finished booting. After a reboot (restart=True) the TV may still
+WAIT_S = 600          # how long a restarted TV is waited for
+HINT_EVERY_S = 60     # while waiting: look again for the TV this often
+
+
+def address_hint(host=None):
+    """When the saved address does not answer: the one other device on this Wi-Fi with ADB open (a TV whose address changed
+    after the restart), as a printable hint, else "". Looks only; it never saves or switches to anything: the identity guard
+    decides which TV this is, and a person says so. Uses find-tv.py's own helpers (standard library only)."""
+    host = host or HOST
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("find_tv", os.path.join(HERE, "find-tv.py"))
+        ft = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ft)
+        st = wireless.load_state()
+        ports = [PORT] + ([int(st["port"])] if st.get("host") == host and str(st.get("port", "")).isdigit() else [])
+        if any(ft.connects(host, p, 1.5) for p in ports):
+            return ""   # the saved TV is there (it may still be booting): nothing to suggest
+        ip = ft.local_ip()
+        nets = ft.my_networks(ip)
+        if not nets:
+            return ""
+        own = ft.own_addresses(ip)
+        pool = [str(h) for n in nets for h in n.hosts() if str(h) not in own]
+        if len(pool) > 1024:
+            pool = [h for h in ft.neighbours() if h not in own]
+        found = ft.candidates([h for h, _ in ft.knock_all([(h, 5555) for h in pool if h != host], 1.5)], own, set(ft.gateways()), nets)
+    except Exception:  # noqa: BLE001  (a hint is never worth a failure)
+        return ""
+    if len(found) != 1:
+        return ""
+    return (f"   (the saved address {host} does not answer, but one device on this Wi-Fi has ADB open at {found[0]}: "
+            f"if that is the TV, its address changed. Ask the person, then: optimize/find-tv.sh use {found[0]})")
+
+
+def wait_for_tv(limit_s=WAIT_S, before=None, restart=False):
+    """Try every 10 s until the TV answers and has finished booting, up to 10 minutes (a few TVs take that long to restart).
+    The same address and the same port are used throughout (5555, or the remembered Wireless-debugging port, looked up again by
+    name when it changed). Every 60 s, if the saved address does not answer, a hint is printed when another device on the
+    Wi-Fi now has ADB open; the saved TV is never replaced by itself. After a reboot (restart=True) the TV may still
     answer for a while before it goes down, so it only counts as back from a different boot than `before`; where the
     boots can't be told apart, only once it was seen not answering."""
     start = time.time()
     down = False   # seen not answering, or still booting, since we started
+    next_hint, hinted = start + HINT_EVERY_S, set()
     while time.time() - start < limit_s:
         try:
             dev = new_dev(15.0)
@@ -522,15 +564,28 @@ def wait_for_tv(limit_s=300, before=None, restart=False):
                 return
         except Exception:  # noqa: BLE001
             down = True
+        if time.time() >= next_hint:
+            next_hint += HINT_EVERY_S
+            print(f"   (still waiting for the TV: {int(time.time() - start) // 60} min)", file=sys.stderr)
+            hint = address_hint()
+            if hint and hint not in hinted:
+                hinted.add(hint)
+                print(hint, file=sys.stderr)
         time.sleep(10)
     if restart and not down:
         sys.exit("!! The TV kept answering but never restarted: it may have ignored the reboot. Restart it from its "
                  "own menu (not with this command again), then go on.")
-    sys.exit("!! TV did not come back within 5 minutes. Check it is on and on Wi-Fi (ADB stays on after a reboot).")
+    sys.exit("!! The TV did not come back within 10 minutes. Check it is on and on Wi-Fi (ADB stays on after a reboot)."
+             + ("\n" + "\n".join(hinted) if hinted else ""))
 
 
 def main():
     a = sys.argv[1:]
+    if a == ["--address-hint"]:   # only looks: prints a line if another device now has ADB open, else nothing
+        hint = address_hint()
+        if hint:
+            print(hint)
+        return
     if a == ["--wait"]:
         wait_for_tv()
         return
@@ -579,7 +634,8 @@ def main():
         changes = True
     else:
         changes = bool(a) and a != ["--probe"] and not is_read_only(shell_line(a))
-    tv = TV(guard=changes, tries=LONG_TRIES if a[:1] in (["--bg"], ["--push-b64"]) else None)   # uploads and installs get the longer patience
+    slow = a[:1] in (["--bg"], ["--push-b64"])
+    tv = TV(guard=changes, tries=LONG_TRIES if slow else None, transport_s=SLOW_READ_S if slow else 60.0)   # uploads and installs get the longer patience
     if not a or a == ["--probe"]:
         for p in ("ro.product.manufacturer", "ro.product.brand", "ro.product.model", "ro.product.device",
                   "ro.build.version.release", "ro.build.version.sdk", "ro.build.display.id"):

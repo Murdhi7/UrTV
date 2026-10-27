@@ -135,15 +135,16 @@ report() {
   echo "Versions: screensaver $(tv "dumpsys package sa.urtv.screensaver 2> /dev/null | grep versionName | sed -n 1p" | sed 's/.*=//'), home $(tv "dumpsys package sa.urtv.home 2> /dev/null | grep versionName | sed -n 1p" | sed 's/.*=//')"
   echo "Extras: TV Bro $([ -n "$(tv "pm list packages com.phlox.tvwebbrowser")" ] && echo yes || echo no), SmartTube $([ -n "$(tv "pm list packages org.smarttube.stable")" ] && echo yes || echo no)"
   local picks
-  picks=$(grep -cvE '^\s*(#|$)' optimize/lists/mine.txt 2>/dev/null || true)
+  picks=$(grep -cvE '^[[:space:]]*(#|$)' optimize/lists/mine.txt 2>/dev/null || true)
   echo "Optional picks (lists/mine.txt): ${picks:-0}"
   echo
   echo "Packages from our lists (off: disabled, on: still on, absent: not on this TV):"
   local disabled installed l pkg state
+  optimize/settle.sh wait 2> /dev/null || true   # the disabled state is read back after Android has written it
   disabled=$(tv "pm list packages -d" | tr -d '\r')
   installed=$(tv "pm list packages" | tr -d '\r')
   for l in tcl-safe tcl-optional keep home-replaced; do
-    for pkg in $(grep -vE '^\s*(#|$)' "optimize/lists/$l.txt" | awk '{print $1}'); do
+    for pkg in $(grep -vE '^[[:space:]]*(#|$)' "optimize/lists/$l.txt" | awk '{print $1}'); do
       if grep -qx "package:$pkg" <<< "$disabled"; then state=off
       elif grep -qx "package:$pkg" <<< "$installed"; then state=on
       else state=absent; fi
@@ -154,7 +155,7 @@ report() {
   optimize/keep.sh off 2> /dev/null | sed 's/^/- off-name: /' || true
   if [ -s "$RUN/community-applied.txt" ]; then   # the community list (CleanYourTV, MIT) for this model, if one was used
     echo "Community list: $(cat "$RUN/community-name.txt" 2> /dev/null) (CleanYourTV, MIT)"
-    for pkg in $(grep -vE '^\s*(#|$)' "$RUN/community-applied.txt" | awk '{print $1}'); do
+    for pkg in $(grep -vE '^[[:space:]]*(#|$)' "$RUN/community-applied.txt" | awk '{print $1}'); do
       if grep -qx "package:$pkg" <<< "$disabled"; then state=off
       elif grep -qx "package:$pkg" <<< "$installed"; then state=on
       else state=absent; fi
@@ -174,7 +175,16 @@ do_step() {
     backup)      optimize/backup.sh
                  # the TV as it came is the first run's: a run.sh again after the tweaks would record the tweaked TV
                  if [ -f "$RUN/backup.txt" ]; then echo "(the backup from the first run stays: optimize/reset.sh puts back what the TV had then)"
-                 else cp "$(ls -t optimize/backup-*.txt | head -1)" "$RUN/backup.txt"; fi ;;
+                 else
+                   newest=$(ls -t optimize/backup-*.txt | head -1)
+                   # a backup saved while the TV answered nothing would be kept for ever and make reset remove the person's own apps
+                   if [ "$(grep -c '^package:' "$newest" || true)" -lt 20 ] || ! grep -qx 'package:android' "$newest"; then
+                     rm -f "$newest"
+                     echo "!! The TV's package list came back empty (or nearly) while the backup was saved, so it would be useless. Nothing was changed. Run the same command again."
+                     exit 1
+                   fi
+                   cp "$newest" "$RUN/backup.txt"
+                 fi ;;
     keep)        optimize/keep.sh | tee "$RUN/keep.txt" ;;
     before)      optimize/measure.sh before ;;
     before-saver) optimize/measure.sh before-screensaver --screensaver ;;
@@ -206,7 +216,7 @@ if [ -n "$tv_id" ] && [ "$(cat "$RUN/.tv" 2> /dev/null || true)" != "$tv_id" ]; 
   [ -f "$RUN/.tv" ] && echo "A different TV than the last run: starting from the first step."
   rm -f "$RUN"/.done-* "$RUN/steps.log"
   # what the last TV had is not this TV's (its backup, tweaks and home switch journals)
-  rm -f "$RUN/backup.txt" "$RUN/tweaks-journal.txt" "$RUN/tweaks-journal.done" "$RUN/home-switch.json" "$RUN/accessibility-before.txt" "$RUN/.screen-off-timeout"
+  rm -f "$RUN/backup.txt" "$RUN/tweaks-journal.txt" "$RUN/family-dns-journal.txt" "$RUN/family-dns-journal.done" "$RUN/grants-journal.txt" "$RUN/disabled-by-us.txt" "$RUN/.package-change" "$RUN/community-applied.txt" "$RUN/community-ask.txt" "$RUN/tweaks-journal.done" "$RUN/home-switch.json" "$RUN/accessibility-before.txt" "$RUN/.screen-off-timeout"
   echo "$tv_id" > "$RUN/.tv"
 fi
 

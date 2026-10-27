@@ -32,6 +32,13 @@ A = "am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home."
 rc, out, sent = run("pin", "set", "4829")
 check("pin set: one broadcast with the four digits", rc == 0 and sent == A + "PIN_SET --es pin 4829", (rc, sent))
 check("pin set: the answer is printed, and the PIN is not", out.strip() == "pin: set" and "4829" not in out, out)
+for cmd, act in (("lock", "PIN_LOCK"), ("unlock", "PIN_UNLOCK")):
+    for tgt in ("com.netflix.ninja", "@wifi", "@urtv", "a.b"):
+        rc, out, sent = run("pin", cmd, tgt)
+        check(f"pin {cmd} {tgt}: {act} with the target", rc == 0 and sent == A + f"{act} --es target {tgt}", (rc, sent))
+    for bad in ("", "netflix", "com.x; reboot", "com..x", "@WIFI", "@wifi extra", "'quoted'", "com.x'y", "$(id)", "1com.x", "-rf"):
+        rc, out, sent = run("pin", cmd, *( [bad] if bad else [] ))
+        check(f"pin {cmd} {bad!r}: refused, nothing sent", rc != 0 and not sent and "usage" in out, (rc, out, sent))
 for cmd, act in (("status", "PIN_STATUS"), ("off", "PIN_OFF"), ("reset", "PIN_RESET")):
     rc, out, sent = run("pin", cmd)
     check(f"pin {cmd}: {act}", rc == 0 and sent == A + act, (rc, sent))
@@ -42,13 +49,14 @@ for bad, why in [(("set",), "no digits"), (("set", "123"), "three digits"), (("s
     rc, out, sent = run("pin", *bad)
     check(f"pin {' '.join(bad)}: refuses {why}, sends nothing", rc != 0 and not sent and "usage" in out, (rc, out, sent))
 rc, out, sent = run()
-check("the usage lists the pin commands", "pin set" in out and "pin reset" in out, out)
+check("the usage lists the pin commands", "pin set" in out and "pin reset" in out and "pin lock" in out, out)
+check("pin off keeps the lists, and status says plainly that nothing asks then (ParentalPolicy.lockedLine, run in parental_policy_test)", "lockedLine(s)" in open(os.path.join(home, "java", "sa", "urtv", "home", "Parental.java"), encoding="utf-8").read().split("static String status(")[1], "")
 
 # the receiver: only the shell can send these (DUMP), and nothing in the app calls the reset
 manifest = open(os.path.join(home, "AndroidManifest.xml"), encoding="utf-8").read()
 rec = manifest.split('android:name=".DockReceiver"')[1].split("</receiver>")[0]
 check("the PIN actions are on DockReceiver, which needs the shell's DUMP permission",
-      'android:permission="android.permission.DUMP"' in rec and all(f'"sa.urtv.home.{a}"' in rec for a in ("PIN_SET", "PIN_STATUS", "PIN_OFF", "PIN_RESET")), rec[:200])
+      'android:permission="android.permission.DUMP"' in rec and all(f'"sa.urtv.home.{a}"' in rec for a in ("PIN_SET", "PIN_LOCK", "PIN_UNLOCK", "PIN_STATUS", "PIN_OFF", "PIN_RESET")), rec[:200])
 java = os.path.join(home, "java", "sa", "urtv", "home")
 users = sorted(n for n in os.listdir(java) if n.endswith(".java") and "adbReset(" in open(os.path.join(java, n), encoding="utf-8").read())
 check("the reset is only ever called from ADB (DockReceiver); nothing on the TV's screens offers it", users == ["DockReceiver.java", "Parental.java"], users)

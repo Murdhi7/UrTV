@@ -26,6 +26,10 @@ case "${1:-}" in
     done_pkgs=()
     for p in "$@"; do
       if ! [[ "$p" =~ ^[A-Za-z0-9_][A-Za-z0-9_.]*$ ]]; then echo "!! not a package id: $p"; exit 2; fi
+      if [ "$mode" = unkeep ]; then   # the same two refusals as optimize/disable.sh: features people use, and Android's own core
+        if grep -vE '^[[:space:]]*(#|$)' optimize/lists/keep.txt | awk '{print $1}' | grep -qxF "$p"; then echo "!! $p is in optimize/lists/keep.txt (a feature people use): it is never turned off here"; continue; fi
+        if grep -qEf <(grep -vE '^[[:space:]]*(#|$)' optimize/lists/core.txt | sed 's/.*/^(&)$/') <<< "$p"; then echo "!! $p is Android's own core: it is never turned off here"; continue; fi
+      fi
       if grep -qxE "$HOME_SWITCH" <<< "$p"; then echo "!! $p belongs to the home screen switch: optimize/restore.sh brings the stock home back, not this"; continue; fi
       if [ -z "$("$PY" -I optimize/tv.py "pm list packages $p" | tr -d '\r' | grep -x "package:$p" || true)" ]; then
         echo "   $p is not on this TV: skipped"; continue
@@ -45,13 +49,14 @@ case "${1:-}" in
       if [ "$mode" = restore ]; then "$PY" -I optimize/offlist.py remember "${done_pkgs[@]}"
       else "$PY" -I optimize/offlist.py forget "${done_pkgs[@]}"; fi
     fi
+    [ "${#done_pkgs[@]}" = 0 ] || optimize/settle.sh mark 2> /dev/null || true   # Android writes the package state ~10 s later: nothing restarts the TV before that
     [ "$mode" = unkeep ] || [ "${#done_pkgs[@]}" = 0 ] || echo "Remembered: a later optimize/run.sh again leaves ${#done_pkgs[@]} of them on."
     exit 0 ;;
   "") ;;
   *) echo "usage: optimize/keep.sh [off | restore <package> … | unkeep <package> …]"; exit 2 ;;
 esac
 listed=$(disabled_list) || { echo "!! Could not ask the TV which packages are off, so the protected features were NOT checked." >&2; exit 1; }
-off=$(printf '%s\n' "$listed" | grep -Fxf <(grep -vE '^\s*(#|$)' optimize/lists/keep.txt | awk '{print $1}') || true)
+off=$(printf '%s\n' "$listed" | grep -Fxf <(grep -vE '^[[:space:]]*(#|$)' optimize/lists/keep.txt | awk '{print $1}') || true)
 # the stock home and setup app are in keep.txt but belong to install.sh launcher: leave them to it
 off=$(printf '%s\n' "$off" | grep -vxE 'com.google.android.apps.tv.launcherx|com.google.android.tvlauncher|com.google.android.tungsten.setupwraith|com.tcl.keycustomfunctionservice' || true)
 if [ -z "$off" ]; then echo "Protected features: all on."; exit 0; fi

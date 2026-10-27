@@ -65,6 +65,7 @@ psget() {
              esac ;;
   esac
 }
+test_build() { "$PY" -I optimize/tv.py "getprop ro.build.type" 2> /dev/null | tr -d '\r' | grep -Eqx 'userdebug|eng'; }   # test-keys alone is common on shipped TVs
 psput() {   # key value
   case "$1" in
     standby_bucket) echo "am set-standby-bucket $PS $2" ;;
@@ -105,13 +106,18 @@ if [ "$1" = apply ]; then
     if [ "$o" = unknown ]; then echo "!! $1: could not read what this TV has, so it is left as it is (nothing to put back)"; return 0; fi
     cmds+=("$(putcmd "$1" "$2")"); want+=("$1=$2")
   }
+  # the Play Store's bucket and appops follow the same rule as the other settings: what the TV had must be known (nothing to put back
+  # otherwise), so an unreadable one is left alone with a !! line
   o=$(original standby_bucket ps)
   case "$o" in
     exempted) echo "The Play Store is exempted from standby on this TV: its standby bucket is left as it is" ;;
+    unknown) echo "!! standby_bucket: could not read what this TV has for the Play Store, so it is left as it is (nothing to put back)" ;;
     *) cmds+=("$(psput standby_bucket restricted)"); pswant+=("standby_bucket=restricted") ;;
   esac
-  cmds+=("$(psput appop_RUN_IN_BACKGROUND deny)" "$(psput appop_RUN_ANY_IN_BACKGROUND deny)")
-  pswant+=("appop_RUN_IN_BACKGROUND=deny" "appop_RUN_ANY_IN_BACKGROUND=deny")
+  for op in RUN_IN_BACKGROUND RUN_ANY_IN_BACKGROUND; do
+    if [ "$(original "appop_$op" ps)" = unknown ]; then echo "!! appop_$op: could not read what this TV has for the Play Store, so it is left as it is (nothing to put back)"
+    else cmds+=("$(psput "appop_$op" deny)"); pswant+=("appop_$op=deny"); fi
+  done
   for k in window_animation_scale transition_animation_scale animator_duration_scale; do change "$k" "$v"; done
   if [ -n "$CACHED" ]; then   # opt-in only (see above); never raise the limit: low-RAM sets may sit below it
     now=$("$PY" -I optimize/tv.py "dumpsys activity settings 2> /dev/null | grep -m1 max_cached_processes" | tr -dc '0-9')
@@ -149,10 +155,8 @@ elif [ -f "$JOURNAL" ]; then
     o=$(jget "$k")
     if [ "$o" = exempted ]; then :   # the system's own exemption: never changed by apply, nothing to put back
     elif [[ "$o" =~ ^[a-z_]+$ ]] && [ "$o" != unknown ]; then cmds+=("$(psput "$k" "$o")"); pswant+=("$k=$o")
-    else   # the original could not be read on this firmware: today's values, said (a bucket put back this way is forced, Android may move it again)
-      d=allow; [ "$k" != standby_bucket ] || d=active
-      echo "!! $k: the TV's own value was not recorded (this firmware does not say), so $d is put back (forced)"
-      cmds+=("$(psput "$k" "$d")")
+    else   # the original could not be read: apply left it alone, so there is nothing to put back (an older apply may have changed it: said)
+      echo "!! $k: the TV's own value was not recorded (this firmware did not say), so it is left as it is; if an older version of these tools changed it, set it in the TV's settings"
     fi
   done
   echo "Putting back the values the TV had before (optimize/run/tweaks-journal.txt)."
@@ -170,7 +174,11 @@ bad=0
 for kv in "${want[@]+"${want[@]}"}"; do verify "${kv%%=*}" "${kv#*=}" || bad=1; done
 for kv in "${pswant[@]+"${pswant[@]}"}"; do   # the standby bucket is the system's to move, so a mismatch is said, not fatal
   got=$(psget "${kv%%=*}")
-  if [ "$got" != "${kv#*=}" ]; then echo "!! ${kv%%=*}: this TV did not take the value (asked for ${kv#*=}, it says $got)"; bad=1; fi
+  if [ "$got" != "${kv#*=}" ]; then
+    if [ "${kv%%=*}" = standby_bucket ] && test_build; then   # a test build (userdebug, test-keys) keeps its own bucket: not a problem to report
+      echo "info: standby_bucket stays $got on this test build (userdebug / test-keys): the system keeps its own standby bucket"
+    else echo "!! ${kv%%=*}: this TV did not take the value (asked for ${kv#*=}, it says $got)"; bad=1; fi
+  fi
 done
 if [ "$1" = restore ] && [ -f "$JOURNAL" ] && [ "$bad" = 0 ]; then mv -f "$JOURNAL" "$JOURNAL_DONE"; fi   # kept when the TV refused something
 if [ "$1" = apply ]; then echo "Animation scale $v, Play Store background: $bg, cached-app freezer: on"

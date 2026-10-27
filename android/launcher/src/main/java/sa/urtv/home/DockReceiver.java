@@ -24,10 +24,18 @@ import java.util.Map;
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.SET_NAMES --es names 'pkg|الاسم;pkg2|'   (empty: back)
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.CLEAR_NAMES
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_SET --es pin 1234   «الرقابة الأبوية»: the master PIN (never printed back)
+ *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_LOCK --es target com.example.app   (PIN_UNLOCK to open it again; a pill: @wifi...)
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_STATUS            what is set
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_OFF               no PIN: nothing asks, kids mode ends, the choices stay
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.PIN_RESET             a forgotten PIN: everything parental back to nothing
  *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.SLEEP_TV [--ei minutes 30 | 0 = cancel]   «مؤقت النوم» for the whole TV
+ *   am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.FAMILY_DNS --es mode on|off|status   «حماية العائلة (DNS)»: on/off
+ *      answers (the shell script depends on these exact lines):
+ *        off     runs here, at once (no network call): "family-dns: RESTORED | NOTHING_TO_RESTORE | RESTORE_FAILED | CHANGED_BY_SOMEONE_ELSE"
+ *                (or "family-dns: busy" while an "on" check runs)
+ *        on      "family-dns: started (on)" and the ~20 s check runs on a background thread; or "family-dns: busy",
+ *                "family-dns: NEEDS_GRANT", "family-dns: UNSUPPORTED"
+ *        status  "family-dns: <on|off|unknown> (<us|other|none>); grant=<yes|no>; last=<RESULT or none>[; working]; supported=<yes|no>"
  *
  * The answer is in the "data" of am's output. optimize/dock.sh wraps them all. People use «ترتيب المفضلة»
  * (DockActivity) instead.
@@ -90,9 +98,37 @@ public class DockReceiver extends BroadcastReceiver {
                 setResultData(SleepTimer.status(c));
                 return;
             }
+            case "sa.urtv.home.FAMILY_DNS": {   // Private DNS -> AdGuard Family, see FamilyDns. mode: on | off | status
+                String m = String.valueOf(i.getStringExtra("mode"));
+                if (!m.equals("on") && !m.equals("off") && !m.equals("status")) { setResultData("error: add --es mode on|off|status"); return; }
+                if (m.equals("off")) {
+                    if (FamilyDnsAndroid.busy()) { setResultData("family-dns: busy"); return; }
+                    setResultData("family-dns: " + FamilyDnsAndroid.disableNow(c).name());
+                    return;
+                }
+                boolean grant = c.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                boolean supported = FamilyDnsAndroid.supported(c);
+                if (m.equals("on")) {
+                    if (!supported) { setResultData("family-dns: UNSUPPORTED"); return; }
+                    if (!grant) { setResultData("family-dns: NEEDS_GRANT"); return; }
+                    setResultData(FamilyDnsAndroid.run(c, true, null) ? "family-dns: started (on)" : "family-dns: busy");
+                    return;
+                }
+                FamilyDns.Status st = FamilyDnsAndroid.status(c);
+                String last = FamilyDnsAndroid.lastResult(c);
+                setResultData("family-dns: " + st + "; grant=" + (grant ? "yes" : "no") + "; last=" + (last.isEmpty() ? "none" : last)
+                    + (FamilyDnsAndroid.busy() ? "; working" : "") + "; supported=" + (supported ? "yes" : "no"));
+                return;
+            }
             case "sa.urtv.home.PIN_SET": {   // from here only: the shell's DUMP is needed to send it, and this is where a forgotten PIN is put right
                 String pin = i.getStringExtra("pin");
                 setResultData(pin == null ? "error: add --es pin 1234 (4 digits)" : Parental.adbSet(c, pin));
+                return;
+            }
+            case "sa.urtv.home.PIN_LOCK":
+            case "sa.urtv.home.PIN_UNLOCK": {   // one app, pill or «قفل الإعدادات»; from here only, like the PIN
+                String target = i.getStringExtra("target");
+                setResultData(target == null ? "error: add --es target com.example.app" : Parental.adbLock(c, target, "sa.urtv.home.PIN_LOCK".equals(action)));
                 return;
             }
             case "sa.urtv.home.PIN_STATUS":
