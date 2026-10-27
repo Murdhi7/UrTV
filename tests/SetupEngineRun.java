@@ -22,11 +22,14 @@ public class SetupEngineRun {
         String webview = "Current WebView package (name, version): (com.google.android.webview, 120.0.6099.144)";
         String sdk = "34";
         boolean silent, dashFailsMarker, wizardAnswersHome, wizardOwnsWifi, nokia, refuseSwitch, noRoleManager, emptyResolve;
+        boolean roleRejected, homeRejected, ignoreRoleBack, appopRefused;
+        String exactAlarm = "default";
         final List<String> log = new ArrayList<>();
 
         String home() {
             if (emptyResolve) return "";
             String h = roleHolder;
+            if (ignoreRoleBack && h.equals("sa.urtv.home") && refuseSwitch) return "com.google.android.tungsten.setupwraith/.RecoveryActivity";   // stuck on the setup wizard's recovery screen
             if (h.equals("sa.urtv.home") && !off.contains("sa.urtv.home")) return refuseSwitch ? stockPkg + "/.home.HomeActivity" : "sa.urtv.home/.MainActivity";
             if (off.contains(h)) return "com.google.android.tungsten.setupwraith/.RecoveryActivity";
             return h + "/.home.HomeActivity";
@@ -37,7 +40,10 @@ public class SetupEngineRun {
             String body = command.contains("\necho URTV_RC=") ? command.substring(0, command.indexOf("\necho URTV_RC=")) : command;
             if (silent) return new AdbClient.Result("", 0);
             String out = answer(body);
-            return new AdbClient.Result(out, 0);
+            int code = 0;
+            if (roleRejected && body.startsWith("cmd role add-role-holder") && body.endsWith("sa.urtv.home")) code = 1;
+            if (homeRejected && body.startsWith("cmd package set-home-activity") && body.contains("sa.urtv.home")) code = 1;
+            return new AdbClient.Result(out, code);
         }
 
         String answer(String c) {
@@ -60,15 +66,23 @@ public class SetupEngineRun {
                 return "Package " + p + " new state: disabled-user\n";
             }
             if (c.startsWith("pm enable ")) { String p = c.substring(c.lastIndexOf(' ') + 1); off.remove(p); return "Package " + p + " new state: enabled\n"; }
-            if (c.startsWith("pm grant ") || c.startsWith("appops set sa.urtv.home SCHEDULE")) return "";
+            if (c.startsWith("pm grant ")) return "";
+            if (c.startsWith("appops get sa.urtv.home SCHEDULE_EXACT_ALARM")) return "SCHEDULE_EXACT_ALARM: " + exactAlarm + "; time=+1d\n";
+            if (c.startsWith("appops set sa.urtv.home SCHEDULE_EXACT_ALARM ")) { if (!appopRefused) exactAlarm = c.substring(c.lastIndexOf(' ') + 1); return ""; }
             if (c.startsWith("appops get sa.urtv.home REQUEST_INSTALL_PACKAGES")) return appops.containsKey("REQUEST_INSTALL_PACKAGES") ? "REQUEST_INSTALL_PACKAGES: " + appops.get("REQUEST_INSTALL_PACKAGES") + "\n" : "No operations.\n";
-            if (c.startsWith("appops set sa.urtv.home REQUEST_INSTALL_PACKAGES ")) { appops.put("REQUEST_INSTALL_PACKAGES", c.substring(c.lastIndexOf(' ') + 1)); return ""; }
+            if (c.startsWith("appops set sa.urtv.home REQUEST_INSTALL_PACKAGES ")) { if (!appopRefused) appops.put("REQUEST_INSTALL_PACKAGES", c.substring(c.lastIndexOf(' ') + 1)); return ""; }
             if (c.startsWith("dumpsys webviewupdate")) return webview + "\n";
             if (c.startsWith("settings get ")) { String[] w = c.split(" "); return settings.getOrDefault(w[2] + "/" + w[3], "null") + "\n"; }
-            if (c.startsWith("settings put ")) { String[] w = c.split(" "); settings.put(w[2] + "/" + w[3], w[4]); return ""; }
+            if (c.startsWith("settings put ")) { String[] w = c.split(" "); settings.put(w[2] + "/" + w[3], w[4].replace("'", "")); return ""; }
             if (c.startsWith("settings delete ")) { String[] w = c.split(" "); settings.remove(w[2] + "/" + w[3]); return ""; }
             if (c.startsWith("cmd role get-role-holders")) return noRoleManager ? "" : roleHolder + "\n";
-            if (c.startsWith("cmd role add-role-holder")) { roleHolder = c.substring(c.lastIndexOf(' ') + 1); return ""; }
+            if (c.startsWith("cmd role add-role-holder")) {
+                String who = c.substring(c.lastIndexOf(' ') + 1);
+                if (roleRejected && who.equals("sa.urtv.home")) return "Error\n";
+                if (ignoreRoleBack && !who.equals("sa.urtv.home")) return "";
+                roleHolder = who;
+                return "";
+            }
             if (c.startsWith("cmd package set-home-activity")) return "";
             if (c.startsWith("cmd package resolve-activity")) return home() + "\n";
             if (c.startsWith("cmd package query-activities")) return "2 activities found:\n  Activity #0:\n    priority=0\n    " + stockPkg + "/.home.HomeActivity\n"
@@ -90,8 +104,10 @@ public class SetupEngineRun {
 
     static final class Dead implements SetupEngine.Deadman {
         int armed = 0, disarmed = 0;
-        public void arm(int seconds) { armed++; }
+        boolean works = true, exact = true;
+        public boolean arm(int seconds) { if (works) armed++; return works; }
         public void disarm() { disarmed++; }
+        public boolean exact() { return exact; }
     }
 
     static FakeTv tv() {
@@ -111,7 +127,7 @@ public class SetupEngineRun {
 
     static String snapshot(FakeTv t) {
         return new TreeSet<>(t.off) + "|" + roleHolderOf(t) + "|" + new TreeSet<>(t.settings.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(java.util.stream.Collectors.toList()))
-            + "|" + (t.appops.getOrDefault("REQUEST_INSTALL_PACKAGES", "default").equals("default") ? "" : t.appops);   // Android's own default is the same as never set
+            + "|" + t.exactAlarm + "|" + (t.appops.getOrDefault("REQUEST_INSTALL_PACKAGES", "default").equals("default") ? "" : t.appops);   // Android's own default is the same as never set
     }
 
     static String roleHolderOf(FakeTv t) { return t.roleHolder; }
@@ -176,6 +192,54 @@ public class SetupEngineRun {
         FakeTv tx = tv(); tx.wizardAnswersHome = true; tx.wizardOwnsWifi = false;
         engine(tx, new Mem(), new Dead(), new ArrayList<>()).home();
         line("G2 wizardDisabled=" + tx.count("pm disable-user --user 0 com.google.android.tungsten.setupwraith"));
+        // L: no alarm could be set: the home switch does not start, nothing on the TV changes
+        FakeTv tl = tv(); Mem ml = new Mem(); Dead dl = new Dead(); dl.works = false;
+        SetupEngine el = engine(tl, ml, dl, new ArrayList<>());
+        SetupEngine.Result rl = el.home();
+        line("L " + rl.status + " state=" + el.journal("state") + " changes=" + (tl.count("cmd role add") + tl.count("pm disable-user") + tl.count("cmd package set-home")) + " deadline=[" + ml.get("home-deadline.txt") + "]");
+        // M: the TV rejects the role (or the home activity): the stock home is never disabled, and it is put back and checked
+        FakeTv tm = tv(); tm.roleRejected = true; Mem mm = new Mem(); Dead dm = new Dead();
+        SetupEngine em = engine(tm, mm, dm, new ArrayList<>());
+        SetupEngine.Result rm = em.home();
+        line("M " + rm.status + " stockDisabled=" + tm.count("pm disable-user --user 0 com.google.android.apps.tv.launcherx") + " " + tm.roleHolder + " state=" + em.journal("state") + " disarmed=" + dm.disarmed);
+        FakeTv tm2 = tv(); tm2.homeRejected = true; Mem mm2 = new Mem();
+        SetupEngine.Result rm2 = engine(tm2, mm2, new Dead(), new ArrayList<>()).home();
+        line("M2 " + rm2.status + " stockDisabled=" + tm2.count("pm disable-user --user 0 com.google.android.apps.tv.launcherx") + " " + tm2.roleHolder);
+        // N: the stock home cannot be CONFIRMED back: not «restored», the safety switch is not disarmed, the journal stays «switching»; a later recovery finishes it
+        FakeTv tn = tv(); tn.refuseSwitch = true; tn.ignoreRoleBack = true; Mem mn = new Mem(); Dead dn = new Dead();
+        SetupEngine en = engine(tn, mn, dn, new ArrayList<>());
+        SetupEngine.Result rn = en.home();
+        line("N " + rn.status + " state=" + en.journal("state") + " disarmed=" + dn.disarmed + " deadlineSet=" + (en.deadline() > 0));
+        tn.ignoreRoleBack = false; tn.refuseSwitch = false; tn.roleHolder = "com.google.android.tungsten.setupwraith";
+        SetupEngine.Result rn2 = en.recoverIfCutOff();
+        line("N2 " + (rn2 == null ? "null" : rn2.status) + " state=" + en.journal("state") + " disarmed=" + dn.disarmed + " deadline=" + en.deadline() + " " + tn.roleHolder);
+        // O: a journal value is never a shell word: a holder that is not a package name falls back to the stock home; a `$Inner` component is quoted
+        FakeTv to = tv(); Mem mo = new Mem(); Dead dno = new Dead(); SetupEngine eo = engine(to, mo, dno, new ArrayList<>());
+        eo.home();
+        mo.put("home-switch.json", mo.get("home-switch.json").replace("\"role_holder_before\": \"com.google.android.apps.tv.launcherx\"", "\"role_holder_before\": \"x; reboot #\""));
+        to.log.clear();
+        eo.undo();
+        boolean evil = false; for (String l : to.log) if (l.contains("reboot")) evil = true;
+        line("O holderOk=" + !evil + " " + to.roleHolder);
+        FakeTv tq = tv(); Mem mq = new Mem(); mq.put("screensaver-before.txt", "a.b/.C$Inner\n1\nnull\n");
+        engine(tq, mq, new Dead(), new ArrayList<>()).undo();
+        boolean quoted = false; for (String l : tq.log) if (l.contains("screensaver_components 'a.b/.C$Inner'")) quoted = true;
+        line("O2 quoted=" + quoted);
+        // Q: the permissions are read back; the exact-alarm mode is given back only when it was changed, as it was
+        FakeTv tg1 = tv(); tg1.appopRefused = true; Mem mg1 = new Mem();
+        SetupEngine eg1 = engine(tg1, mg1, new Dead(), new ArrayList<>());
+        eg1.precheck();
+        SetupEngine.Result rg1 = eg1.grants();
+        FakeTv tg2 = tv(); tg2.exactAlarm = "allow"; Mem mg2 = new Mem(); SetupEngine eg2 = engine(tg2, mg2, new Dead(), new ArrayList<>());
+        eg2.precheck(); eg2.grants(); eg2.undo();
+        FakeTv tg3 = tv(); tg3.exactAlarm = "ignore"; Mem mg3 = new Mem(); SetupEngine eg3 = engine(tg3, mg3, new Dead(), new ArrayList<>());
+        eg3.precheck(); eg3.grants(); String during = tg3.exactAlarm; eg3.undo();
+        line("Q " + rg1.status + " alreadyAllow=" + tg2.exactAlarm + "/" + tg2.count("appops set sa.urtv.home SCHEDULE_EXACT_ALARM") + " ignore->" + during + "->" + tg3.exactAlarm);
+        // R: Android 12+ without the exact-alarm permission: the screen is told it can be late
+        FakeTv tx2 = tv(); Dead dx = new Dead(); dx.exact = false; List<String> saidX = new ArrayList<>();
+        engine(tx2, new Mem(), dx, saidX).home();
+        boolean late = false; for (String l : saidX) if (l.contains("قد يتأخر")) late = true;
+        line("R late=" + late);
         // H: a switch cut off in the middle (the journal says switching, Home is the stock one): recovered; ours is home: left alone
         FakeTv tr = tv(); Mem mr = new Mem(); Dead dr = new Dead();
         SetupEngine er = engine(tr, mr, dr, new ArrayList<>());
@@ -187,12 +251,19 @@ public class SetupEngineRun {
         line("H " + (rr == null ? "null" : rr.status) + " " + er.journal("state") + " " + tr.roleHolder);
         FakeTv ts = tv(); Mem ms = new Mem(); SetupEngine es = engine(ts, ms, new Dead(), new ArrayList<>());
         line("H2 " + (es.recoverIfCutOff() == null));
+        // H3: the journal says switching but ours is Home (it took): confirmed done, the alarm is cancelled
+        FakeTv t3 = tv(); Mem m3 = new Mem(); Dead d3 = new Dead(); SetupEngine e3 = engine(t3, m3, d3, new ArrayList<>());
+        e3.home();
+        m3.put("home-switch.json", m3.get("home-switch.json").replaceAll("(?m)^  \"state\": \".*\",", "  \"state\": \"switching\","));
+        SetupEngine.Result r3 = e3.recoverIfCutOff();
+        line("H3 " + r3.status + " " + e3.journal("state") + " disarmed=" + d3.disarmed);
         // I: no role holder named (an older Android): the app that answers Home is the «before» only when it is the stock home; nothing readable stops the switch
         FakeTv ti = tv(); ti.noRoleManager = true; Mem mi = new Mem();
         engine(ti, mi, new Dead(), new ArrayList<>()).home();
         FakeTv tj = tv(); tj.noRoleManager = true; tj.emptyResolve = true; Mem mj = new Mem();
         SetupEngine.Result rj = engine(tj, mj, new Dead(), new ArrayList<>()).home();
         line("I " + new SetupEngine(ti, mi, s -> { }, new Dead(), ms2 -> { }, "x").journal("role_holder_before") + " " + rj.status + " changes=" + (tj.count("cmd role add") + tj.count("pm disable-user")) + " files=" + mj.files.keySet());
+        line("S " + SetupEngine.backoffSeconds(0) + " " + SetupEngine.backoffSeconds(1) + " " + SetupEngine.backoffSeconds(3) + " " + SetupEngine.backoffSeconds(5) + " " + SetupEngine.backoffSeconds(50));
         // J: the lists: the safe list never holds a package of keep.txt or core.txt
         int bad = 0;
         for (String p : SetupEngine.filterSafe(SetupLists.SAFE)) {

@@ -16,8 +16,8 @@ import java.util.regex.Pattern;
  * its marker. A subset on purpose: the checks, the grants, the safe list, the screensaver and the home switch. Plain Java (the shell, the files
  * and the clock are passed in) so tests/SetupEngineRun.java runs it on a JVM against a fake TV.
  */
-public final class SetupEngine {
-    public static final String SELF = "sa.urtv.home", SAVER = "sa.urtv.screensaver", OURS_DREAM = SAVER + "/.ScreenDream", HOME_ACTIVITY = SELF + "/.MainActivity";
+final class SetupEngine {
+    static final String SELF = "sa.urtv.home", SAVER = "sa.urtv.screensaver", OURS_DREAM = SAVER + "/.ScreenDream", HOME_ACTIVITY = SELF + "/.MainActivity";
     static final String WRAITH = "com.google.android.tungsten.setupwraith";
     static final String LAUNCHERX = "com.google.android.apps.tv.launcherx", LAUNCHERX_HOME = LAUNCHERX + "/.home.HomeActivity";
     static final String TVLAUNCHER = "com.google.android.tvlauncher", TVLAUNCHER_HOME = TVLAUNCHER + "/.MainActivity";
@@ -29,20 +29,23 @@ public final class SetupEngine {
     static final int MIN_WEBVIEW = 80, SAFETY_SECONDS = 300;
 
     /** Runs one command in the TV's shell (an {@link AdbClient} on the TV, a fake in the tests). */
-    public interface Shell { AdbClient.Result run(String command) throws IOException; }
+    interface Shell { AdbClient.Result run(String command) throws IOException; }
     /** Small text files: the ledger and the journals (files in the app's private folder on the TV). */
-    public interface Store { String get(String name); void put(String name, String text) throws IOException; }
+    interface Store { String get(String name); void put(String name, String text) throws IOException; }
     /** One line for the screen (never a name of a network, a serial or an address). */
-    public interface Out { void line(String text); }
-    /** The in-app safety switch: after the given seconds the stock home is put back unless it was disarmed. */
-    public interface Deadman { void arm(int seconds); void disarm(); }
-    public interface Sleeper { void sleep(int ms) throws IOException; }
+    interface Out { void line(String text); }
+    /**
+     * The in-app safety switch: after the given seconds the stock home is put back unless it was disarmed. arm returns false when no alarm could
+     * be set (then the home switch does not start); exact says whether it will fire on time (Android 12 and newer need a permission for that).
+     */
+    interface Deadman { boolean arm(int seconds); void disarm(); boolean exact(); }
+    interface Sleeper { void sleep(int ms) throws IOException; }
 
-    public enum Status { DONE, SKIPPED, FAILED }
+    enum Status { DONE, SKIPPED, FAILED }
 
-    public static final class Result {
-        public final Status status;
-        public final String message;
+    static final class Result {
+        final Status status;
+        final String message;
         Result(Status status, String message) { this.status = status; this.message = message; }
         @Override public String toString() { return status + ": " + message; }
     }
@@ -55,14 +58,14 @@ public final class SetupEngine {
     private final String stamp;
     private int sdk = 0;
 
-    public SetupEngine(Shell sh, Store store, Out out, Deadman deadman, Sleeper sleeper, String stamp) {
+    SetupEngine(Shell sh, Store store, Out out, Deadman deadman, Sleeper sleeper, String stamp) {
         this.sh = sh; this.store = store; this.out = out; this.deadman = deadman; this.sleeper = sleeper; this.stamp = stamp;
     }
 
     // ---- the plan the screen shows before «ابدأ» ------------------------------------------------------------------------------------
 
     /** What the run will do, in order, in words (the screen shows exactly this). */
-    public static List<String> plan() {
+    static List<String> plan() {
         List<String> p = new ArrayList<>();
         p.add("نفحص أن الجهاز تلفزيون أندرويد، وأن التلفزيون يجاوب على أسئلتنا.");
         p.add("نعطي تطبيق تلفزيونك الأذونات اللازمة (الموقع، المنبّهات الدقيقة للأذان، تثبيت التحديثات).");
@@ -73,6 +76,12 @@ public final class SetupEngine {
     }
 
     static int safeCount() { return filterSafe(SetupLists.SAFE).size(); }
+
+    /** One value for the TV's shell, in single quotes: a `$Inner` in a component name must not be expanded there. Never called with an apostrophe in it. */
+    static String q(String v) {
+        if (v.indexOf('\'') >= 0 || v.indexOf('\n') >= 0) throw new IllegalArgumentException("not a value the shell gets");
+        return "'" + v + "'";
+    }
 
     // ---- parsing (pure) -------------------------------------------------------------------------------------------------------------
 
@@ -163,7 +172,7 @@ public final class SetupEngine {
 
     // ---- 1. the checks --------------------------------------------------------------------------------------------------------------
 
-    public Result precheck() throws IOException {
+    Result precheck() throws IOException {
         String sdkText = lastLine(text("getprop ro.build.version.sdk")).replaceAll("[^0-9]", "");
         sdk = sdkText.isEmpty() ? 0 : Integer.parseInt(sdkText);
         String features = text("pm list features");
@@ -176,24 +185,44 @@ public final class SetupEngine {
 
     // ---- 2. the grants (optimize/install.sh) ----------------------------------------------------------------------------------------
 
-    public Result grants() throws IOException {
-        sh.run("pm grant " + SELF + " android.permission.ACCESS_FINE_LOCATION");
-        if (sdk >= 31) sh.run("appops set " + SELF + " SCHEDULE_EXACT_ALARM allow");
+    /** allow, ignore, deny, default or foreground from an `appops get` answer; «» when the TV said nothing usable. */
+    static String modeOf(String text) {
+        if (text == null) return "";
+        Matcher m = Pattern.compile("[A-Z_]+: *(allow|ignore|deny|default|foreground)").matcher(text);
+        if (m.find()) return m.group(1);
+        return text.contains("No operations") ? "default" : "";
+    }
+
+    Result grants() throws IOException {
+        List<String> bad = new ArrayList<>();
+        if (sh.run("pm grant " + SELF + " android.permission.ACCESS_FINE_LOCATION").code != 0) bad.add("الموقع");
+        if (sdk >= 31) {
+            // exact alarms for the adhan; the mode it had is kept once, so the undo gives back that and nothing else
+            String was = modeOf(text("appops get " + SELF + " SCHEDULE_EXACT_ALARM"));
+            if (!was.equals("allow")) {
+                String saved = store.get("exact-alarm-appop.txt");
+                if ((saved == null || saved.trim().isEmpty()) && !was.isEmpty()) store.put("exact-alarm-appop.txt", was + "\n");
+                sh.run("appops set " + SELF + " SCHEDULE_EXACT_ALARM allow");
+                if (!modeOf(text("appops get " + SELF + " SCHEDULE_EXACT_ALARM")).equals("allow")) bad.add("المنبّهات الدقيقة");
+            }
+        }
         // «install unknown apps» for the TV's own update: the mode it had is kept once, and only Android's own default is replaced
         String saved = store.get("install-appop.txt");
         if (saved == null || saved.trim().isEmpty()) {
-            String now = text("appops get " + SELF + " REQUEST_INSTALL_PACKAGES");
-            Matcher m = Pattern.compile("REQUEST_INSTALL_PACKAGES: *(allow|ignore|deny|default|foreground)").matcher(now);
-            String mode = m.find() ? m.group(1) : now.contains("No operations") ? "default" : "";
+            String mode = modeOf(text("appops get " + SELF + " REQUEST_INSTALL_PACKAGES"));
             if (!mode.isEmpty()) { store.put("install-appop.txt", mode + "\n"); saved = mode; }
         }
-        if (saved != null && saved.trim().equals("default")) sh.run("appops set " + SELF + " REQUEST_INSTALL_PACKAGES allow");
+        if (saved != null && saved.trim().equals("default")) {
+            sh.run("appops set " + SELF + " REQUEST_INSTALL_PACKAGES allow");
+            if (!modeOf(text("appops get " + SELF + " REQUEST_INSTALL_PACKAGES")).equals("allow")) bad.add("تثبيت التحديثات");
+        }
+        if (!bad.isEmpty()) return failed("لم يقبل التلفزيون بعض الأذونات (" + String.join("، ", bad) + "). أكمل الإعداد؛ تلك الميزات قد لا تعمل.");
         return done("أعطينا تلفزيونك الأذونات اللازمة.");
     }
 
     // ---- 3. the safe list (optimize/disable.sh) -------------------------------------------------------------------------------------
 
-    public Result debloat() throws IOException {
+    Result debloat() throws IOException {
         List<String> pkgs = filterSafe(SetupLists.SAFE);
         Set<String> installed = packages("pm list packages"), wasOff = packages("pm list packages -d");
         if (installed == null || wasOff == null) {
@@ -222,7 +251,7 @@ public final class SetupEngine {
 
     // ---- 4. the screensaver (optimize/install.sh saver) -----------------------------------------------------------------------------
 
-    public Result screensaver() throws IOException {
+    Result screensaver() throws IOException {
         Set<String> pk = packages("pm list packages");
         if (pk == null) return failed("لم يقل التلفزيون قائمة تطبيقاته، فما غيّرنا شاشة التوقف.");
         if (!pk.contains(SAVER)) return skipped("شاشة التوقف غير مثبّتة بعد: ثبّتها من «تحديث تلفزيوني» ثم أعد الإعداد. ما غيّرنا شيئاً.");
@@ -237,8 +266,8 @@ public final class SetupEngine {
             store.put("screensaver-before.txt", comps + "\n" + enabled + "\n" + def + "\n");
         }
         sh.run("settings put secure screensaver_enabled 1");
-        sh.run("settings put secure screensaver_components " + OURS_DREAM);
-        sh.run("settings put secure screensaver_default_component " + OURS_DREAM);
+        sh.run("settings put secure screensaver_components " + q(OURS_DREAM));
+        sh.run("settings put secure screensaver_default_component " + q(OURS_DREAM));
         String got = setting("secure", "screensaver_components");
         if (got == null || !got.contains(SAVER + "/")) return failed("التلفزيون لم يقبل شاشة التوقف؛ اخترها من إعدادات التلفزيون (شاشة التوقف). «تراجع» يرجع ما كان.");
         return done("فعّلنا شاشة التوقف.");
@@ -278,7 +307,7 @@ public final class SetupEngine {
 
     private boolean ours(String top) { return top.contains(SELF + "/") && top.contains("MainActivity"); }
 
-    public Result home() throws IOException {
+    Result home() throws IOException {
         Set<String> pk = packages("pm list packages");
         if (pk == null) return failed("لم يقل التلفزيون قائمة تطبيقاته، فما بدّلنا الشاشة الرئيسية.");
         String stock = pk.contains(LAUNCHERX) ? LAUNCHERX_HOME : pk.contains(TVLAUNCHER) ? TVLAUNCHER_HOME : null;
@@ -294,7 +323,7 @@ public final class SetupEngine {
         }
         // who held Home before (the undo gives it back): the role, else the journal of an earlier try, else the app that answers Home now
         String holder = roleHolder();
-        if (holder.equals(SELF) || holder.isEmpty()) holder = journal("role_holder_before");
+        if (holder.equals(SELF) || holder.isEmpty()) holder = journalHolder();
         if (holder.isEmpty()) {
             if (res.isEmpty()) return failed("لم نعرف أي تطبيق هو الشاشة الرئيسية الآن، فما بدّلناها (لن نقدر نرجع الصحيح). جرّب مرة ثانية.");
             String pkg = res.contains("/") ? res.substring(0, res.indexOf('/')) : "";
@@ -306,39 +335,79 @@ public final class SetupEngine {
         if (wiz.equals("disabled") && "enabled".equals(journal("wizard_before"))) wiz = "enabled";    // we turned it off in an earlier try
         if (stk.equals("disabled") && "enabled".equals(journal("stock_before"))) stk = "enabled";
         journalWrite("switching", stock, holder, wiz, stk, "armed");
-        deadman.arm(SAFETY_SECONDS);
-        out.line("الشاشة الأصلية سترجع وحدها بعد 5 دقائق إن لم تنجح الشاشة الجديدة.");
-        sh.run("cmd role add-role-holder --user 0 android.app.role.HOME " + SELF);
-        sh.run("cmd package set-home-activity --user 0 " + HOME_ACTIVITY);
-        if (wizardListed) sh.run("pm disable-user --user 0 " + WRAITH);
-        String disableOut = text("pm disable-user --user 0 " + stockPkg);
-        if (disableOut.toLowerCase().contains("illegal")) {   // Nokia Streaming Box 8000: no switch there
-            putStockBack(stock, stockPkg, holder, wizardListed);
-            deadman.disarm();
-            journalState("restored");
-            return skipped("هذا الجهاز لا يسمح بإيقاف شاشته الرئيسية الأصلية («This command is illegal»)، فبقيت كما هي. بقية الإعداد لا تحتاجها.");
+        // the safety switch first, and the switch does not start without it: its deadline is on disk, so a restart or a force-stop does not lose it
+        store.put("home-deadline.txt", (now() + SAFETY_SECONDS * 1000L) + "\n");
+        if (!deadman.arm(SAFETY_SECONDS)) {
+            clearDeadline();
+            journalState("aborted");
+            return failed("ما قدرنا نضبط مفتاح الأمان (منبّه الرجوع للشاشة الأصلية)، فما بدّلنا الشاشة الرئيسية. ما غيّرنا شيئاً.");
         }
-        sh.run("cmd package set-home-activity --user 0 " + HOME_ACTIVITY);
+        if (!deadman.exact()) out.line("مفتاح الأمان قد يتأخر بضع دقائق على هذا التلفزيون (لا إذن للمنبّهات الدقيقة)، فلا تطفئه أثناء الإعداد.");
+        out.line("الشاشة الأصلية سترجع وحدها بعد 5 دقائق إن لم تنجح الشاشة الجديدة.");
+        AdbClient.Result role = sh.run("cmd role add-role-holder --user 0 android.app.role.HOME " + SELF);
+        AdbClient.Result setHome = sh.run("cmd package set-home-activity --user 0 " + q(HOME_ACTIVITY));
+        boolean roleOk = role.code == 0 || (sdk > 0 && sdk < 29);    // Android 9 and older have no `cmd role`
+        if (!roleOk || setHome.code != 0) return abort(stock, stockPkg, holder, "ما قبل التلفزيون تعيين شاشتنا شاشةً رئيسية، فما عطّلنا الأصلية.", false);
+        if (wizardListed) sh.run("pm disable-user --user 0 " + WRAITH);
+        AdbClient.Result disable = sh.run("pm disable-user --user 0 " + stockPkg);
+        if (disable.output.toLowerCase().contains("illegal")) {   // Nokia Streaming Box 8000: no switch there
+            return abort(stock, stockPkg, holder, "هذا الجهاز لا يسمح بإيقاف شاشته الرئيسية الأصلية («This command is illegal»)، فبقيت كما هي. بقية الإعداد لا تحتاجها.", true);
+        }
+        if (disable.code != 0) return abort(stock, stockPkg, holder, "ما قبل التلفزيون إيقاف الشاشة الرئيسية الأصلية.", false);
+        sh.run("cmd package set-home-activity --user 0 " + q(HOME_ACTIVITY));
         sh.run("am force-stop com.android.tv.settings");
         sh.run("input keyevent KEYCODE_HOME");
         boolean ok = verifyHome();
         if (!ok) {
             out.line("الشاشة الرئيسية لم تفتح تلفزيونك: نسأل مرة ثانية.");
             sh.run("cmd role add-role-holder --user 0 android.app.role.HOME " + SELF);
-            sh.run("cmd package set-home-activity --user 0 " + HOME_ACTIVITY);
+            sh.run("cmd package set-home-activity --user 0 " + q(HOME_ACTIVITY));
             sh.run("input keyevent KEYCODE_HOME");
             ok = verifyHome();
         }
-        if (!ok) {
-            putStockBack(stock, stockPkg, holder, wizardListed);
-            deadman.disarm();
-            journalState("restored");
-            return failed("الشاشة الرئيسية لم تفتح تلفزيونك، فرجّعنا الشاشة الأصلية. ما ضاع شيء.");
-        }
+        if (!ok) return abort(stock, stockPkg, holder, "الشاشة الرئيسية لم تفتح تلفزيونك.", false);
         deadman.disarm();
+        clearDeadline();
         journalState("done");
         for (String h : SetupLists.HOME_HELPERS) if (pk.contains(h)) sh.run("pm disable-user --user 0 " + h);   // only now: the stock home's helpers are dead weight
         return done("تلفزيونك الآن هو الشاشة الرئيسية. اضغط زر الرئيسية في الريموت للتأكد.");
+    }
+
+    /**
+     * The switch cannot go on: the stock home is put back and CHECKED (Home resolves to it). Only then is the journal «restored» and the safety switch
+     * disarmed; if Home cannot be confirmed, both stay, so the safety switch keeps trying by itself.
+     */
+    private Result abort(String stock, String stockPkg, String holder, String why, boolean skipOnly) throws IOException {
+        if (putStockBack(stock, stockPkg, holder, false)) {
+            deadman.disarm();
+            clearDeadline();
+            journalState("restored");
+            return skipOnly ? skipped(why) : failed(why + " رجّعنا الشاشة الأصلية وتأكدنا منها. ما ضاع شيء.");
+        }
+        return failed(why + " حاولنا إرجاع الشاشة الأصلية ولم نتأكد منها بعد؛ مفتاح الأمان سيعيد المحاولة تلقائياً. إن لم تظهر فاضغط «تراجع».");
+    }
+
+    private void clearDeadline() throws IOException { store.put("home-deadline.txt", ""); }
+
+    long now() { return System.currentTimeMillis(); }
+
+    /** The wait in seconds before retry number n of the safety switch: 30, 60, 120, 240, 480, then 600 at most. */
+    static int backoffSeconds(int n) {
+        long w = 30;
+        for (int i = 0; i < n && w < 600; i++) w *= 2;
+        return (int) Math.min(w, 600);
+    }
+
+    /** The deadline of the safety switch in epoch milliseconds, 0 when none is set. */
+    long deadline() {
+        String d = store.get("home-deadline.txt");
+        try { return d == null || d.trim().isEmpty() ? 0 : Long.parseLong(d.trim()); } catch (NumberFormatException e) { return 0; }
+    }
+
+    /** The package that held Home before, from the journal: a package name or the stock home (a journal value is never trusted as a shell word). */
+    private String journalHolder() {
+        String h = journal("role_holder_before");
+        return PKG.matcher(h).matches() && !h.equals(SELF) ? h : "";
     }
 
     /** Home really resolves to ours AND ours is what is on screen after Home (a few tries: a slow TV). */
@@ -353,39 +422,56 @@ public final class SetupEngine {
         return false;
     }
 
-    private void putStockBack(String stock, String stockPkg, String holder, boolean wizardWasListed) throws IOException {
-        String back = holder.isEmpty() || holder.equals(SELF) ? stockPkg : holder;
-        sh.run("pm enable " + stockPkg);
+    /**
+     * The stock home (or the app that held Home before) is given Home again, and then CHECKED: Home must resolve to it. withHelpers: the stock
+     * home's helpers come back too (the undo). Returns whether Home is confirmed; nothing says «restored» before this is true.
+     */
+    private boolean putStockBack(String stock, String stockPkg, String holder, boolean withHelpers) throws IOException {
+        String back = holder.isEmpty() || holder.equals(SELF) || !PKG.matcher(holder).matches() ? stockPkg : holder;
+        if (withHelpers) for (String h : SetupLists.HOME_HELPERS) sh.run("pm enable " + h);
         sh.run("pm enable " + WRAITH);
+        sh.run("pm enable " + stockPkg);
         if (!back.equals(stockPkg)) sh.run("pm enable " + back);
         sh.run("cmd role add-role-holder --user 0 android.app.role.HOME " + back);
-        if (back.equals(stockPkg)) sh.run("cmd package set-home-activity --user 0 " + stock);
+        if (back.equals(stockPkg)) sh.run("cmd package set-home-activity --user 0 " + q(stock));
         if (stockPkg.equals(LAUNCHERX)) sh.run("cmd notification allow_listener " + NOTIFICATION_LISTENER);
         sh.run("input keyevent KEYCODE_HOME");
+        for (int i = 0; i < 3; i++) {
+            sleeper.sleep(3000);
+            if (resolveHome().startsWith(back + "/")) return true;
+            sh.run("input keyevent KEYCODE_HOME");
+        }
+        return false;
     }
 
     /**
-     * At the start of the app and when the safety switch fires: a switch that was cut off (the connection dropped, the TV restarted) is undone
-     * from the journal, but only when Home is not ours. Returns null when there was nothing to do.
+     * At the start of the app, at boot, and when the safety switch fires: a switch that was cut off (the connection dropped, the TV restarted) is
+     * undone from the journal when Home is not ours. «switching» stays until the stock home is CHECKED; null when there was nothing to do.
      */
-    public Result recoverIfCutOff() throws IOException {
+    Result recoverIfCutOff() throws IOException {
         if (!"switching".equals(journal("state"))) return null;
         String res = resolveHome();
-        if (res.isEmpty()) return failed("بدأ تبديل الشاشة الرئيسية ثم انقطع، والتلفزيون لا يجاوب الآن. افتح هذه الشاشة وهو شغّال وسنتحقق.");
-        if (res.startsWith(SELF + "/")) return null;     // ours is home: the next «ابدأ» checks it
+        if (res.isEmpty()) return failed("بدأ تبديل الشاشة الرئيسية ثم انقطع، والتلفزيون لا يجاوب الآن. سنعيد المحاولة تلقائياً.");
+        if (res.startsWith(SELF + "/")) {    // ours is Home, and this code is running: the switch took
+            deadman.disarm();
+            clearDeadline();
+            journalState("done");
+            return done("اكتمل تبديل الشاشة الرئيسية الذي انقطع؛ تلفزيونك هو الشاشة الرئيسية.");
+        }
         String stock = journal("stock");
         if (stock.isEmpty() || !COMPONENT.matcher(stock).matches()) return failed("سجل التبديل ناقص، فاضغط «تراجع».");
         String pkg = stock.substring(0, stock.indexOf('/'));
-        putStockBack(stock, pkg, journal("role_holder_before"), false);
+        if (!putStockBack(stock, pkg, journalHolder(), false)) return failed("حاولنا إرجاع الشاشة الأصلية ولم نتأكد منها بعد؛ سنعيد المحاولة تلقائياً.");
         deadman.disarm();
+        clearDeadline();
         journalState("restored");
-        return done("كان تبديل الشاشة الرئيسية قد انقطع؛ رجّعنا الشاشة الأصلية.");
+        return done("كان تبديل الشاشة الرئيسية قد انقطع؛ رجّعنا الشاشة الأصلية وتأكدنا منها.");
     }
 
     // ---- the undo (optimize/restore.sh) ---------------------------------------------------------------------------------------------
 
     /** The home first (never leave the TV without one), then the apps in the ledger, the screensaver and the appops as they were. */
-    public Result undo() throws IOException {
+    Result undo() throws IOException {
         List<String> problems = new ArrayList<>();
         String stock = journal("stock");
         if (stock.isEmpty() || !COMPONENT.matcher(stock).matches()) {
@@ -395,18 +481,13 @@ public final class SetupEngine {
         }
         if (!stock.isEmpty()) {
             String pkg = stock.substring(0, stock.indexOf('/'));
-            for (String h : SetupLists.HOME_HELPERS) sh.run("pm enable " + h);
-            sh.run("pm enable " + WRAITH);
-            String holder = journal("role_holder_before");
-            if (holder.isEmpty() || holder.equals(SELF)) holder = pkg;
-            sh.run("pm enable " + pkg);
-            if (!holder.equals(pkg)) sh.run("pm enable " + holder);
-            sh.run("cmd role add-role-holder --user 0 android.app.role.HOME " + holder);
-            if (holder.equals(pkg)) sh.run("cmd package set-home-activity --user 0 " + stock);
-            if (pkg.equals(LAUNCHERX)) sh.run("cmd notification allow_listener " + NOTIFICATION_LISTENER);
-            sh.run("input keyevent KEYCODE_HOME");
-            deadman.disarm();
-            if (store.get("home-switch.json") != null) journalState("restored");
+            if (putStockBack(stock, pkg, journalHolder(), true)) {
+                deadman.disarm();
+                clearDeadline();
+                if (store.get("home-switch.json") != null) journalState("restored");
+            } else {
+                problems.add("لم نتأكد من رجوع الشاشة الرئيسية الأصلية؛ تركنا مفتاح الأمان يعيد المحاولة. إن لم تظهر فاضغط «تراجع» مرة ثانية.");
+            }
         } else {
             problems.add("ما عرفنا الشاشة الرئيسية الأصلية، فاضغط زر الرئيسية؛ وإن لم يفتح شيء فاختر الشاشة من إعدادات التلفزيون (التطبيقات، التطبيقات الافتراضية).");
         }
@@ -417,12 +498,11 @@ public final class SetupEngine {
         if (off == null) {
             problems.add("أرجعنا التطبيقات لكن التلفزيون لم يؤكد القائمة؛ اضغط «تراجع» مرة ثانية.");
         } else {
-            List<String> still = new ArrayList<>();
-            for (String p : ledger) if (off.contains(p)) { sh.run("pm enable --user 0 " + p); still.add(p); }
-            Set<String> off2 = still.isEmpty() ? off : packages("pm list packages -d");
+            boolean again = false;
+            for (String p : ledger) if (off.contains(p)) { sh.run("pm enable --user 0 " + p); again = true; }
+            Set<String> off2 = again ? packages("pm list packages -d") : off;
             List<String> keep = new ArrayList<>();
-            if (off2 != null) for (String p : ledger) if (off2.contains(p)) keep.add(p);
-            if (off2 == null) keep = ledger;
+            if (off2 == null) keep = ledger; else for (String p : ledger) if (off2.contains(p)) keep.add(p);
             StringBuilder b = new StringBuilder();
             for (String p : keep) b.append(p).append('\n');
             store.put("disabled-by-us.txt", b.toString());
@@ -436,14 +516,18 @@ public final class SetupEngine {
                 String comps = v[0].trim(), enabled = v[1].trim();
                 sh.run("settings delete secure screensaver_default_component");
                 if (comps.equals("null") || comps.contains(SAVER + "/")) sh.run("settings delete secure screensaver_components");
-                else if (COMPONENT.matcher(comps.split(",")[0]).matches() && comps.matches("[A-Za-z0-9_.$/,]+")) sh.run("settings put secure screensaver_components " + comps);
+                else if (comps.matches("[A-Za-z0-9_.$/,]+") && COMPONENT.matcher(comps.split(",")[0]).matches()) sh.run("settings put secure screensaver_components " + q(comps));
                 if (enabled.equals("null")) sh.run("settings delete secure screensaver_enabled");
                 else if (enabled.matches("[01]")) sh.run("settings put secure screensaver_enabled " + enabled);
                 store.put("screensaver-before.txt", "");
             }
         }
-        // the appops
-        sh.run("appops set " + SELF + " SCHEDULE_EXACT_ALARM default");
+        // the appops: only what we changed, back to the mode it had
+        String exact = store.get("exact-alarm-appop.txt");
+        if (exact != null && exact.trim().matches("ignore|deny|default|foreground")) {
+            sh.run("appops set " + SELF + " SCHEDULE_EXACT_ALARM " + exact.trim());
+            store.put("exact-alarm-appop.txt", "");
+        }
         String mode = store.get("install-appop.txt");
         if (mode != null && mode.trim().matches("allow|ignore|deny|default|foreground")) sh.run("appops set " + SELF + " REQUEST_INSTALL_PACKAGES " + mode.trim());
         if (!problems.isEmpty()) return failed(String.join(" ", problems));

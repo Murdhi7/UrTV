@@ -46,6 +46,19 @@ final class AdbKeys {
         }
     }
 
+    /**
+     * The key is a standing credential once the person has accepted «السماح دائماً» on the TV: it is deleted when the setup (or the undo) is finished
+     * and no safety switch is pending. The next run makes a new key and the TV asks again; the old authorization can be revoked in the TV's
+     * developer options («إلغاء تراخيص تصحيح USB»).
+     */
+    static synchronized void delete(Context c) {
+        File dir = c.getFilesDir();
+        new File(dir, "adbkey").delete();
+        new File(dir, "adbkey.pub").delete();
+        new File(dir, "adbkey.tmp").delete();
+        new File(dir, "adbkey.pub.tmp").delete();
+    }
+
     private static byte[] readFile(File f) throws IOException {
         try (FileInputStream in = new FileInputStream(f)) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();

@@ -12,6 +12,8 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import sa.urtv.home.SetupGate;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -47,9 +49,11 @@ public class SetupActivity extends Activity {
             + "عند الضغط على «ابدأ» سيسألك التلفزيون «السماح بتصحيح USB؟»: اختر «السماح دائماً».", 13, "Regular", GOLD), right(dp(14)));
 
         start = button("ابدأ", GOLD, INK);
+        start.setFilterTouchesWhenObscured(true);   // another window over this screen cannot press the buttons
         start.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { go(false); } });
         col.addView(start, right(dp(10)));
         undo = button("تراجع (يرجّع التلفزيون كما كان)", 0x33FFFFFF, TEXT);
+        undo.setFilterTouchesWhenObscured(true);
         undo.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { go(true); } });
         col.addView(undo, right(dp(14)));
 
@@ -59,12 +63,29 @@ public class SetupActivity extends Activity {
         col.addView(log, right(0));
         setContentView(scroll);
         start.requestFocus();
-        if (new FileStore(this).get("home-switch.json") != null && new FileStore(this).get("home-switch.json").contains("\"state\": \"switching\"")) {
-            status.setText("بدأ تبديل سابق للشاشة الرئيسية ولم يكتمل. إن لم تظهر الشاشة الأصلية وحدها فاضغط «تراجع».");
+        if (SetupRecovery.pending(this)) {
+            // a home switch was cut off (the app was closed, the TV restarted): the safety switch is set again from its saved deadline, and one attempt is made now
+            status.setText("بدأ تبديل سابق للشاشة الرئيسية ولم يكتمل. نحاول إرجاع الشاشة الأصلية الآن؛ إن لم تظهر وحدها فاضغط «تراجع».");
+            SetupRecovery.rearmFromDisk(this);
+            new Thread(new Runnable() {
+                @Override public void run() {
+                    SetupEngine.Result r = SetupRecovery.attempt(SetupActivity.this, new SetupEngine.Out() { @Override public void line(String t) { SetupActivity.this.line(t); } });
+                    if (r != null) {
+                        final String m = r.message;
+                        runOnUiThread(new Runnable() { @Override public void run() { status.setText(m); } });
+                    }
+                }
+            }, "setup-recover").start();
         }
     }
 
     private void go(final boolean undoIt) {
+        if (running) return;
+        // with a family PIN set, the PIN first
+        SetupGate.guard(this, new Runnable() { @Override public void run() { goAfterPin(undoIt); } }, new Runnable() { @Override public void run() { } });
+    }
+
+    private void goAfterPin(final boolean undoIt) {
         if (running) return;
         running = true;
         start.setAlpha(.5f);
@@ -75,12 +96,15 @@ public class SetupActivity extends Activity {
             @Override public void run() {
                 String end;
                 int color = GOLD;
+                boolean finished = false;
                 try (SetupSession s = SetupSession.open(SetupActivity.this, 180_000, new AdbClient.Approval() {
                     @Override public void waiting() { line("التلفزيون يسأل «السماح بتصحيح USB؟»: اختر «السماح دائماً» بالريموت."); }
                 }, new SetupEngine.Out() { @Override public void line(String t) { SetupActivity.this.line(t); } })) {
                     SetupEngine e = s.engine;
                     if (undoIt) {
-                        end = e.undo().status == SetupEngine.Status.DONE ? "تم الرجوع." : "انتهى الرجوع مع ملاحظات (فوق).";
+                        boolean ok = e.undo().status == SetupEngine.Status.DONE;
+                        end = ok ? "تم الرجوع. أطفئ «تصحيح USB» من خيارات المطوّر، واختر «إلغاء تراخيص تصحيح USB» لتنظيف التلفزيون." : "انتهى الرجوع مع ملاحظات (فوق).";
+                        finished = ok;
                     } else {
                         SetupEngine.Result pre = e.precheck();
                         if (pre.status != SetupEngine.Status.DONE) {
@@ -90,7 +114,8 @@ public class SetupActivity extends Activity {
                             int failed = 0, skipped = 0;
                             SetupEngine.Result[] rs = {e.grants(), e.debloat(), e.screensaver(), e.home()};
                             for (SetupEngine.Result r : rs) { if (r.status == SetupEngine.Status.FAILED) failed++; else if (r.status == SetupEngine.Status.SKIPPED) skipped++; }
-                            end = failed == 0 && skipped == 0 ? "انتهى الإعداد. اضغط زر الرئيسية في الريموت."
+                            finished = failed == 0;
+                            end = failed == 0 && skipped == 0 ? "انتهى الإعداد. اضغط زر الرئيسية في الريموت. ثم أطفئ «تصحيح USB» من خيارات المطوّر واختر «إلغاء تراخيص تصحيح USB» إن لم تحتجهما (التراجع من هنا يحتاجهما)."
                                 : "انتهى الإعداد مع " + failed + " خطوة لم تتم و" + skipped + " تُركت (التفاصيل فوق). «تراجع» يرجّع كل شيء.";
                             if (failed > 0) color = RED;
                         }
@@ -102,6 +127,7 @@ public class SetupActivity extends Activity {
                     end = "حدث خطأ غير متوقع، ما غيّرنا شيئاً بعده. جرّب «تراجع» ثم أعد.";
                     color = RED;
                 }
+                if (finished) SetupSession.deleteKeyIfFinished(SetupActivity.this);   // the key is a standing credential: gone once the job is done
                 final String msg = end;
                 final int c = color;
                 runOnUiThread(new Runnable() {

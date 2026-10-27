@@ -35,6 +35,16 @@ Path 1 needs no other device at all, so it is also the answer for an iPad that c
   before in a **journal** (`home-switch.json`, the same fields), and a **safety switch** (an alarm inside the app) puts the stock home back after 5 minutes unless the new home
   is confirmed on screen.
 
+**The safety switch** is an alarm inside the app, set (and checked) **before** anything is changed: if the alarm cannot be set, the home switch does not start. Its deadline is also saved on disk. If the TV restarts or the app is
+force-stopped in the middle, the TV's start (a boot receiver) and the setup screen set it again and try to put the stock home back; each try sets the next one first (after 30 s, then 1, 2, 4, 8 and 10 minutes), and the journal
+says «restored» only once Home is **confirmed** to be the stock home. On Android 12 and newer without the exact-alarm permission the alarm can be minutes late, and the screen says so.
+
+**With a family PIN set**, «ابدأ» and «تراجع» ask for it first. The screen is also kept out of the home screen's own apps grid.
+
+**The ADB key.** While USB debugging is on, adbd listens on TCP 5555 on the whole Wi-Fi, not only on the TV: another device there can make the TV show the "Allow USB debugging?" prompt, but it cannot get in unless
+someone accepts it. «السماح دائماً» makes this app's key a standing credential, so the app **deletes its key** when the setup (or the undo) has finished and no safety switch is pending; a later run asks again.
+On the done screen the app says to turn **USB debugging off** (Developer options) and to use **«إلغاء تراخيص تصحيح USB»** (Revoke USB debugging authorizations) if the person does not need them. «تراجع» from the app needs debugging on again.
+
 **«تراجع»** (Undo) is one button: it puts the stock home and the HOME role back first, then turns the ledger's apps on again, the screensaver as the TV had it, and the permissions as they were. It follows `optimize/restore.sh`.
 If the app is closed in the middle of the home switch, opening «إعداد تلفزيوني» again says so, and «تراجع» finishes the job.
 
@@ -97,3 +107,14 @@ optimize/run.sh
 - **Not tested:** a real iSH (no registry or device here): the `apk add` names above come from Alpine's package index and were not run on iSH; `py3-cryptography` has to exist for 32-bit x86 in the Alpine
   that iSH uses (if `apk` cannot find it, `optimize/setup.sh` stops with a clear line, and the answer is path 1); `android-tools` (the `adb` program, needed only for Wireless-debugging pairing) may be missing for iSH.
 - **If something does not work on iSH, use path 1:** it needs no other device at all, and the TV does the work itself.
+
+### The TV test this path still needs (nothing here has run on a real TV)
+
+1. A first run with «السماح دائماً»: the prompt appears once; all five steps; Home is ours; the journal/ledger files exist in the app's folder.
+2. A second run: the TV asks again (the key was deleted after run 1: check that, and that the old authorization can be revoked), then «تلفزيونك هو الشاشة الرئيسية أصلاً» or a clean repeat.
+3. **Deny** the prompt: «لم تُقبل رسالة …», nothing changed.
+4. **USB debugging off**: «تصحيح USB مطفأ», nothing changed.
+5. The safety switch: start the home switch and **restart the TV** in the middle; then again with **Force-stop** of the app in the middle. In both, the stock home must come back by itself, and the journal must say «restored».
+6. «تراجع» after a good run: everything as before (stock home, apps, screensaver, permissions).
+7. With a family PIN set: both buttons ask for it.
+

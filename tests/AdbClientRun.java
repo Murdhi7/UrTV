@@ -138,19 +138,15 @@ public class AdbClientRun {
                     out.write(frame(AdbClient.OKAY, remote, m.arg0, null));
                     String text = answer(cmd);
                     byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
-                    int half = bytes.length / 2;
-                    if (bytes.length > 0) {
-                        out.write(frame(AdbClient.WRTE, remote, m.arg0, java.util.Arrays.copyOfRange(bytes, 0, half)));
+                    int chunk = Math.max(1, Math.min(60_000, bytes.length / 2));   // at least two messages: the client reassembles them
+                    for (int off = 0; off < bytes.length; off += chunk) {
+                        out.write(frame(AdbClient.WRTE, remote, m.arg0, java.util.Arrays.copyOfRange(bytes, off, Math.min(bytes.length, off + chunk))));
                         out.flush();
                         AdbClient.Message ok = read(in);   // the client acknowledges
-                        if (ok.command != AdbClient.OKAY) throw new IOException("no OKAY");
-                        out.write(frame(AdbClient.WRTE, remote, m.arg0, java.util.Arrays.copyOfRange(bytes, half, bytes.length)));
-                        out.flush();
-                        ok = read(in);
+                        if (ok.command == AdbClient.CLSE) break;   // it gave up (too much output)
                         if (ok.command != AdbClient.OKAY) throw new IOException("no OKAY");
                     }
-                    out.write(frame(AdbClient.CLSE, remote, m.arg0, null)); out.flush();
-                    read(in);   // the client's CLSE
+                    try { out.write(frame(AdbClient.CLSE, remote, m.arg0, null)); out.flush(); read(in); } catch (IOException gone) { return; }   // the client's CLSE
                 } else if (m.command == AdbClient.CLSE || m.command == AdbClient.OKAY) {
                     continue;
                 }
@@ -165,6 +161,7 @@ public class AdbClientRun {
             if (i >= 0) { body = cmd.substring(0, i); rc = "SILENT".equals(body) ? "" : (body.startsWith("fail") ? "URTV_RC=3\n" : "URTV_RC=0\n"); }
             if ("SILENT".equals(body)) return "no marker here\n";
             if (body.equals("garbled")) return "x\nURTV_RC=abc\n";
+            if (body.equals("huge")) { StringBuilder b = new StringBuilder(); for (int k = 0; k < 70_000; k++) b.append("0123456789012345678901234567890\n"); return b.toString(); }
             return "out(" + body + ")\r\n" + rc;
         }
     }
@@ -220,6 +217,12 @@ public class AdbClientRun {
         AdbClient.Result silent = c.run("SILENT");
         AdbClient.Result garbled = c.run("garbled");
         line("noMarker " + silent.code + " " + garbled.code);
+        try {
+            c.run("huge");
+            line("huge answered");
+        } catch (IOException e) {
+            line("huge " + e.getMessage());
+        }
         c.close();
         // 5 the key is known now: a second connection is not asked again
         waited[0] = false;

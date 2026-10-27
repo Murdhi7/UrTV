@@ -126,6 +126,16 @@
 
         <!-- the in-app safety switch of the home switch: puts the stock home back after 5 minutes unless it was confirmed (ours only) -->
         <receiver android:name=".setup.SetupRevertReceiver" android:exported="false" />
+        <!-- the TV started again in the middle of a home switch: the safety switch comes back and the stock home is put back (only the system sends this) -->
+        <receiver
+            android:name=".setup.SetupBootReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
 
         <!-- «ترتيب المفضلة»: the favourites as a list; also opened from the screensaver's settings -->
         <activity

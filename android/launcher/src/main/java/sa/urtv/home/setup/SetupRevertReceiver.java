@@ -4,17 +4,19 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
-/** The safety switch fired: if a home switch was left half done and Home is not ours, the stock home is put back (see {@link SetupEngine#recoverIfCutOff}). */
+/**
+ * The safety switch fired: if a home switch was left half done and Home is not ours, the stock home is put back (SetupRecovery). One short
+ * attempt; the next alarm is set before it starts, so a cut-short attempt is tried again (SetupEngine.recoverIfCutOff keeps «switching»
+ * until the stock home is checked).
+ */
 public class SetupRevertReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
         final Context app = context.getApplicationContext();
         final PendingResult pending = goAsync();
         new Thread(new Runnable() {
             @Override public void run() {
-                try (SetupSession s = SetupSession.open(app, 0, null, new SetupEngine.Out() { @Override public void line(String text) { } })) {
-                    s.engine.recoverIfCutOff();
-                } catch (Exception e) {
-                    // the TV did not answer: the next time the setup screen opens it offers «تراجع»
+                try {
+                    SetupRecovery.attempt(app, new SetupEngine.Out() { @Override public void line(String text) { } });
                 } finally {
                     pending.finish();
                 }

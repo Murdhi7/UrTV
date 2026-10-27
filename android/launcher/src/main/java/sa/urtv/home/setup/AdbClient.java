@@ -29,12 +29,14 @@ import java.security.interfaces.RSAPublicKey;
 import javax.crypto.Cipher;
 
 /**
- * An ADB client that talks to the TV's OWN adb daemon (127.0.0.1:5555, open while USB debugging is on). Nothing listens on the network.
- * The first time the TV asks "Allow USB debugging?" and the person accepts with "Always allow". Only the setup screen uses it, and only with
- * fixed commands built by {@link SetupPlan} and {@link SetupEngine} (no text from outside).
+ * An ADB client that talks to the TV's OWN adb daemon at 127.0.0.1:5555. Be clear about what that port is: while USB debugging is on, adbd
+ * listens on TCP 5555 on the whole LAN, not only on the TV itself, so another device on the Wi-Fi can reach it and make the TV show the
+ * "Allow USB debugging?" prompt; it cannot get in unless the person accepts. Once "Always allow" is accepted, the key this app presents is a
+ * standing credential (see {@link SetupSession}: it is deleted after a finished setup or undo). Only the setup screen uses this class, and
+ * only with fixed commands built by {@link SetupEngine} (no text from outside). Package-private on purpose.
  * Protocol: https://android.googlesource.com/platform/packages/modules/adb/+/refs/heads/main/protocol.txt
  */
-public final class AdbClient implements Closeable {
+final class AdbClient implements Closeable {
     static final int CNXN = 0x4e584e43, AUTH = 0x48545541, OPEN = 0x4e45504f, OKAY = 0x59414b4f,
             CLSE = 0x45534c43, WRTE = 0x45545257, STLS = 0x534c5453;
     static final int VERSION = 0x01000001, MAX_DATA = 256 * 1024;
@@ -42,17 +44,19 @@ public final class AdbClient implements Closeable {
     /** Start of the PKCS#1 block of a SHA-1 signature (adbd treats the token as if it were the digest). */
     static final byte[] SHA1_PREFIX = {0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14};
     static final String KEY_NAME = "urtv-home@tv";
+    /** A command that prints more than this is cut off with an error (a runaway `logcat` or `dumpsys` must not fill the TV's memory). */
+    static final int MAX_OUTPUT = 2 * 1024 * 1024;
 
     /** Notified when the TV is showing the permission prompt (so the screen can explain what to do). */
-    public interface Approval { void waiting(); }
+    interface Approval { void waiting(); }
 
     /** android.util.Base64 on the TV, java.util.Base64 in the tests. */
-    public interface Base64Coder { String encode(byte[] bytes); }
+    interface Base64Coder { String encode(byte[] bytes); }
 
     /** The result of one command: its output (stdout and stderr together) and its exit code (-1 when the TV did not say). */
-    public static final class Result {
-        public final String output;
-        public final int code;
+    static final class Result {
+        final String output;
+        final int code;
         Result(String output, int code) { this.output = output; this.code = code; }
     }
 
@@ -76,7 +80,7 @@ public final class AdbClient implements Closeable {
      * Connects and authenticates. If the TV does not know our key yet, waits up to {@code approvalMs} for the person to accept.
      * {@code sdk}: Android 8 to 10 hand the answer to the first connection that offered a key, so they are handled by polling (#221 of Free My TV).
      */
-    public static AdbClient connect(String host, int port, KeyPair keys, int sdk, int approvalMs, Approval approval, Base64Coder b64) throws IOException {
+    static AdbClient connect(String host, int port, KeyPair keys, int sdk, int approvalMs, Approval approval, Base64Coder b64) throws IOException {
         Socket s = new Socket();
         try {
             s.connect(new InetSocketAddress(host, port), 3000);
@@ -171,10 +175,10 @@ public final class AdbClient implements Closeable {
     }
 
     /** Sets how long one read may wait for the TV (a slow `pm` command). */
-    public void setReadTimeout(int ms) throws IOException { socket.setSoTimeout(ms); }
+    void setReadTimeout(int ms) throws IOException { socket.setSoTimeout(ms); }
 
     /** Runs a command in the TV's shell and returns its output (stdout and stderr together). */
-    public String shell(String command) throws IOException {
+    String shell(String command) throws IOException {
         int local = nextLocalId++;
         send(OPEN, local, 0, ("shell:" + command + "\0").getBytes(StandardCharsets.UTF_8));
         int remote = 0;
@@ -186,6 +190,7 @@ public final class AdbClient implements Closeable {
                 remote = m.arg0;
             } else if (m.command == WRTE) {
                 result.write(m.data);
+                if (result.size() > MAX_OUTPUT) throw new IOException("the command printed too much");
                 send(OKAY, local, m.arg0, null);
             } else if (m.command == CLSE) {
                 if (remote == 0 && m.arg0 == 0) throw new IOException("ADB refused the command");
@@ -199,7 +204,7 @@ public final class AdbClient implements Closeable {
      * Like {@link #shell}, plus the command's exit code: shell protocol v1 does not carry one, so the command is followed by an echo of {@code $?}.
      * A missing or garbled marker is code -1 (the TV did not say), never 0.
      */
-    public Result run(String command) throws IOException {
+    Result run(String command) throws IOException {
         String text = shell(command + "\necho URTV_RC=$?");
         String marker = "URTV_RC=";
         int i = text.lastIndexOf(marker);

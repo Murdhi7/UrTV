@@ -38,6 +38,7 @@ with tempfile.TemporaryDirectory() as tmp:
     check("an unknown key accepted on the TV: the prompt is announced once, the command runs, its code is read, a failing one says 3",
           got.get("accept") == "accept true 1 0 [out(echo hello)] 3 [out(echo plain)]", got.get("accept"))
     check("no exit marker, or a garbled one, is code -1 (the TV did not say), never 0", got.get("noMarker") == "noMarker -1 -1", got.get("noMarker"))
+    check("a command that prints more than 2 MB is an error, not memory filled", got.get("huge") == "huge the command printed too much", got.get("huge"))
     check("the key is known now: a second connection is not asked again", got.get("known") == "known false 1 true", got.get("known"))
     check("the person says no: an error that says the permission was not accepted", (got.get("deny") or "").startswith("deny debugging permission was not accepted"), got.get("deny"))
     check("debugging off (nothing listens): an error that says so", got.get("closed") == "closed true", got.get("closed"))

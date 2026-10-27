@@ -54,6 +54,18 @@ check("E: a TV that answers «illegal» to disabling its own home: skipped, put 
 check("F: WebView too old, unknown, or no screensaver installed: skipped, not one setting written", got.get("F") == "F SKIPPED SKIPPED SKIPPED puts=0", got.get("F"))
 check("G: the setup wizard owns the Wi-Fi: left on; another owner: turned off", got.get("G") == "G DONE wizardDisabled=0" and got.get("G2") == "G2 wizardDisabled=1", (got.get("G"), got.get("G2")))
 check("H: a switch cut off (journal «switching», Home not ours) is undone; nothing to do when there is no cut-off switch", got.get("H") == "H DONE restored com.google.android.apps.tv.launcherx" and got.get("H2") == "H2 true", (got.get("H"), got.get("H2")))
+check("L: no alarm could be set: the home switch does not start (journal «aborted»), not one change on the TV, no deadline left behind", got.get("L") == "L FAILED state=aborted changes=0 deadline=[]", got.get("L"))
+check("M: the TV rejects the role or the home activity: the stock home is never disabled, it is put back and CHECKED, then «restored»",
+      got.get("M") == "M FAILED stockDisabled=0 com.google.android.apps.tv.launcherx state=restored disarmed=1" and got.get("M2") == "M2 FAILED stockDisabled=0 com.google.android.apps.tv.launcherx", (got.get("M"), got.get("M2")))
+check("N: the stock home cannot be confirmed back (stuck on the wizard's recovery screen): NOT «restored», the safety switch stays armed, the deadline stays on disk; a later recovery finishes it",
+      got.get("N") == "N FAILED state=switching disarmed=0 deadlineSet=true" and got.get("N2") == "N2 DONE state=restored disarmed=1 deadline=0 com.google.android.apps.tv.launcherx", (got.get("N"), got.get("N2")))
+check("O: a journal value is never pasted into a shell command as it is (a holder that is not a package name is replaced by the stock home); a component with $Inner is single-quoted",
+      got.get("O") == "O holderOk=true com.google.android.apps.tv.launcherx" and got.get("O2") == "O2 quoted=true", (got.get("O"), got.get("O2")))
+check("Q: the permissions are read back (a refused appop is FAILED, said); the exact-alarm mode is given back as it was, and untouched when it was already allowed",
+      got.get("Q") == "Q FAILED alreadyAllow=allow/0 ignore->allow->ignore", got.get("Q"))
+check("R: Android 12+ without the exact-alarm permission: the screen says the safety switch can be late", got.get("R") == "R late=true", got.get("R"))
+check("S: the safety switch retries with a growing wait, 30 s doubling, ten minutes at most", got.get("S") == "S 30 60 240 600 600", got.get("S"))
+check("H3: the journal says switching but ours is Home: confirmed done, the alarm cancelled", got.get("H3") == "H3 DONE done disarmed=2", got.get("H3"))
 check("I: the app that answers Home is the «before» only when it is the stock home; nothing readable at all stops before any change", got.get("I") == "I com.google.android.apps.tv.launcherx FAILED changes=0 files=[]", got.get("I"))
 check("J: the safe list holds nothing from keep.txt or core.txt", got.get("J") == f"J 0 {len(safe)} {len(safe)}" and not set(safe) & set(keep), got.get("J"))
 check("K: lists need their end marker; WebView and ledger parsing", got.get("K") == "K true 1 true 120 -1 [a.b, e.f]", got.get("K"))
@@ -99,6 +111,16 @@ src_ = (SETUP / "SetupEngine.java").read_text(encoding="utf-8")
 app_fields = re.findall(r'\\"([a-z_]+)\\": \\"', src_[src_.index("private void journalWrite"):src_.index("private void journalState")])
 check("PARITY: the journal fields of the app are the shell's, in the same order", app_fields == sh_fields == ["nonce", "state", "stock", "role_holder_before", "wizard_before", "stock_before", "safety_switch", "written"], (app_fields, sh_fields))
 engine_src = (SETUP / "SetupEngine.java").read_text(encoding="utf-8")
+adb_src = (SETUP / "AdbClient.java").read_text(encoding="utf-8")
+act_src = (SETUP / "SetupActivity.java").read_text(encoding="utf-8")
+manifest = (ROOT / "android/launcher/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
+check("the ADB client and the engine are package-private (nothing outside the setup package can run a command)", "\nfinal class AdbClient" in adb_src and "\nfinal class SetupEngine" in engine_src and "public final class AdbClient" not in adb_src, "")
+check("the ADB client says the truth about port 5555 (adbd listens on the LAN; a device there can raise the prompt, not get in)", "listens on TCP 5555 on the whole LAN" in adb_src and "cannot get in unless the person accepts" in adb_src, "")
+check("the safety switch survives a restart: a BOOT_COMPLETED receiver (system only) re-arms it from the saved deadline and tries at once; the setup screen does the same at its start",
+      ".setup.SetupBootReceiver" in manifest and "BOOT_COMPLETED" in manifest[manifest.index(".setup.SetupBootReceiver"):][:500] and "SetupRecovery.rearmFromDisk" in act_src and "SetupRecovery.attempt" in act_src, "")
+check("the buttons ask for the family PIN when one is set, and ignore touches through another window", "SetupGate.guard" in act_src and act_src.count("setFilterTouchesWhenObscured(true)") >= 2, "")
+check("the ADB key is deleted when the job is finished (setup done, or undone) and nothing is pending", "deleteKeyIfFinished" in act_src and "AdbKeys.delete" in (SETUP / "SetupSession.java").read_text(encoding="utf-8"), "")
+check("the setup screen is not in the home screen's own app grid (Dock.catalogue skips this package)", "p.equals(c.getPackageName())" in (ROOT / "android/launcher/src/main/java/sa/urtv/home/Dock.java").read_text(encoding="utf-8"), "")
 check("the engine runs only fixed commands: none is built from text the TV sent, except package names that matched [A-Za-z0-9_.]+",
       "PKG.matcher" in engine_src and "COMPONENT.matcher" in engine_src, "")
 check("the engine's lines name no network, serial or address (it never prints what dumpsys wifi or getprop said)", not re.search(r'out\.line\([^;]*(wifi|ssid|serial)', engine_src, re.I), "")
