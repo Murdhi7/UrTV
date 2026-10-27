@@ -26,8 +26,10 @@ Navigate with the remote, or `adb shell input keyevent DPAD_DOWN|DPAD_UP|DPAD_CE
 
 | ID | Action | Expected |
 |---|---|---|
-| A1 | Open the app from the TV launcher | Banner «شاشة تلفزيونك»; settings list opens, right-to-left, first row focused |
-| A2 | Move through every row with D-pad | Every row focusable and highlighted; nothing unreachable |
+| A1 | Open the app from the TV launcher | Banner «شاشة تلفزيونك»; the settings open on eight category tiles, two to a row, the first («الموقع والصلاة») on the right and focused; each shows its current value under its name |
+| A1b | ◀▶▲▼ on the tiles, then OK on «الجوال والتحديث», then Back | ▶ goes to the right tile of a pair, ◀ to the left one, ▲▼ a row; nothing wraps. OK opens it: its name and line on the right, its rows on the left from the top (first row focused, «تحديث تلفزيوني» among them); Back returns to the categories with the focus on «الجوال والتحديث»; OK again comes back on the row last focused; Back twice leaves |
+| A2 | Open every tile and move through every row with D-pad | Every row focusable and highlighted; nothing unreachable; each row is in exactly one tile (the list in FEATURES.md) |
+| A2b | In «الموقع والصلاة», change «طريقة الحساب» | The focus stays on that row after the change, as before |
 | A3 | المدينة → open | First item «بحث عن مدينة أو قرية…», then 13 regions with counts |
 | A4 | Region «منطقة الرياض» → pick «الخرج» | Dialog closes, row shows «المدينة: الخرج» |
 | A5 | المدينة → search → type `ابها` or `Abha` | Results list from the internet; pick one → row updates |
@@ -146,6 +148,7 @@ Use the TV's clock or wait for the real moment; take a screenshot at each.
 | L7 | Build the launcher with another key (a test build) and press Home | The card on the home screen falls back to «مواقيت اليوم» for the default city, because the screensaver's settings cannot be read |
 | L8 | Screensaver settings → «ترتيب التطبيقات المفضلة» (the long-press menu no longer has it) | List of favourites, numbered, first one focused |
 | L8b | Long-press OK on a favourite → «تعديل المفضلة» (also: settings → «تعديل المفضلة»); OK picks up, ◀▶ move (in Arabic ▶ goes toward the right end), ▲ to the start, OK drops, Back puts back; ▼ then OK on «×» removes, «تراجع» for 5 s: ▲ from the tile reaches it (▼ back to the tile), and Back within the 5 s undoes too; Back leaves | Hint line on top, × on each tile, lifted tile with a gold outline; the order stays after leaving and in `dock.sh show`; the adhan stops on any key; with a PIN and «قفل الإعدادات» the PIN is asked first |
+| L8c | Settings → «صفوف القنوات» → «السماح» (Android's dialog: allow), then watch half an episode in Netflix and come back to the home | The rows appear under the favourites: «أكمل المشاهدة» first with that episode and a gold line of how far in, then the apps' own rows; ▼ from the favourites reaches the first row, ▶◀ walk a row from the right, ▼ from the last row reaches «كل التطبيقات». OK on a card opens it in its own app; a locked app asks its PIN first. In «صفوف القنوات», OK hides a row and ▲▼ order them; the home follows when it is back in front. Without «السماح» the home is exactly as before |
 | L9 | OK on the 3rd app, ▲ twice, OK; then Back | It turns gold, moves to the top, drops; home row shows it first |
 | L10 | «إزالة» beside an app (▶/◀ to reach it); then «+» on an app under «إضافة تطبيق» | Removed / added at the end; never below 5 or above 10 (a message says so) |
 | L12 | `optimize/saver.sh tasks add 'اشتري خبز'`, then press Home and the «المهام» pill | The pill is there; the list shows «اشتري خبز» with a gold dot; OK on it → «تم: اشتري خبز», it turns to ✓ |

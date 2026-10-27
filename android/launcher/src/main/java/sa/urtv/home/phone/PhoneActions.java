@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
+import sa.urtv.home.PhoneApps;
 import sa.urtv.home.tilawah.PhoneBridge;
 
 /**
@@ -75,7 +76,10 @@ final class PhoneActions implements Actions {
             default: return Result.fail("failed");
         }
         final Activity a = Foreground.current();
-        if (a == null) return Result.fail("other_app");   // no screen of ours in front: Android lets an app send keys only to its own windows
+        if (a == null) {   // no screen of ours in front: Android lets an app send keys only to its own windows; Back goes through the accessibility service when it is on
+            if (key.equals("back") && PhoneApps.globalBack()) return Result.ok("done");
+            return Result.fail("other_app");
+        }
         if (a instanceof PrivateScreen) return Result.fail("private_screen");
         main.post(new Runnable() {
             @Override public void run() {
@@ -89,7 +93,15 @@ final class PhoneActions implements Actions {
 
     // ---- text
 
-    @Override public Result text(final String text) {
+    @Override public Result text(final String text, String mode, boolean search) {
+        if (Foreground.current() == null) {   // another app in front: through the accessibility service, when the owner turned it on
+            String r = PhoneApps.typeText(app, text, "append".equals(mode), search);
+            switch (r) {
+                case "typed_other": case "typed_other_nosearch": return Result.ok(r);
+                case "no_field": break;   // the app has no text field on screen: the text goes to the TV's clipboard, as it always did
+                default: return Result.fail(r);   // service_off, locked, password_field, failed
+            }
+        }
         FutureTask<String> job = new FutureTask<>(new java.util.concurrent.Callable<String>() {
             @Override public String call() {
                 Activity a = Foreground.current();
@@ -151,6 +163,17 @@ final class PhoneActions implements Actions {
             m.put("panels", panels);
         }
         m.putAll(PhoneBridge.state(app));
+        PhoneBridge.addAdhanLive(app, m);
+        m.put("sleep_timer", PhoneApps.sleep(app));
+        if (b != null && b.getString("idle") != null) {
+            m.put("saver_idle", b.getString("idle"));
+            List<Object> options = new ArrayList<>();
+            for (int minutes : Schema.SAVER_IDLE) options.add(String.valueOf(minutes));
+            m.put("saver_idle_options", options);
+        }
+        m.put("keys_everywhere", PhoneApps.keysEverywhere());
+        m.put("typing_service", PhoneApps.typingEnabled());
+        m.put("family", PhoneApps.family(app));
         m.put("foreground", Foreground.current() != null ? "own" : "other");
         m.put("update", PhoneUpdater.status());
         return m;
@@ -165,10 +188,12 @@ final class PhoneActions implements Actions {
             for (Object x : (List<?>) v.get("home_cards")) cards.append(cards.length() > 0 ? "," : "").append((String) x);
             extras.putString("home_panel", cards.length() == 0 ? "none" : cards.toString());
         }
+        if (v.containsKey("saver_idle")) extras.putString("idle", String.valueOf((Long) v.get("saver_idle")));
+        if (v.containsKey("sleep_minutes") && !PhoneApps.setSleep(app, ((Long) v.get("sleep_minutes")).intValue())) return Result.fail("refused");
         if (!extras.isEmpty()) {
             Bundle r = saver("phone_set", null, extras);
             if (r == null) return Result.fail("saver_missing");
-            if (!r.getBoolean("ok")) return Result.fail("refused");
+            if (!r.getBoolean("ok")) return Result.fail(r.getBoolean("idle_denied") ? "needs_permission" : "refused");
             if (city) PhoneBridge.rescheduleAdhan(app);
         }
         String why = PhoneBridge.adhan(app, v);
@@ -185,6 +210,45 @@ final class PhoneActions implements Actions {
         List<String> out = r == null ? null : r.getStringArrayList("cities");
         return out == null ? new ArrayList<String>() : out;
     }
+
+    @Override public Map<String, Object> apps() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        List<Object> apps = new ArrayList<>(), tools = new ArrayList<>();
+        for (String[] a : PhoneApps.apps(app)) {
+            Map<String, Object> x = new LinkedHashMap<>();
+            x.put("pkg", a[0]);
+            x.put("name", a[1]);
+            x.put("locked", "1".equals(a[2]));
+            apps.add(x);
+        }
+        for (String[] t : PhoneApps.tools(app)) {
+            Map<String, Object> x = new LinkedHashMap<>();
+            x.put("id", t[0]);
+            x.put("name", t[1]);
+            x.put("locked", "1".equals(t[2]));
+            tools.add(x);
+        }
+        m.put("apps", apps);
+        m.put("tools", tools);
+        return m;
+    }
+
+    @Override public byte[] icon(String pkg) { return PhoneApps.icon(app, pkg); }
+
+    @Override public Result launch(String target) {
+        String r = PhoneApps.launch(app, target);
+        return r.equals("opened") || r.equals("pin_on_tv") ? Result.ok(r) : Result.fail(r);
+    }
+
+    @Override public Result adhanStop() { return Result.ok(PhoneBridge.stopAdhan(app) ? "done" : "nothing"); }
+
+    @Override public Result doOp(String op) {
+        if (op.equals("sleep_cancel")) return PhoneApps.setSleep(app, 0) ? Result.ok("done") : Result.fail("failed");
+        Result r = launch("@saver");   // the home's own «شاشة التوقف»: the same family lock as the pill
+        return r.ok ? Result.ok(r.code.equals("pin_on_tv") ? "pin_on_tv" : "done") : r;
+    }
+
+    @Override public Map<String, Object> family() { return PhoneApps.family(app); }
 
     @Override public Map<String, Object> update(String op) {
         return "install".equals(op) ? PhoneUpdater.install(app, true) : PhoneUpdater.checkVersion(app);   // «افحص التحديث» reads version.txt only; the files come with «ثبّت»

@@ -104,7 +104,9 @@ check("the lock never decides about tilawah's pages: the adhan's own screen (Adh
       "AdhanActivity" not in policy + parental and "tilawah" not in policy)
 
 # ---- 4. no accessibility service; the PIN is only a hash
-check("no new accessibility service: the manifest has only the sleep one", MAN.read_text(encoding="utf-8").count("android.accessibilityservice.AccessibilityService") == 1)
+manifest_text = MAN.read_text(encoding="utf-8")
+check("only two accessibility services, both owner-enabled and named: the sleep one (reads nothing) and the phone remote's typing one",
+      manifest_text.count("android.accessibilityservice.AccessibilityService") == 2 and '".SleepService"' in manifest_text and '".TypeService"' in manifest_text)
 check("no file of the family lock reads another app's screen or windows", not re.search(r"AccessibilityService|AccessibilityEvent|getRootInActiveWindow|UsageStats|getRunningTasks|FLAG_SECURE",
       "".join(src(n) for n in ("Parental.java", "PinPrompt.java", "PinUi.java", "ParentalActivity.java", "ParentalPolicy.java"))))
 check("the PIN is only ever passed to PinCrypto (create / verify)", not re.search(r'putString\([^)]*(code|first|second|pin)\b', parental))

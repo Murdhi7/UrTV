@@ -17,6 +17,7 @@
 #   optimize/dock.sh sleep cancel          stop it
 #   optimize/dock.sh familydns on|off|status|grant   «حماية العائلة (DNS)»: Private DNS to AdGuard Family, checked and undone by optimize/familydns.sh
 #   optimize/dock.sh sleep-setup           turn on the sleep service (an accessibility service, once) so the end turns the screen off
+#   optimize/dock.sh type-setup            turn on the typing service (a second accessibility service, once) so the phone remote can type into other apps
 #   optimize/dock.sh pin set 1234         «الرقابة الأبوية»: the master PIN (4 digits), set or changed from here without the old one; never printed back
 #   optimize/dock.sh pin lock PKG          lock one app (its package, e.g. com.netflix.ninja), a pill (@inputs @wifi @tvsettings @tasks @saver @listen @sleep @center) or @urtv (our settings); `pin unlock PKG` opens it again
 #   optimize/dock.sh pin status            what is set: PIN or not, what is locked, kids mode, wrong tries (never the PIN)
@@ -63,13 +64,15 @@ case "${1:-}:$#" in
       *) minutes=$2; [ "$minutes" -le 600 ] || { echo "minutes: 1 to 600"; exit 1; } ;;
     esac
     send SLEEP_TV "--ei minutes $minutes" ;;
-  sleep-setup:1)
-    svc="sa.urtv.home/sa.urtv.home.SleepService"
+  sleep-setup:1|type-setup:1)
+    # two accessibility services of ours, each turned on on its own (typing is a separate service: it can read the screen to find a text field, the sleep one cannot)
+    if [ "$1" = type-setup ]; then svc="sa.urtv.home/sa.urtv.home.TypeService"; what="the typing service"; done_msg="the typing service is on: the phone remote can type into the text field of the app in front"
+    else svc="sa.urtv.home/sa.urtv.home.SleepService"; what="the sleep service"; done_msg="the sleep service is on: the end of «مؤقت النوم» turns the screen off"; fi
     cur=$("$PY" -I optimize/tv.py "settings get secure enabled_accessibility_services; settings get secure accessibility_enabled" | tr -d '\r')
     now=$(sed -n 1p <<< "$cur")
     # only the word «null» means no service is on; an empty answer is «the TV did not say», and the person's own list must not be overwritten
     if [ -z "$now" ] || [ -z "$(sed -n 2p <<< "$cur")" ]; then
-      echo "!! enabled_accessibility_services: the TV did not say which accessibility services are on, so the sleep service was NOT added and nothing was changed. Run the same command again."
+      echo "!! enabled_accessibility_services: the TV did not say which accessibility services are on, so $what was NOT added and nothing was changed. Run the same command again."
       exit 1
     fi
     # what the TV had, once (optimize/reset.sh takes our entry out again and puts the switch back as it was)
@@ -79,16 +82,16 @@ case "${1:-}:$#" in
     fi
     # the list goes to the TV's shell in single quotes (a service like pkg/.Svc$Inner must not have its $Inner expanded)
     case "$now" in
-      *"$svc"*) echo "the sleep service was already on" ;;
+      *"$svc"*) echo "$what was already on" ;;
       null|"") "$PY" -I optimize/tv.py "settings put secure enabled_accessibility_services '$svc'" >/dev/null ;;
       *) if [[ "$now" =~ ^[A-Za-z0-9_.\$/:]+$ ]]; then
            "$PY" -I optimize/tv.py "settings put secure enabled_accessibility_services '$now:$svc'" >/dev/null
-         else echo "!! enabled_accessibility_services: the list on this TV has a character this script does not send, so the sleep service was not added"; exit 1; fi ;;
+         else echo "!! enabled_accessibility_services: the list on this TV has a character this script does not send, so $what was not added"; exit 1; fi ;;
     esac
     "$PY" -I optimize/tv.py "settings put secure accessibility_enabled 1" >/dev/null
     after=$("$PY" -I optimize/tv.py "settings get secure enabled_accessibility_services" | tail -n 1 | tr -d '\r')
-    case "$after" in *"$svc"*) ;; *) echo "!! enabled_accessibility_services: this TV did not take the sleep service (it says ${after:-nothing}); the timer's end will not turn the screen off" ;; esac
-    echo "the sleep service is on: the end of «مؤقت النوم» turns the screen off" ;;
+    case "$after" in *"$svc"*) ;; *) echo "!! enabled_accessibility_services: this TV did not take $what (it says ${after:-nothing})" ;; esac
+    echo "$done_msg" ;;
   pin:*)
     shift
     case "${1:-}:$#" in
@@ -127,5 +130,5 @@ case "${1:-}:$#" in
     esc=$(printf '%s' "$3" | sed "s/'/'\\\\''/g")   # an apostrophe inside the quotes, as optimize/type.sh does; the app decides whether the name is kept
     send SET_INPUT_NAME "--es id '$2' --es name '$esc'" ;;
   input-name:*) echo "usage: optimize/dock.sh input-name ID 'الاسم'   (ID from: optimize/dock.sh input-names; '' = the TV's own name)"; exit 1 ;;
-  *) sed -n '2,24p' "$0"; exit 1 ;;
+  *) sed -n '2,25p' "$0"; exit 1 ;;
 esac

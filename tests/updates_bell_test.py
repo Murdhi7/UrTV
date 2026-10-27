@@ -31,7 +31,7 @@ check("on by default", 'boolean updateBell() { return sp.getBoolean("updateBell"
 check("the receiver refuses anything but on or off before saving", "updatebell is one of on off" in receiver
       and receiver.index("updatebell is one of on off") < receiver.index('p.setUpdateBell("on".equals(updateBell))'))
 check("`saver.sh show` says it", '"\\nupdatebell: " + (p.updateBell() ? "on" : "off")' in receiver)
-check("the provider hands it to the launcher as update_bell, (before update_channel, which stays the last column)", '"update_bell", "update_channel"}' in provider and 'p.updateBell() ? "1" : "0", p.updateChannel()}' in provider)
+check("the provider hands it to the launcher as update_bell, appended after the older columns (none of them moves)", '"appearance", "update_bell"}' in provider and 'p.appearance(), p.updateBell() ? "1" : "0"}' in provider)
 check("the snapshot reads it, on when an older screensaver does not say", 'getColumnIndex("update_bell")' in snap and "updateBell = true" in snap
       and '"0".equals(cur.getString(u))) updateBell = false' in snap)
 row = settings.split('row("جرس التحديثات"')[1].split("});")[0]

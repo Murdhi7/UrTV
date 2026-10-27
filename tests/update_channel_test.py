@@ -28,7 +28,10 @@ prefs, recv, prov = text(APP + "Prefs.java"), text(APP + "SaverReceiver.java"), 
 check("off by default: anything but next is latest", 'sp.getString("updateChannel", "latest")) ? "next" : "latest"' in prefs and 'setUpdateChannel(String v)' in prefs and '"next".equals(v) ? "next" : "latest"' in prefs)
 check("the receiver takes latest or next only and refuses another word", 'error: updatechannel is one of latest next' in recv and 'p.setUpdateChannel(updateChannel)' in recv)
 check("`saver.sh show` says it", '"\\nupdatechannel: " + p.updateChannel()' in recv)
-check("the provider tells the home app in its own column, at the end", '"update_channel"}' in prov and 'p.updateChannel()});' in prov)
+_cols = re.search(r'new MatrixCursor\(new String\[\] \{("fragment"[^}]*)\}\);', prov)
+check("the provider tells the home app in its own column, after the older ones (a column added later goes after it: none moves)",
+      _cols is not None and re.findall(r'"(\w+)"', _cols.group(1))[:7] == ["fragment", "home_panel", "greeting", "home_panels", "adhan_bar", "listen_pill", "update_channel"]
+      and 'p.listenPill() ? "1" : "0", p.updateChannel()' in prov, _cols and _cols.group(1))
 check("the home app asks the provider and treats anything but next as latest", '"next".equals(cur.getString(i))' in text(HOME + "UpdateChannel.java") and 'return "latest"' in text(HOME + "UpdateChannel.java"))
 pu = text(HOME + "PhoneUpdater.java")
 check("version.txt, the sizes and the files all come from the channel's release (read once)", 'readVersion(base + "version.txt")' in pu and 'sizeOf(base + ' in pu and 'fetch(base + ' in pu and "UpdateRules.BASE +" not in pu and "UpdateRules.VERSION_URL" not in pu)
@@ -62,6 +65,11 @@ for wf in sorted((ROOT / ".github/workflows").glob("*.yml")):
             check(f"{wf.name}:{n + 1} the publish step fails when a listed file matches nothing", "fail_on_unmatched_files: true" in "\n".join(lines[max(0, n - 2):n]), lines[max(0, n - 2):n])
             if "apk-next" in "\n".join(lines[max(0, n - 6):n]):
                 check("the apk-next release uploads exactly the two APKs and version.txt", block == ["urtv-screensaver.apk", "urtv-home.apk", "version.txt"], block)
+
+check("the newest version shown is the one of the current channel: it is stored with its channel, a value from before a change is not shown, and a change reads it again",
+      'putString("latestChannel", next ? "next" : "latest")' in up and 'updateChannel().equals(sp.getString("latestChannel", "latest"))' in prefs and "p.latestVersion()" in recv
+      and "Updater.refreshLatestAsync(c);" in recv and "new Prefs(c).latestVersion()" in up)
+check("`saver.sh show` says when the newest number is the next channel's", '", on the next channel"' in recv)
 
 tmp = tempfile.mkdtemp()
 log = os.path.join(tmp, "sent")

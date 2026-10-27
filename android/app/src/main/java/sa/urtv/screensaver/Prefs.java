@@ -375,6 +375,15 @@ final class Prefs {
     String updateChannel() { return "next".equals(sp.getString("updateChannel", "latest")) ? "next" : "latest"; }
     void setUpdateChannel(String v) { sp.edit().putString("updateChannel", "next".equals(v) ? "next" : "latest").apply(); }
 
+    /**
+     * The newest version Updater last read, but only one that came from the release of the CURRENT channel (an older app stored none: that was the
+     * latest's); a value read before the channel changed is not shown as the newest of this one.
+     */
+    String latestVersion() {
+        String v = sp.getString("latestVersion", null);
+        return v != null && updateChannel().equals(sp.getString("latestChannel", "latest")) ? v : null;
+    }
+
     /** The slim bar before the adhan, on the screensaver and on the home screen (default on); sent to the page as #adhanbar=. */
     boolean adhanBar() { return sp.getBoolean("adhanBar", true); }
     void setAdhanBar(boolean v) { sp.edit().putBoolean("adhanBar", v).apply(); }
@@ -658,6 +667,14 @@ final class Prefs {
         List<String> v = new ArrayList<>();
         for (String c : slot) if (c != null) v.add(c);
         setHomePanels(v);
+    }
+
+    /** «المظهر» of the launcher's home screen: dark (the default, as it always was), light, or auto (light from sunrise until Maghrib). */
+    static final String[] APPEARANCES = {"dark", "light", "auto"};
+    String appearance() { String v = sp.getString("appearance", "dark"); return java.util.Arrays.asList(APPEARANCES).contains(v) ? v : "dark"; }
+    void setAppearance(String v) { if (java.util.Arrays.asList(APPEARANCES).contains(v)) sp.edit().putString("appearance", v).apply(); }
+    static String appearanceLabel(String v) {
+        return "light".equals(v) ? "فاتح" : "auto".equals(v) ? "تلقائي · فاتح من الشروق إلى المغرب، وداكن بعده" : "داكن";
     }
 
     /** The greeting and the weather line on the launcher's home screen (default on). Off: the plain good-morning it had. */

@@ -57,6 +57,7 @@ final class Parental {
 
     /** Tell a running home screen to redraw (kids mode changed what it shows). */
     static void changed(Context c) {
+        PhoneApps.invalidate();   // the phone remote's list of favourites and locks follows at once
         c.sendBroadcast(new Intent(Dock.CHANGED).setPackage(c.getPackageName()));
     }
 
@@ -70,11 +71,13 @@ final class Parental {
     }
 
     static void setKids(Context c, boolean on) {
+        PhoneApps.invalidate();
         prefs(c).edit().putBoolean("kids", on).commit();
         changed(c);
     }
 
     private static void toggle(Context c, String key, String item, boolean on) {
+        PhoneApps.invalidate();
         Set<String> set = ParentalPolicy.parse(prefs(c).getString(key, ""));
         if (on) set.add(item); else set.remove(item);
         prefs(c).edit().putString(key, ParentalPolicy.join(set)).commit();
