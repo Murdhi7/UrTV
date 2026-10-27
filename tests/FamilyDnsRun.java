@@ -151,5 +151,7 @@ public class FamilyDnsRun {
         // 20 an UnknownHostException is «no such name» only with a GaiException EAI_NODATA/EAI_NONAME cause
         System.out.println(FamilyDns.unknownHostKind(true, 7, 7, 8) + " " + FamilyDns.unknownHostKind(true, 8, 7, 8) + " "
             + FamilyDns.unknownHostKind(true, 2, 7, 8) + " " + FamilyDns.unknownHostKind(false, 7, 7, 8));
+        // 21 validated Private DNS servers: none = not working; a TV that cannot say (null) is not refused
+        System.out.println(FamilyDns.validatedServersOk(0) + " " + FamilyDns.validatedServersOk(1) + " " + FamilyDns.validatedServersOk(null));
     }
 }

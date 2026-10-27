@@ -112,7 +112,7 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
             while (System.currentTimeMillis() < end) {
                 Network n = cm.getActiveNetwork();
                 LinkProperties lp = n == null ? null : cm.getLinkProperties(n);
-                if (lp != null && lp.isPrivateDnsActive() && host.equals(lp.getPrivateDnsServerName())) return true;
+                if (lp != null && lp.isPrivateDnsActive() && host.equals(lp.getPrivateDnsServerName()) && FamilyDns.validatedServersOk(validatedServers(lp))) return true;
                 Thread.sleep(500);
             }
         } catch (InterruptedException e) {
@@ -121,6 +121,16 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
             // no connectivity service: not validated
         }
         return false;
+    }
+
+    /** How many Private DNS servers the TV says it validated, or null when this Android cannot say. */
+    private static Integer validatedServers(LinkProperties lp) {
+        try {
+            Object r = LinkProperties.class.getMethod("getValidatedPrivateDnsServers").invoke(lp);
+            return r instanceof java.util.List ? Integer.valueOf(((java.util.List<?>) r).size()) : null;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
     }
 
     /**

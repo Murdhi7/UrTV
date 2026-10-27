@@ -65,10 +65,15 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PY:-optimize/venv/bin/python}"
-send() {   # $1 action, $2 extras; prints the receiver's answer (the "data" of am broadcast); exit 1 on "error:"
-  local out
-  out=$("$PY" -I optimize/tv.py "am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.$1 ${2:-}" \
-    | sed -n '/data="/,$p' | sed '1s/.*data="//; $s/"$//')
+send() {   # $1 action, $2 extras; prints the receiver's answer (the "data" of am broadcast); exit 1 on "error:" or when there is no answer
+  local raw out
+  raw=$("$PY" -I optimize/tv.py "am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.$1 ${2:-}" | tr -d '\r') || raw=""
+  # no «data=» at all = the receiver never ran (app missing, another signature, just updated): that is not «done»
+  if ! grep -q 'data=' <<< "$raw"; then
+    echo "!! saver.sh: no answer from the TV's screensaver app (it is not installed, was just updated, or the connection dropped), so nothing is known to have changed. Run optimize/install.sh saver, then the same command again." >&2
+    return 1
+  fi
+  out=$(sed -n '/data="/,$p' <<< "$raw" | sed '1s/.*data="//; $s/"$//')
   echo "$out"
   [[ "$out" != error:* ]]
 }

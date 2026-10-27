@@ -81,6 +81,7 @@ echo "$3" >> "$SENT"
 case "$3" in
   "pm list packages sa.urtv.screensaver") [ "${INSTALLED:-1}" = 1 ] && echo "package:sa.urtv.screensaver" ;;
   *query-services*) printf '%s' "$STOCK" ;;
+  "am broadcast"*) [ "$SILENT" = 1 ] && { echo "Broadcast completed: result=0"; exit 0; }; echo 'Broadcast completed: result=0, data="UrTV 1"' ;;
 esac
 exit 0
 ''')
@@ -91,11 +92,11 @@ def backup(comp="com.google.android.apps.tv.dreamx/.service.Dream", enabled="1")
     open(p, "w").write(f"== model\nTCL\n11\n== screensaver\n{comp}\n{enabled}\n300000\n== animation\n1.0\n")
     return p
 
-def run(cmd, bk=None, comp="null", enabled="1", stock="", installed="1"):
+def run(cmd, bk=None, comp="null", enabled="1", stock="", installed="1", silent=""):
     open(log, "w").close()
     r = subprocess.run(["bash", saver, cmd], capture_output=True, text=True,
                        env={**os.environ, "PY": fake, "SENT": log, "COMP": comp, "ENABLED": enabled, "STOCK": stock,
-                            "INSTALLED": installed, "SAVER_BACKUP": bk or os.path.join(tmp, "no-backup.txt")})
+                            "INSTALLED": installed, "SILENT": silent, "SAVER_BACKUP": bk or os.path.join(tmp, "no-backup.txt")})
     return r.returncode, r.stdout + r.stderr, open(log, encoding="utf-8").read().splitlines()
 
 OURS = "sa.urtv.screensaver/.ScreenDream"
@@ -140,6 +141,10 @@ rc, out, sent = run("off", bk=backup(enabled=""))
 check("off: a backup whose enabled line is empty leaves the switch as it is (the component still comes back)",
       puts(sent) == ["settings put secure screensaver_components 'com.google.android.apps.tv.dreamx/.service.Dream'", "settings delete secure screensaver_default_component"], str(sent))
 
+rc, out, sent = run("show", silent="1")
+check("a receiver that never ran (no data= in the broadcast's answer) is a failure with a !! line, not a blank success", rc == 1 and "!! saver.sh: no answer from the TV's screensaver app" in out, out)
+rc, out, sent = run("show")
+check("a receiver that answers: exit 0", rc == 0 and "UrTV 1" in out, out)
 rc, out, sent = run("on")
 check("on: ours selected, as install.sh does",
       rc == 0 and puts(sent) == ["settings put secure screensaver_enabled 1", f"settings put secure screensaver_components {OURS}",

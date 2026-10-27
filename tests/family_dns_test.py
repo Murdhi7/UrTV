@@ -59,6 +59,7 @@ check("fresh name: fast NXDOMAIN or an address continues; timeout, slow NXDOMAIN
       and all(x == "REVERTED opportunistic/x.example true0" for x in parts[2:5]) and parts[5] == "0", out[20])
 check("UnknownHostException: only a GaiException EAI_NODATA/EAI_NONAME cause is «no such name»; any other cause is a failure",
       out[21] == "NOT_FOUND NOT_FOUND FAILED FAILED", out[21])
+check("validated Private DNS servers: none validated is not working; a TV that cannot say is not refused", out[22] == "false true true", out[22])
 android = (ROOT / "android/launcher/src/main/java/sa/urtv/home/FamilyDnsAndroid.java").read_text(encoding="utf-8")
 check("last=RUNNING is written before the worker thread starts",
       0 <= android.find('putString(K_LAST, "RUNNING")') < android.find('worker.start()'))

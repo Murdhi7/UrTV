@@ -24,9 +24,17 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PY:-optimize/venv/bin/python}"
-send() {   # $1 action, $2 extra arguments; prints the receiver's answer (the "data" of am broadcast)
-  "$PY" -I optimize/tv.py "am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.$1 ${2:-}" \
-    | sed -n '/data="/,$p' | sed '1s/.*data="//; $s/"$//'
+send() {   # $1 action, $2 extra arguments; prints the receiver's answer (the "data" of am broadcast); fails when there is none or it is an error
+  local raw out
+  raw=$("$PY" -I optimize/tv.py "am broadcast -n sa.urtv.home/.DockReceiver -a sa.urtv.home.$1 ${2:-}" | tr -d '\r') || raw=""
+  # no «data=» at all = the receiver never ran (app missing, another signature, just updated): that is not «done»
+  if ! grep -q 'data=' <<< "$raw"; then
+    echo "!! dock.sh: no answer from the TV's home app (it is not installed, was just updated, or the connection dropped), so nothing is known to have changed. Run optimize/install.sh launcher, then the same command again." >&2
+    return 1
+  fi
+  out=$(sed -n '/data="/,$p' <<< "$raw" | sed '1s/.*data="//; $s/"$//')
+  echo "$out"
+  [[ "$out" != error:* ]]
 }
 case "${1:-}:$#" in
   familydns:*) shift; exec optimize/familydns.sh "$@" ;;
