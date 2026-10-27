@@ -264,8 +264,8 @@ if [ "$what" = launcher ] || [ "$what" = all ]; then
   if [ "${sdk:-0}" -ge 31 ]; then "$PY" -I optimize/tv.py "appops set sa.urtv.home SCHEDULE_EXACT_ALARM allow" || true; fi
   # «تحديث تلفزيوني» (the TV's own update) hands the new apps to Android's install screen, which needs «install unknown apps» for the home app:
   # given ahead of time so the owner isn't sent to a settings screen first. The mode it had is kept, once (a second run must not take our own
-  # «allow» for the original), and optimize/reset.sh puts back exactly that. It is given only over Android's default: an explicit choice stays. If the TV doesn't answer, nothing is changed: the TV's update
-  # screen asks for the permission itself when it is needed.
+  # «allow» for the original), and optimize/reset.sh puts back exactly that. It is given only over Android's default: an explicit choice
+  # stays. If the TV doesn't answer, nothing is changed: the TV's update screen asks for the permission itself when it is needed.
   appop_file="${URTV_RUN_DIR:-optimize/run}/install-appop.txt"   # APPOP-BEGIN
   if [ ! -s "$appop_file" ]; then
     appop_now=$("$PY" -I optimize/tv.py "appops get sa.urtv.home REQUEST_INSTALL_PACKAGES" 2>/dev/null | tr -d '\r' || true)

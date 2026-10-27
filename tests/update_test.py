@@ -65,7 +65,7 @@ check("PackageInstaller sessions with a status callback, and the owner confirms 
       "PackageInstaller.SessionParams" in upd and "session.commit(" in upd and "STATUS_PENDING_USER_ACTION" in upd and "STATUS_SUCCESS" in upd
       and "pm install" not in upd and "INSTALL_PACKAGES" not in manifest.replace("REQUEST_INSTALL_PACKAGES", ""), "")
 check("the next app is handed over only after the answer of the one before (STATUS_SUCCESS calls installNext)",
-      re.search(r"STATUS_SUCCESS\)\s*\{\s*installNext\(c\);", upd) is not None, "")
+      re.search(r"STATUS_SUCCESS\)\s*\{.*?new Thread\(.*?installNext\(app\)", upd, re.S) is not None, "")   # on its own thread: see the checks at the end
 check("a failure empties the queue and clears the record, so nothing more is installed", "queue.clear()" in upd.split("private static void fail")[1] and "new UpdateStore(c).clear()" in upd.split("private static void fail")[1], "")
 check("the failure words come from UpdateFlow.failure", "UpdateFlow.failure(status)" in upd, "")
 check("the files are downloaded only from the release address", "startsWith(UpdateRules.BASE)" in upd, "")
@@ -232,3 +232,21 @@ check("the dock javadoc sits on loadDock, not above showUpdateResult", "/** The 
       and "/** The user's dock if they edited it" not in main.split("private void showUpdateResult()")[0], "")
 
 sys.exit(1 if failed else 0)
+
+
+# ---- the second review's fixes, read from the source
+launcher = ROOT / "android/launcher/src/main/java/sa/urtv/home"
+saver_set = (ROOT / "android/app/src/main/java/sa/urtv/screensaver/SettingsActivity.java").read_text(encoding="utf-8")
+open_update = saver_set.split("private void openUpdate() {")[1].split("\n    }\n")[0]
+print(("PASS " if open_update.index("catch (SecurityException") < open_update.index("catch (RuntimeException") else "FAIL ")
+      + "the screensaver's settings row tells a SecurityException (an older app on one side) apart from a missing home")
+upd = (launcher / "phone/PhoneUpdater.java").read_text(encoding="utf-8")
+res = upd.split("static void onResult(Context c, Intent intent) {")[1].split("\n    }\n")[0]
+ok_branch = res.split("STATUS_SUCCESS) {")[1].split("} else {")[0]
+print(("PASS " if "new Thread(" in ok_branch and "installNext(app)" in ok_branch and "installNext(c);" not in ok_branch else "FAIL ")
+      + "after an install went through, the next one starts on its own thread, after the receiver's answer is finished")
+print(("PASS " if re.search(r"public static synchronized void reset\(\) \{.*?why = \"\";", upd, re.S) else "FAIL ") + "reset() clears why too")
+pa = (launcher / "PhoneActivity.java").read_text(encoding="utf-8")
+print(("PASS " if "p.setMarginEnd(dp(10))" in pa and "p.rightMargin" not in pa else "FAIL ") + "the allow button's margin is on its end edge (the screen is pinned right-to-left)")
+inst_comments = [l for l in (ROOT / "optimize/install.sh").read_text(encoding="utf-8").split("\n") if l.lstrip().startswith("#")]
+print(("PASS " if max(len(l) for l in inst_comments) <= 170 else "FAIL ") + "no comment line in install.sh is longer than 170 characters")
