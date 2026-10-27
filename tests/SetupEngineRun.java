@@ -264,6 +264,11 @@ public class SetupEngineRun {
         SetupEngine.Result rj = engine(tj, mj, new Dead(), new ArrayList<>()).home();
         line("I " + new SetupEngine(ti, mi, s -> { }, new Dead(), ms2 -> { }, "x").journal("role_holder_before") + " " + rj.status + " changes=" + (tj.count("cmd role add") + tj.count("pm disable-user")) + " files=" + mj.files.keySet());
         line("S " + SetupEngine.backoffSeconds(0) + " " + SetupEngine.backoffSeconds(1) + " " + SetupEngine.backoffSeconds(3) + " " + SetupEngine.backoffSeconds(5) + " " + SetupEngine.backoffSeconds(50));
+        // T: a quick TV is checked at once: putStockBack waits for nothing when Home is already the stock one
+        final int[] sleeps = {0};
+        FakeTv tt = tv(); tt.roleRejected = true;
+        new SetupEngine(tt, new Mem(), x -> { }, new Dead(), waitMs -> sleeps[0]++, "x").home();
+        line("T sleeps=" + sleeps[0]);
         // J: the lists: the safe list never holds a package of keep.txt or core.txt
         int bad = 0;
         for (String p : SetupEngine.filterSafe(SetupLists.SAFE)) {

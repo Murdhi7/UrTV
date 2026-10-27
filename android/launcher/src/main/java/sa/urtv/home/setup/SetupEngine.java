@@ -436,6 +436,7 @@ final class SetupEngine {
         if (back.equals(stockPkg)) sh.run("cmd package set-home-activity --user 0 " + q(stock));
         if (stockPkg.equals(LAUNCHERX)) sh.run("cmd notification allow_listener " + NOTIFICATION_LISTENER);
         sh.run("input keyevent KEYCODE_HOME");
+        if (resolveHome().startsWith(back + "/")) return true;   // a quick TV is checked at once, before any wait
         for (int i = 0; i < 3; i++) {
             sleeper.sleep(3000);
             if (resolveHome().startsWith(back + "/")) return true;
@@ -456,7 +457,7 @@ final class SetupEngine {
             deadman.disarm();
             clearDeadline();
             journalState("done");
-            return done("اكتمل تبديل الشاشة الرئيسية الذي انقطع؛ تلفزيونك هو الشاشة الرئيسية.");
+            return done("سجّلنا أن تلفزيونك صار الشاشة الرئيسية بعد تبديل انقطع (لم نفحص الشاشة بعد). اضغط زر الرئيسية للتأكد.");
         }
         String stock = journal("stock");
         if (stock.isEmpty() || !COMPONENT.matcher(stock).matches()) return failed("سجل التبديل ناقص، فاضغط «تراجع».");

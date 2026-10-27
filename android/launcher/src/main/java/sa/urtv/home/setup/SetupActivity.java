@@ -63,7 +63,9 @@ public class SetupActivity extends Activity {
         col.addView(log, right(0));
         setContentView(scroll);
         start.requestFocus();
-        if (SetupRecovery.pending(this)) {
+        if (SetupRecovery.pending(this) && SetupRecovery.gaveUp(this)) {
+            status.setText(SetupRecovery.GAVE_UP_NOTICE + ": اضغط «تراجع».");
+        } else if (SetupRecovery.pending(this)) {
             // a home switch was cut off (the app was closed, the TV restarted): the safety switch is set again from its saved deadline, and one attempt is made now
             status.setText("بدأ تبديل سابق للشاشة الرئيسية ولم يكتمل. نحاول إرجاع الشاشة الأصلية الآن؛ إن لم تظهر وحدها فاضغط «تراجع».");
             SetupRecovery.rearmFromDisk(this);
@@ -96,7 +98,6 @@ public class SetupActivity extends Activity {
             @Override public void run() {
                 String end;
                 int color = GOLD;
-                boolean finished = false;
                 try (SetupSession s = SetupSession.open(SetupActivity.this, 180_000, new AdbClient.Approval() {
                     @Override public void waiting() { line("التلفزيون يسأل «السماح بتصحيح USB؟»: اختر «السماح دائماً» بالريموت."); }
                 }, new SetupEngine.Out() { @Override public void line(String t) { SetupActivity.this.line(t); } })) {
@@ -104,7 +105,6 @@ public class SetupActivity extends Activity {
                     if (undoIt) {
                         boolean ok = e.undo().status == SetupEngine.Status.DONE;
                         end = ok ? "تم الرجوع. أطفئ «تصحيح USB» من خيارات المطوّر، واختر «إلغاء تراخيص تصحيح USB» لتنظيف التلفزيون." : "انتهى الرجوع مع ملاحظات (فوق).";
-                        finished = ok;
                     } else {
                         SetupEngine.Result pre = e.precheck();
                         if (pre.status != SetupEngine.Status.DONE) {
@@ -114,7 +114,6 @@ public class SetupActivity extends Activity {
                             int failed = 0, skipped = 0;
                             SetupEngine.Result[] rs = {e.grants(), e.debloat(), e.screensaver(), e.home()};
                             for (SetupEngine.Result r : rs) { if (r.status == SetupEngine.Status.FAILED) failed++; else if (r.status == SetupEngine.Status.SKIPPED) skipped++; }
-                            finished = failed == 0;
                             end = failed == 0 && skipped == 0 ? "انتهى الإعداد. اضغط زر الرئيسية في الريموت. ثم أطفئ «تصحيح USB» من خيارات المطوّر واختر «إلغاء تراخيص تصحيح USB» إن لم تحتجهما (التراجع من هنا يحتاجهما)."
                                 : "انتهى الإعداد مع " + failed + " خطوة لم تتم و" + skipped + " تُركت (التفاصيل فوق). «تراجع» يرجّع كل شيء.";
                             if (failed > 0) color = RED;
@@ -127,7 +126,7 @@ public class SetupActivity extends Activity {
                     end = "حدث خطأ غير متوقع، ما غيّرنا شيئاً بعده. جرّب «تراجع» ثم أعد.";
                     color = RED;
                 }
-                if (finished) SetupSession.deleteKeyIfFinished(SetupActivity.this);   // the key is a standing credential: gone once the job is done
+                SetupSession.deleteKeyIfFinished(SetupActivity.this);   // after EVERY end (done, failed, skipped, error): the key is a standing credential; it stays only while a switch is pending
                 final String msg = end;
                 final int c = color;
                 runOnUiThread(new Runnable() {

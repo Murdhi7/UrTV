@@ -15,6 +15,13 @@ final class SetupRecovery {
 
     static int wait(int n) { return SetupEngine.backoffSeconds(n); }
 
+    static final String GAVE_UP_NOTICE = "الشاشة الأصلية لم تُرجَّع، افتح إعداد تلفزيوني";
+
+    /** True after the automatic attempts ran out: the person is told, at every start of the home and in the setup screen, until it is dealt with. */
+    static boolean gaveUp(Context c) {
+        try { return Integer.parseInt(String.valueOf(new FileStore(c).get("home-retries.txt")).trim()) >= GIVE_UP_AFTER; } catch (NumberFormatException e) { return false; }
+    }
+
     /** True when there is a switch to recover (the journal says «switching»). */
     static boolean pending(Context c) {
         String j = new FileStore(c).get("home-switch.json");
