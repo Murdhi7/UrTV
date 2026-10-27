@@ -4251,6 +4251,12 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
       const m = /url\("?(.*?)"?\)/.exec(getComputedStyle(document.querySelector('.photo')).backgroundImage);
       if (m) { const i = new Image(); i.src = m[1]; await i.decode().catch(() => {}); }
     });
+    // a loader ends with a redraw (offline, the games' «تعذّر التحديث» redraws the cards), and a redraw that moves nothing still
+    // repaints the photo's tiles a little apart: next's own page before and after one, 948 px at most 20/255 at 960x540, on the
+    // tiles' seams. On a busy machine it landed after the picture held still in one page and not in the other. So both pages wait
+    // for their loaders, then draw the cards once more, and are taken after that redraw whatever the machine's speed.
+    await o.p.waitForFunction(() => typeof BUSY !== 'object' || !Object.values(BUSY).some(Boolean), null, { timeout: 8000 }).catch(() => {});
+    await o.p.evaluate(() => { if (typeof renderPanel === 'function') renderPanel(false); });
     let png = await o.p.screenshot({ animations: 'disabled' });
     for (let k = 0; k < 6; k++) {
       await o.p.waitForTimeout(250);
