@@ -37,7 +37,7 @@ const OLD = () => ({
 const NEW = (extra = {}) => Object.assign(OLD(), {
   adhan_live: false, adhan_prayer: '', next_adhan: { prayer: 'العصر', in_seconds: 1234 },
   sleep_timer: { left_seconds: 600, options: [15, 30, 60, 90] }, saver_idle: '10', saver_idle_options: ['1', '2', '5', '10', '15', '30'],
-  keys_everywhere: true, family: { pin_set: true, kids: false, locked: ['@wifi', 'com.c.three', 'com.x.y'] }, phones: 2
+  keys_everywhere: true, typing_service: true, family: { pin_set: true, kids: false, locked: ['@wifi', 'com.c.three', 'com.x.y'] }, phones: 2
 }, extra);
 const APPS = {
   ok: true,
@@ -52,21 +52,32 @@ async function boot({ state = NEW(), w = 360, h = 740, scheme = 'dark', hash = '
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: scheme, hasTouch: false });
   const reqs = [], foreign = [], errors = [];
   const c = { state, pin: false, noSession: false, apps: APPS, update: null, ...cfg };
-  await ctx.route('**/*', route => {
+  await ctx.route('**/*', async route => {
     const rq = route.request(), u = new URL(rq.url());
     if (u.origin !== ORIGIN || (u.pathname !== '/phone/' && !u.pathname.startsWith('/api/'))) { foreign.push(rq.url()); return route.abort(); }
     if (u.pathname === '/phone/') return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', headers: { 'Content-Security-Policy': CSP }, body: HTML.replace('__NONCE__', NONCE) });
     let body = null; try { body = rq.postData() ? JSON.parse(rq.postData()) : null; } catch (e) { body = '?bad'; }
     const rec = { method: rq.method(), url: rq.url(), path: u.pathname, body, session: rq.headers()['x-urtv-session'] || null };
     reqs.push(rec);
+    const hdr = await rq.allHeaders();
     const J = (o, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(o) });
     const p = u.pathname;
     if (p === '/api/pair') return J({ ok: true, id: 'p1' });
-    if (p === '/api/pair/status') return J({ ok: true, status: 'approved', session: 'SESS1' });
+    if (p === '/api/pair/status') return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Set-Cookie': 'urtv=ck1; Path=/' }, body: JSON.stringify({ ok: true, status: 'approved', session: 'SESS1' }) });
     if (c.noSession && p !== '/api/logout') return J({ ok: false, error: 'no_session' }, 401);
     if (p === '/api/state') return J(typeof c.state === 'function' ? c.state() : c.state);
     if (p === '/api/apps') return J(c.apps);
-    if (p.startsWith('/api/icon/')) return route.fulfill({ status: 200, contentType: 'image/png', body: PNG });
+    if (p.startsWith('/api/icon/')) {   // an <img> sends the cookie but not the header: the server wants both
+      if (!(hdr.cookie || '').includes('urtv=ck1') || hdr['x-urtv-session'] !== 'SESS1') return J({ ok: false, error: 'no_session' }, 401);
+      if (p.includes('broken')) return J({ ok: false, error: 'not_found' }, 404);
+      c.iconNow = (c.iconNow || 0) + 1; c.iconMax = Math.max(c.iconMax || 0, c.iconNow);
+      await sleep(70); c.iconNow--;
+      return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'Cache-Control': 'private, max-age=86400' }, body: PNG });
+    }
+    if (p === '/api/do' && c.pin && body && body.op === 'sleep_cancel') {
+      if (body.pin === undefined) return J({ ok: false, error: 'pin_required' }, 403);
+      if (body.pin !== '1234') return J({ ok: false, error: 'pin_wrong' }, 403);
+    }
     if (p === '/api/set' && c.pin) {
       if (!body || body.pin === undefined) return J({ ok: false, error: 'pin_required' }, 403);
       if (body.pin !== '1234') return J({ ok: false, error: 'pin_wrong' }, 403);
@@ -211,8 +222,10 @@ await T('text other apps', async () => {
     && (await p.$$eval('#modes button', bs => bs.map(b => b.textContent + (b.classList.contains('on') ? '*' : '')).join())) === 'استبدال*,إضافة');
   await p.fill('#txt', 'ا'); await p.click('#txtGo'); await until(() => posts(S, '/api/text').length === 1);
   check('«أرسل» sends mode replace and no search', JSON.stringify(posts(S, '/api/text')[0].body) === '{"text":"ا","mode":"replace"}', JSON.stringify(posts(S, '/api/text')[0].body));
+  await until(async () => (await p.inputValue('#txt')) === '');
   await p.fill('#txt', 'سلام'); await p.click('#txtSearch'); await until(() => posts(S, '/api/text').length === 2);
   check('«بحث» sends the same text with search:true', JSON.stringify(posts(S, '/api/text')[1].body) === '{"text":"سلام","mode":"replace","search":true}', JSON.stringify(posts(S, '/api/text')[1].body));
+  await until(async () => (await p.inputValue('#txt')) === '');
   await p.click('#modes [data-mode=append]'); await p.fill('#txt', 'ب'); await p.click('#txtGo'); await until(() => posts(S, '/api/text').length === 3);
   check('«إضافة» sends mode append', posts(S, '/api/text')[2].body.mode === 'append');
   await p.reload(); await sleep(300);
@@ -226,21 +239,22 @@ await T('text other apps', async () => {
     check(`result ${r}: message and the field is cleared`, await until(async () => (await W.p.textContent('#msg')).includes(msg)) && await until(async () => (await W.p.inputValue('#txt')) === ''), await W.p.textContent('#msg'));
     await W.ctx.close();
   }
-  for (const [e, msg] of [['service_off', 'فعّل خدمة "تلفزيونك"'], ['locked', 'مقفول بالرقم السري، افتحه على التلفزيون'], ['password_field', 'ما أكتب في حقل كلمة المرور'], ['failed', 'ما نجحت']]) {
+  for (const [e, msg] of [['service_off', 'فعّل خدمة "تلفزيونك: الكتابة من الجوال"'], ['refused', 'ما أقدر أكتب في هذا التطبيق'], ['locked', 'مقفول بالرقم السري، افتحه على التلفزيون'], ['password_field', 'ما أكتب في حقل كلمة المرور'], ['failed', 'ما نجحت']]) {
     const W = await boot({ cfg: { textAnswer: { ok: false, error: e } } });
     await W.p.fill('#txt', 'نص'); await W.p.click('#txtSearch');
     check(`error ${e}: message and the text is kept`, await until(async () => (await W.p.textContent('#msg')).includes(msg)) && (await W.p.inputValue('#txt')) === 'نص', await W.p.textContent('#msg'));
     if (e === 'service_off') {
       const n = await W.p.textContent('#svcNote');
-      check('service_off: the permanent note with the path, visible after the toast is gone', n.includes('الإعدادات ← إمكانية الوصول ← تلفزيونك: إطفاء الشاشة والكتابة من الجوال') && await W.p.isVisible('#svcNote'));
+      check('service_off: the permanent note with the path, visible after the toast is gone', n.includes('الإعدادات ← إمكانية الوصول ← تلفزيونك: الكتابة من الجوال') && await W.p.isVisible('#svcNote'));
       await sleep(3800);
       check('the note stays', await W.p.isVisible('#svcNote'));
     }
     await W.ctx.close();
   }
   const mk = async extra => { const W = await boot({ state: NEW(extra) }); const v = await W.p.isVisible('#svcNote'); await W.ctx.close(); return v; };
-  check('hint under the box: other app and keys_everywhere false', await mk({ foreground: 'other', keys_everywhere: false }));
-  check('no hint: other app with the service on, our own screen, or an old TV without the field', !(await mk({ foreground: 'other', keys_everywhere: true })) && !(await mk({ foreground: 'own', keys_everywhere: false })) && !(await mk({ foreground: 'other', keys_everywhere: undefined })));
+  check('hint under the box: other app and typing_service false', await mk({ foreground: 'other', typing_service: false }));
+  check('no hint: other app with the typing service on, our own screen, or an old TV without the field', !(await mk({ foreground: 'other', typing_service: true })) && !(await mk({ foreground: 'own', typing_service: false })) && !(await mk({ foreground: 'other', typing_service: undefined })));
+  check('keys_everywhere only drives the pad note, not the typing hint', !(await mk({ foreground: 'other', keys_everywhere: false, typing_service: true })) && await mk({ foreground: 'other', keys_everywhere: true, typing_service: false }));
 });
 
 // ---- the note under the pad
@@ -263,9 +277,14 @@ await T('apps', async () => {
   await tab(S, 'apps'); await p.waitForSelector('#grid .app');
   const items = await p.$$eval('#grid .app', bs => bs.map(b => ({ pkg: b.getAttribute('data-pkg'), name: b.textContent, lock: !!b.querySelector('.lock'), src: (b.querySelector('img') || {}).getAttribute && b.querySelector('img').getAttribute('src'), bold: !!b.querySelector('b') })));
   check('the grid shows every favourite in the TV order', items.map(i => i.pkg).join() === 'com.a.one,com.b.two,com.c.three,com.d.x', items.map(i => i.pkg).join());
-  check('every app has an icon with src=/api/icon/<package> (no query)', items.every(i => i.src === '/api/icon/' + i.pkg), items.map(i => i.src).join());
-  await until(() => S.reqs.filter(r => r.path.startsWith('/api/icon/')).length >= 3);
-  check('the icons are requested as paths', S.reqs.filter(r => r.path.startsWith('/api/icon/')).length >= 3);
+  const loaded = await until(async () => (await p.$$eval('#grid img', is => is.length > 0 && is.every(i => (i.getAttribute('src') || '').startsWith('data:image/png')))));
+  const srcs = await p.$$eval('#grid img', is => is.map(i => i.getAttribute('src') || ''));
+  check('every icon is fetched with the session header + cookie and shown as a data: image', loaded && srcs.length === 4, srcs.map(x => x.slice(0, 20)).join());
+  check('an <img> never has an src starting with /api/', (await p.$$eval('img', is => is.every(i => !(i.getAttribute('src') || '').startsWith('/api/')))));
+  const ireq = S.reqs.filter(r => r.path.startsWith('/api/icon/'));
+  check('the icons are requested as /api/icon/<package> paths, once each', ireq.length === 4 && ireq.every(r => r.session === 'SESS1' && !r.url.includes('?')), ireq.map(r => r.path).join());
+  await p.fill('#appQ', 'ن'); await p.fill('#appQ', ''); await sleep(300);
+  check('the icons are cached in memory: a new search does not fetch them again', S.reqs.filter(r => r.path.startsWith('/api/icon/')).length === 4 && await p.$$eval('#grid img', is => is.length === 4 && is.every(i => (i.getAttribute('src') || '').startsWith('data:'))));
   check('the first letter is the tile fallback', await p.$eval('#grid .app .tile', t => t.firstChild.nodeType === 3 || t.textContent.length >= 1));
   check('only the locked app has 🔒', items.map(i => i.lock).join() === 'false,false,true,false');
   check('app names from the TV are text, never HTML', items[3].name.includes('<b>x</b>') && !items[3].bold, items[3].name);
@@ -285,6 +304,12 @@ await T('apps', async () => {
   check('a tool launches @id', posts(S, '/api/launch')[2].body.target === '@tasks');
   check('no request URL carries a query', S.reqs.every(r => !r.url.includes('?')), S.reqs.filter(r => r.url.includes('?')).map(r => r.url).join());
   await S.ctx.close();
+  const many = { ok: true, apps: Array.from({ length: 11 }, (_, i) => ({ pkg: 'com.m.a' + i, name: 'تطبيق ' + i, locked: false })).concat([{ pkg: 'com.broken.x', name: 'معطل', locked: false }]), tools: [] };
+  const M = await boot({ cfg: { apps: many } }); await tab(M, 'apps');
+  check('icons load at most 4 at a time, all of them', await until(async () => (await M.p.$$eval('#grid img', is => is.filter(i => (i.getAttribute('src') || '').startsWith('data:')).length)) === 11, 8000) && M.cfg.iconMax <= 4 && M.cfg.iconMax >= 2, 'max ' + M.cfg.iconMax);
+  await M.p.locator('#grid .app').last().scrollIntoViewIfNeeded(); await sleep(600);
+  check('a failed icon leaves the letter tile (no broken image)', await M.p.$$eval('#grid .app', bs => { const b = bs[bs.length - 1]; return !b.querySelector('img') && b.querySelector('.tile').textContent === 'م'; }));
+  await M.ctx.close();
   const O = await boot({ state: OLD(), cfg: { apps: { ok: false, error: 'bad_request' } } });
   await tab(O, 'apps');
   check('an older TV without /api/apps: a plain note, tools still there', (await O.p.textContent('#appsNote')).includes('حدّث') && (await O.p.locator('#tools button').count()) === 5);
@@ -379,6 +404,20 @@ await T('settings', async () => {
   await q.click('#out'); await q.waitForSelector('#login:not(.hidden)');
   check('«قطع الاتصال» posts /api/logout and returns to the login', posts(N, '/api/logout').length === 1 && !(await q.isVisible('#app')));
   await N.ctx.close();
+});
+
+// ---- sleep cancel is PIN-protected like /api/set
+await T('sleep cancel pin', async () => {
+  const S = await boot({ cfg: { pin: true } });
+  await tab(S, 'now');
+  await S.p.click('#sleepCancel'); await S.p.waitForSelector('#dlg:not(.hidden)');
+  check('do sleep_cancel answered pin_required opens the PIN prompt', posts(S, '/api/do').length === 1 && !('pin' in posts(S, '/api/do')[0].body));
+  await S.p.fill('#pin', '1234'); await S.p.click('#pinOk');
+  await until(() => posts(S, '/api/do').length === 2); await sleep(150);
+  check('and is resent with the pin', JSON.stringify(posts(S, '/api/do')[1].body) === '{"op":"sleep_cancel","pin":"1234"}' && !(await S.p.isVisible('#dlg')), JSON.stringify(posts(S, '/api/do')[1].body));
+  await S.p.click('#saverGo'); await until(() => posts(S, '/api/do').length === 3);
+  check('do screensaver carries no pin prompt', JSON.stringify(posts(S, '/api/do')[2].body.op) === '"screensaver"' && !(await S.p.isVisible('#dlg')) || posts(S, '/api/do')[2].body.op === 'screensaver');
+  await S.ctx.close();
 });
 
 // ---- session lost

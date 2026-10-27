@@ -512,7 +512,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
 
   // ---- the apps
   function iconUrl(pkg) { return '/api/icon/' + encodeURIComponent(pkg); }
-  // An <img> cannot send the session header, so each icon is fetched like any call, read as a blob and shown as a data: address.
+  // An image element cannot send the session header, so each icon is fetched like any call, read as a blob and shown as a data: address.
   var icons = {}, iconQ = [], iconRun = 0, iconWait = {};
   function iconGet(pkg, done) {
     if (pkg in icons) { done(icons[pkg]); return; }
@@ -560,7 +560,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
       im.onerror = function () { im.remove(); };
       t.appendChild(im);
       var want = a.pkg, gen = drawGen;
-      var go = function () { iconGet(want, function (d) { if (d && im.parentNode && gen === drawGen) im.setAttribute('src', d); }); };
+      var go = function () { iconGet(want, function (d) { if (!d) im.remove(); else if (im.parentNode && gen === drawGen) im.setAttribute('src', d); }); };
       if ('IntersectionObserver' in window) {
         var io = new IntersectionObserver(function (es) { if (es.some(function (x) { return x.isIntersecting; })) { io.disconnect(); go(); } }, { rootMargin: '200px' });
         io.observe(b);
