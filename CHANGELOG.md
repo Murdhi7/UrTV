@@ -18,6 +18,7 @@ Newest first. `next` is where changes land first; a release is what was tested t
 - A year strip under the clock, the date beside the clubs, club crests when fetch is refused, fixes to the league card.
 - The screensaver starts from its pill; the page survives a WebView renderer that dies.
 - The weather and the dust are told apart; forecast and weather show only as old as they are; the last price is kept and marked.
+- The medium and small clocks lay the screen out again (the large one is unchanged); «بطاقة ثانية»: a second card beside the small clock.
 
 **Speed and safety**
 - Fetches and the live poll stay inside their deadlines; apps load off the UI thread; downloads are capped.

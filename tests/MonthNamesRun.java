@@ -15,6 +15,18 @@ public final class MonthNamesRun {
                 MonthNames.of("٢٧ أكتوبر", true));
         check("off: the text as it is", MonthNames.of("٢٧ أكتوبر", false).equals("٢٧ أكتوبر"), "");
         check("the Hijri months stay (no Gregorian name is in them)", MonthNames.of("ربيع الأول رجب شعبان رمضان", true).equals("ربيع الأول رجب شعبان رمضان"), "");
+        check("other spellings a TV may have: «إبريل», «يونيه», «يوليه»", MonthNames.of("٢ إبريل", true).equals("٢ نيسان")
+                && MonthNames.of("يونيه يوليه", true).equals("حزيران تموز"), MonthNames.of("٢ إبريل", true));
+        // what this JVM's Arabic data writes for each month (the home screen's SimpleDateFormat("d MMMM", ar)): every one becomes a Levant name
+        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("d MMMM", new java.util.Locale("ar"));
+        StringBuilder missed = new StringBuilder();
+        java.util.Calendar c = java.util.Calendar.getInstance();
+        for (int mo = 0; mo < 12; mo++) {
+            c.set(2026, mo, 15);
+            String out = MonthNames.of(f.format(c.getTime()), true), want = MonthNames.LEVANT[mo][1];
+            if (!out.endsWith(want)) missed.append(f.format(c.getTime())).append(" -> ").append(out).append("; ");
+        }
+        check("this JVM's Arabic month names, each one to its Levant name", missed.length() == 0, missed.toString());
         for (String[] m : MonthNames.LEVANT) System.out.println("TABLE\t" + m[0] + "\t" + m[1]);
         System.exit(failed == 0 ? 0 : 1);
     }
