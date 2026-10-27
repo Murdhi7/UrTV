@@ -369,7 +369,7 @@ public class MainActivity extends Activity {
         appsLabel = text(11, "sans-serif-medium", 0x99FFFFFF);
         appsLabel.setText("كل التطبيقات");
         appsLabel.setTextColor(GOLD);
-        content.addView(appsLabel, llp(-2, -2, dp(68), dp(8), 0, dp(18)));
+        content.addView(appsLabel, llp(-2, -2, dp(68), dp(8), dp(68), dp(18)));   // inset like the grid on both sides: in RTL it starts over the first tile
 
         grid = new LinearLayout(this);
         grid.setOrientation(LinearLayout.VERTICAL);
@@ -629,9 +629,7 @@ public class MainActivity extends Activity {
 
         for (int i = 0; i < dock.size(); i++) {
             View tile = tile(dock.get(i), true);
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f);
-            p.setMargins(i == 0 ? 0 : dp(10), 0, i == dock.size() - 1 ? 0 : dp(10), 0);
-            dockRow.addView(tile, p);
+            dockRow.addView(tile, rowCell(i, dock.size(), -2));
         }
         appsLabel.setVisibility(rest.isEmpty() ? View.GONE : View.VISIBLE);
         wireFocus();
@@ -660,9 +658,7 @@ public class MainActivity extends Activity {
                 row = (LinearLayout) grid.getChildAt(grid.getChildCount() - 1);
             }
             View tile = tile(rest.get(i), false);
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f);
-            p.setMargins(i % cols == 0 ? 0 : dp(10), 0, i % cols == cols - 1 ? 0 : dp(10), 0);
-            row.addView(tile, p);
+            row.addView(tile, rowCell(i % cols, cols, -2));
         }
         if (to < rest.size()) {
             wireFocus();
@@ -670,14 +666,22 @@ public class MainActivity extends Activity {
             return;
         }
         // Pad the last row so tiles keep their width.
-        if (row != null) for (int i = rest.size() % cols; i != 0 && i < cols; i++) {
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, 1, 1f);
-            p.setMargins(dp(10), 0, i == cols - 1 ? 0 : dp(10), 0);
-            row.addView(new View(this), p);
-        }
+        if (row != null) for (int i = rest.size() % cols; i != 0 && i < cols; i++) row.addView(new View(this), rowCell(i, cols, 1));
         wireFocus();
         applyPendingFocus();
         focusPkgAfter = null;   // not found (the app is gone): never take the focus later
+    }
+
+    /**
+     * The place of cell {@code i} of {@code n} in a row of the dock or the grid: equal shares, 20 dp between two cells and none at the
+     * row's two ends. Start and end, not left and right: the home is right to left, so the first cell's edge is the row's right edge,
+     * under the start of «كل التطبيقات» (left and right margins put the outer gap inside and the row a step off, the owner's photo).
+     */
+    private LinearLayout.LayoutParams rowCell(int i, int n, int height) {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, height, 1f);
+        p.setMarginStart(i == 0 ? 0 : dp(10));
+        p.setMarginEnd(i == n - 1 ? 0 : dp(10));
+        return p;
     }
 
     /** After «إضافة إلى المفضلة» and the like: the focus goes to the app that was changed, once its tile exists (the loads are in the background). */
@@ -1121,9 +1125,7 @@ public class MainActivity extends Activity {
             if (card == null) continue;
             View box = (View) card.getParent();
             if (box.getParent() instanceof ViewGroup) ((ViewGroup) box.getParent()).removeView(box);
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f);
-            p.setMargins(i == 0 ? 0 : dp(10), 0, i == order.size() - 1 ? 0 : dp(10), 0);
-            dockRow.addView(box, p);
+            dockRow.addView(box, rowCell(i, order.size(), -2));
             dockCards.add(card);
         }
         wireFocus();
