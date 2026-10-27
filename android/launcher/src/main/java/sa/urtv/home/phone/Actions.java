@@ -34,6 +34,24 @@ public interface Actions {
     /** Built-in city names that match the words, at most twenty. */
     List<String> cities(String query);
 
+    /** The favourites in the TV's order and the pills: {"apps": [{pkg, name, locked}], "tools": [{id, name, locked}]}. */
+    Map<String, Object> apps();
+
+    /** A favourite's icon as a PNG, or null for anything that is not one of them. */
+    byte[] icon(String pkg);
+
+    /** Opens an app or a pill with the home screen's own parental check: ok with "opened" or "pin_on_tv" (the TV asks for the PIN), else a fixed failure. */
+    Result launch(String target);
+
+    /** «أوقف الأذان الآن»: ok with "done" (it was playing) or "nothing". */
+    Result adhanStop();
+
+    /** One of Schema.DO_OPS: "screensaver" (the home's «شاشة التوقف» pill, locked as it is) or "sleep_cancel". */
+    Result doOp(String op);
+
+    /** The family lock, read only: pin_set, kids, locked. Never the PIN. */
+    Map<String, Object> family();
+
     /** «تحديث تلفزيونك»: op check or install; a map with a status word the page explains. */
     Map<String, Object> update(String op);
 }

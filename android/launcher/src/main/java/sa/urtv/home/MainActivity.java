@@ -110,6 +110,7 @@ public class MainActivity extends Activity {
     private final Runnable rotateWallpaper = this::nextWallpaper;
     static final long WALLPAPER_INTERVAL_MS = 10 * 60 * 1000;
     private TextView greeting, weatherLine, clock, ampm, date, zoneLine, title, appsLabel;
+    private Pill inputsPill;        // «المصادر», for the phone remote's request
     private Pill tilawahPill;       // «تلاوة وأذان»: in the row only while the setting shows it (applyListenPill)
     private LinearLayout pillRow;    // the top row of pills
     private Pill wifiPill;   // the network's name shows while it has the focus
@@ -169,7 +170,10 @@ public class MainActivity extends Activity {
                         | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
         setContentView(buildUi());
         // started by the screensaver's «الأذان» row; not again after a restore (the system hands back the same intent)
-        if (b == null && (getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) openRequested(getIntent());
+        if (b == null && (getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) {
+            openRequested(getIntent());
+            phoneRequested(getIntent());   // the phone remote's «افتح»
+        }
         wantEdit = getIntent() != null && getIntent().getBooleanExtra(EXTRA_EDIT, false);   // the settings' «تعديل المفضلة»
         buildApps();
 
@@ -253,6 +257,7 @@ public class MainActivity extends Activity {
             return;
         }
         openRequested(intent);   // the screensaver's «الأذان» row (open=adhan)
+        phoneRequested(intent);   // the phone remote opened an app that asks for the PIN, or one of the pills
         // Home pressed while already home: jump back to the first dock app.
         if (inputsPopup != null) inputsPopup.dismiss();
         if (!dockCards.isEmpty()) dockCards.get(0).requestFocus();
@@ -447,6 +452,7 @@ public class MainActivity extends Activity {
         saver.setOnClickListener(v -> guarded(ParentalPolicy.PILL_SAVER, SAVER_PKG, "شاشة التوقف", this::startSaver));   // OK starts it, as optimize/start-saver.sh --preview does
         saver.setOnLongClickListener(v -> { guarded(ParentalPolicy.PILL_SAVER_SETTINGS, SAVER_PKG, "شاشة التوقف", () -> openPackage(SAVER_PKG)); return true; });   // a long OK: its settings, where OK used to go
         Pill inputs = pill("المصادر", R.drawable.ic_input);
+        inputsPill = inputs;
         inputs.setOnClickListener(v -> showInputs(v, ParentalPolicy.PILL_INPUTS));
         wifiPill = pill("واي فاي", R.drawable.ic_wifi);
         wifiPill.setOnClickListener(v -> launchGuarded(ParentalPolicy.PILL_WIFI, new Intent(Settings.ACTION_WIFI_SETTINGS), "واي فاي"));
@@ -498,6 +504,34 @@ public class MainActivity extends Activity {
         if (i == null || !"adhan".equals(i.getStringExtra("open"))) return;
         i.removeExtra("open");
         if (getResources().getBoolean(R.bool.show_listening)) handler.post(() -> launchGuarded(ParentalPolicy.PILL_LISTEN, adhanSettingsIntent(), "إعدادات الأذان"));
+    }
+
+    /**
+     * The phone remote asks for something (PhoneApps.EXTRA_LAUNCH): an app's package or a pill's name. It goes through the very guard a tap
+     * goes through, so a locked one asks for the PIN here, on the TV; the request is only acted on for what the phone may list (an app of the
+     * favourites row, one of the pills) and never twice (the extra is taken off the intent).
+     */
+    private void phoneRequested(Intent i) {
+        if (i == null) return;
+        final String t = i.getStringExtra(PhoneApps.EXTRA_LAUNCH);
+        if (t == null) return;
+        i.removeExtra(PhoneApps.EXTRA_LAUNCH);
+        handler.post(() -> {
+            switch (t) {
+                case "@tasks": launchGuarded(ParentalPolicy.PILL_TASKS, new Intent(this, TasksActivity.class), "المهام"); break;
+                case "@saver": guarded(ParentalPolicy.PILL_SAVER, SAVER_PKG, "شاشة التوقف", this::startSaver); break;
+                case "@inputs": if (inputsPill != null) showInputs(inputsPill, ParentalPolicy.PILL_INPUTS); break;
+                case "@settings": launchGuarded(ParentalPolicy.PILL_TV_SETTINGS, new Intent(Settings.ACTION_SETTINGS), "إعدادات التلفزيون"); break;
+                case "@listen":
+                    if (getResources().getBoolean(R.bool.show_listening)) launchGuarded(ParentalPolicy.PILL_LISTEN, new Intent(this, sa.urtv.home.tilawah.MainActivity.class), "تلاوة وأذان");
+                    break;
+                default: {
+                    boolean shown = false;
+                    for (String[] a : PhoneApps.apps(this)) shown |= a[0].equals(t);
+                    if (shown) guarded(ParentalPolicy.REMOTE_APP, t, labelOf(t), () -> openPackage(t));
+                }
+            }
+        });
     }
 
     /** The button is wanted: the screensaver's setting says shown, and this build has the listening part at all. */

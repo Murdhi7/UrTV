@@ -32,8 +32,8 @@ import java.util.List;
  * manifest lets in with DUMP, as for SaverReceiver; SaverReceiver PHOTOS then checks and keeps it.
  *
  * «تحكم من الجوال» (the launcher's phone control) uses call(), and only with PHONE_SETTINGS (signature, same key):
- *   phone_state                         -> city, home_cards (list), panels (codes) and panel_names (Arabic, same order)
- *   phone_set  extras city, home_panel  -> ok, and the same checks as SaverReceiver SET (it is that code)
+ *   phone_state                         -> city, home_cards (list), panels (codes) and panel_names (Arabic, same order), idle (minutes)
+ *   phone_set  extras city, home_panel, idle -> ok (and idle_denied when the TV does not let this app change the idle time), the same checks as SaverReceiver SET (it is that code)
  *   phone_cities  arg = words           -> cities: the built-in names that match (at most 20)
  * Nothing else can be set this way.
  */
@@ -84,13 +84,15 @@ public class ConfigProvider extends ContentProvider {
                 out.putStringArrayList("home_cards", new ArrayList<>(p.homePanels()));
                 out.putStringArrayList("panels", codes);
                 out.putStringArrayList("panel_names", names);
+                out.putString("idle", String.valueOf(Prefs.idleMs(c) / 60000));
                 return out;
             }
             case "phone_set": {
                 android.content.Intent i = new android.content.Intent();
-                for (String k : new String[] {"city", "home_panel"}) if (extras != null && extras.getString(k) != null) i.putExtra(k, extras.getString(k));
+                for (String k : new String[] {"city", "home_panel", "idle"}) if (extras != null && extras.getString(k) != null) i.putExtra(k, extras.getString(k));
                 String r = SaverReceiver.set(c, p, i);
                 out.putBoolean("ok", r.startsWith("saved"));
+                out.putBoolean("idle_denied", r.startsWith("error: idle not allowed"));
                 return out;
             }
             case "phone_cities": {

@@ -62,6 +62,31 @@ public final class PhoneRun {
         @Override public Result set(Map<String, Object> v) { calls.add("set:" + v.keySet()); return Result.ok("saved"); }
         @Override public Result quran(Map<String, Object> v) { calls.add("quran:" + v.get("op")); return Result.ok("sent"); }
         @Override public List<String> cities(String q) { calls.add("cities"); return new ArrayList<String>(Arrays.asList("الرياض")); }
+        @Override public Map<String, Object> apps() {
+            calls.add("apps");
+            Map<String, Object> m = new LinkedHashMap<>();
+            List<Object> apps = new ArrayList<>(), tools = new ArrayList<>();
+            Map<String, Object> yt = new LinkedHashMap<>();
+            yt.put("pkg", "com.example.video"); yt.put("name", "فيديو"); yt.put("locked", false);
+            apps.add(yt);
+            Map<String, Object> t = new LinkedHashMap<>();
+            t.put("id", "tasks"); t.put("name", "المهام"); t.put("locked", true);
+            tools.add(t);
+            m.put("apps", apps);
+            m.put("tools", tools);
+            return m;
+        }
+        @Override public byte[] icon(String pkg) { calls.add("icon:" + pkg); return pkg.equals("com.example.video") ? new byte[] {(byte) 0x89, 'P', 'N', 'G', 13, 10, 26, 10} : null; }
+        @Override public Result launch(String target) { calls.add("launch:" + target); return target.equals("@tasks") ? Result.ok("pin_on_tv") : Result.ok("opened"); }
+        @Override public Result adhanStop() { calls.add("adhan_stop"); return Result.ok("done"); }
+        @Override public Result doOp(String op) { calls.add("do:" + op); return Result.ok("done"); }
+        @Override public Map<String, Object> family() {
+            calls.add("family");
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("pin_set", true); m.put("kids", false);
+            m.put("locked", new ArrayList<Object>(Arrays.asList("@wifi")));
+            return m;
+        }
         @Override public Map<String, Object> update(String op) { calls.add("update:" + op); Map<String, Object> m = new LinkedHashMap<>(); m.put("status", "idle"); return m; }
     }
 
@@ -188,8 +213,125 @@ public final class PhoneRun {
         off();
         http();
         controller();
+        remoteV2();
         System.out.println(failed == 0 ? "ALL PASS" : failed + " FAILED");
         System.exit(failed == 0 ? 0 : 1);
+    }
+
+    /** The phone remote's newer endpoints: apps, icons, launch, adhan stop, do, family, the new settings. Each needs the session, validates, and stays inside the limits. */
+    static void remoteV2() throws Exception {
+        Env e = started();
+        String sess = pair(e);
+        String[][] get = {{"/api/apps"}, {"/api/family"}, {"/api/icon/com.example.video"}};
+        String[][] post = {{"/api/launch", "{\"target\":\"com.example.video\"}"}, {"/api/adhan_stop", "{}"}, {"/api/do", "{\"op\":\"screensaver\"}"}};
+        boolean none = true;
+        for (String[] g : get) none &= send(e, "GET", g[0], null).status == 401;
+        for (String[] p : post) none &= send(e, "POST", p[0], p[1]).status == 401;
+        check("v2: none of the new endpoints answers without a session", none && e.actions.calls.isEmpty(), e.actions.calls.toString());
+        boolean noSecond = true;
+        for (String[] p : post) noSecond &= send(e, "POST", p[0], p[1], "Cookie", "urtv=" + sess).status == 401 && send(e, "POST", p[0], p[1], "X-UrTV-Session", sess).status == 401;
+        check("v2: the cookie alone or the header alone is not enough for them either", noSecond && e.actions.calls.isEmpty(), "");
+        boolean origin = true;
+        for (String[] p : post) origin &= authed(e, "POST", p[0], p[1], sess).status == 200
+            && send(e, "POST", p[0], p[1], "Cookie", "urtv=" + sess, "X-UrTV-Session", sess, "Origin", "http://evil.example").status == 403
+            && send(e, "POST", p[0], p[1], "Cookie", "urtv=" + sess, "X-UrTV-Session", sess, "Content-Type", "text/plain").status == 415;
+        check("v2: a POST from another origin or not as JSON is refused, a proper one works", origin, e.actions.calls.toString());
+        e.actions.calls.clear();
+
+        e.now[0] += 6_000;   // the per-address rate is 100 requests in 5 seconds: a fresh window
+        Reply apps = authed(e, "GET", "/api/apps", null, sess);
+        check("v2: /api/apps lists the favourites and the pills with their lock", apps.status == 200 && apps.json().get("ok") == Boolean.TRUE
+            && ((List<?>) apps.json().get("apps")).size() == 1 && ((List<?>) apps.json().get("tools")).size() == 1 && apps.body.contains("\"locked\":true"), apps.body);
+        Reply fam = authed(e, "GET", "/api/family", null, sess);
+        check("v2: /api/family is the read-only summary (no PIN in it)", fam.status == 200 && fam.body.contains("\"pin_set\":true") && !fam.body.toLowerCase().contains("\"pin\":"), fam.body);
+        check("v2: there is no way to change the family lock from the phone (no such endpoint, a POST to /api/family is refused)",
+            authed(e, "POST", "/api/family", "{\"kids\":true}", sess).status == 404 && authed(e, "POST", "/api/kids", "{\"on\":true}", sess).status == 404
+            && authed(e, "POST", "/api/pin", "{\"pin\":\"1234\"}", sess).status == 404 && authed(e, "POST", "/api/reset", "{}", sess).status == 404
+            && authed(e, "POST", "/api/uninstall", "{\"pkg\":\"com.example.video\"}", sess).status == 404 && authed(e, "POST", "/api/adb", "{}", sess).status == 404, "");
+        Reply icon = authed(e, "GET", "/api/icon/com.example.video", null, sess);
+        check("v2: an icon is a PNG the browser may keep for a day, for the session only", icon.status == 200 && "image/png".equals(icon.header("Content-Type"))
+            && "private, max-age=86400".equals(icon.header("Cache-Control")) && "nosniff".equals(icon.header("X-Content-Type-Options")) && icon.body.contains("PNG"), icon.head);
+        e.actions.calls.clear();
+        Reply unknown = authed(e, "GET", "/api/icon/com.example.other", null, sess);
+        boolean badNames = true;
+        for (String bad : new String[] {"a%20b", "..%2f..%2fx", "com.x%3fy", "q", "a..b", "com.example.video.png/../x", "-a.b"}) {
+            Reply r = authed(e, "GET", "/api/icon/" + bad, null, sess);
+            badNames &= r.status == 404 && !e.actions.calls.toString().contains(bad);
+        }
+        check("v2: a package that is not a favourite is 404 and nothing else about the TV is revealed; a name that is no package name never reaches the TV code",
+            unknown.status == 404 && "not_found".equals(unknown.json().get("error")) && badNames && e.actions.calls.equals(Arrays.asList("icon:com.example.other")), e.actions.calls.toString());
+        check("v2: a query string on any address is refused by the server itself", authed(e, "GET", "/api/icon/com.example.video?x=1", null, sess).status == 404, "");
+        e.actions.calls.clear();
+
+        e.now[0] += 6_000;
+        Reply l1 = authed(e, "POST", "/api/launch", "{\"target\":\"com.example.video\"}", sess);
+        Reply l2 = authed(e, "POST", "/api/launch", "{\"target\":\"@tasks\"}", sess);
+        check("v2: launch takes a package or one of our pills and answers what the TV said (opened, or pin_on_tv: the PIN is asked on the TV)",
+            l1.status == 200 && "opened".equals(l1.json().get("result")) && l2.status == 200 && "pin_on_tv".equals(l2.json().get("result"))
+            && e.actions.calls.equals(Arrays.asList("launch:com.example.video", "launch:@tasks")), e.actions.calls.toString() + l1.body + l2.body);
+        e.actions.calls.clear();
+        boolean badLaunch = true;
+        for (String body : new String[] {"{}", "{\"target\":\"rm -rf /\"}", "{\"target\":\"@wifi\"}", "{\"target\":\"@urtv\"}", "{\"target\":\"@parental\"}", "{\"target\":\"x\"}", "{\"target\":5}",
+                "{\"target\":\"com.example.video\",\"pin\":\"1234\"}", "{\"target\":\"com.example.video\",\"x\":1}", "{\"target\":\"intent:#Intent;end\"}", "{\"target\":\"com.example.video; reboot\"}"}) {
+            badLaunch &= authed(e, "POST", "/api/launch", body, sess).status == 400;
+        }
+        check("v2: launch refuses anything else (another pill, a word, a command, a PIN: the phone never sends the PIN for a launch) and nothing reaches the TV code", badLaunch && e.actions.calls.isEmpty(), e.actions.calls.toString());
+
+        check("v2: adhan_stop and do work with their exact bodies", authed(e, "POST", "/api/adhan_stop", "{}", sess).status == 200
+            && authed(e, "POST", "/api/do", "{\"op\":\"screensaver\"}", sess).status == 200 && authed(e, "POST", "/api/do", "{\"op\":\"sleep_cancel\"}", sess).status == 200
+            && e.actions.calls.equals(Arrays.asList("adhan_stop", "do:screensaver", "do:sleep_cancel")), e.actions.calls.toString());
+        e.actions.calls.clear();
+        boolean badDo = authed(e, "POST", "/api/adhan_stop", "{\"x\":1}", sess).status == 400;
+        for (String op : new String[] {"reboot", "reset", "shell", "uninstall", "kids", "unlock", ""}) badDo &= authed(e, "POST", "/api/do", "{\"op\":\"" + op + "\"}", sess).status == 400;
+        badDo &= authed(e, "POST", "/api/do", "{}", sess).status == 400 && authed(e, "POST", "/api/do", "{\"op\":\"screensaver\",\"x\":1}", sess).status == 400;
+        check("v2: do takes screensaver and sleep_cancel only; adhan_stop no extra keys", badDo && e.actions.calls.isEmpty(), e.actions.calls.toString());
+
+        e.now[0] += 6_000;
+        boolean keysOk = true;
+        for (String k : new String[] {"up", "down", "left", "right", "ok", "back", "home", "vol_up", "vol_down", "mute", "play_pause"}) keysOk &= authed(e, "POST", "/api/key", "{\"key\":\"" + k + "\"}", sess).status == 200;
+        boolean keysBad = true;
+        for (String k : new String[] {"power", "menu", "settings", "app_switch", "sleep", "wakeup", "channel_up", "tv_input", "0", "assist", "search", "UP", "up ", "reboot"}) keysBad &= authed(e, "POST", "/api/key", "{\"key\":\"" + k + "\"}", sess).status == 400;
+        check("v2: the keys are exactly the allow-list (DPAD, OK, BACK, HOME, VOLUME, MUTE, PLAY_PAUSE), nothing else", keysOk && keysBad, "");
+        e.actions.calls.clear();
+
+        e.now[0] += 6_000;
+        boolean setBad = true;
+        for (String body : new String[] {"{\"sleep_minutes\":45}", "{\"sleep_minutes\":-5}", "{\"sleep_minutes\":\"30\"}", "{\"saver_idle\":7}", "{\"saver_idle\":0}", "{\"saver_idle\":\"10\"}", "{\"sleep_minutes\":true}"}) setBad &= authed(e, "POST", "/api/set", body, sess).status == 400;
+        check("v2: set refuses a sleep or idle value that is not one of the lists", setBad && e.actions.calls.isEmpty(), e.actions.calls.toString());
+        e.now[0] += 6_000;
+        boolean setOk = true;
+        for (String body : new String[] {"{\"sleep_minutes\":0}", "{\"sleep_minutes\":15}", "{\"sleep_minutes\":90}", "{\"saver_idle\":1}", "{\"saver_idle\":30}"}) setOk &= authed(e, "POST", "/api/set", body, sess).status == 200;
+        check("v2: set takes the sleep minutes (0 cancels) and the idle minutes of the lists", setOk && e.actions.calls.size() == 5, e.actions.calls.toString());
+        check("v2: /api/state counts the connected phones", authed(e, "GET", "/api/state", null, sess).json().get("phones") instanceof Long, "");
+        e.ctl.stop("owner");
+
+        // the PIN protects the new settings, and is not asked for the launches (the TV asks)
+        e = started();
+        e.ctl.setPinGate(new PinGate() {
+            @Override public boolean required() { return true; }
+            @Override public boolean verify(String pin) { return "1234".equals(pin); }
+        });
+        sess = pair(e);
+        e.actions.calls.clear();
+        Reply sm = authed(e, "POST", "/api/set", "{\"sleep_minutes\":30}", sess);
+        Reply si = authed(e, "POST", "/api/set", "{\"saver_idle\":5}", sess);
+        check("v2: with a PIN set, the sleep timer and the idle time ask for it like every setting, and nothing was done without it",
+            sm.status == 403 && "pin_required".equals(sm.json().get("error")) && si.status == 403 && e.actions.calls.isEmpty(), sm.body + si.body);
+        check("v2: with the right PIN they go through", authed(e, "POST", "/api/set", "{\"sleep_minutes\":30,\"pin\":\"1234\"}", sess).status == 200 && e.actions.calls.contains("set:[sleep_minutes]"), e.actions.calls.toString());
+        check("v2: launching, stopping the adhan, the screensaver and reading the family card never ask the phone for the PIN (a locked app asks on the TV)",
+            authed(e, "POST", "/api/launch", "{\"target\":\"@tasks\"}", sess).status == 200 && authed(e, "POST", "/api/adhan_stop", "{}", sess).status == 200
+            && authed(e, "POST", "/api/do", "{\"op\":\"screensaver\"}", sess).status == 200 && authed(e, "GET", "/api/family", null, sess).status == 200
+            && authed(e, "GET", "/api/apps", null, sess).status == 200, "");
+        e.ctl.stop("owner");
+
+        // Schema, directly
+        check("v2: Schema.target takes packages and our five pills only", Schema.target("com.example.video") && Schema.target("@tasks") && Schema.target("@saver") && Schema.target("@inputs")
+            && Schema.target("@settings") && Schema.target("@listen") && !Schema.target("@wifi") && !Schema.target("@urtv") && !Schema.target("@parental") && !Schema.target("a") && !Schema.target(null)
+            && !Schema.target("com.example.") && !Schema.target("com..x") && !Schema.target(new StringBuilder("x").toString()), "");
+        check("v2: Schema.packageName is bounded", !Schema.packageName("a." + "b".repeat(200)) && Schema.packageName("sa.urtv.home"), "");
+        boolean unique = true;
+        for (String t : Schema.TOOLS) unique &= t.startsWith("@") && t.length() > 2;
+        check("v2: the sleep and idle lists are the app's (SleepTimer.MINUTES plus 0; Prefs.IDLE_MINUTES)", unique && Arrays.toString(Schema.SLEEP_MINUTES).equals("[0, 15, 30, 60, 90]") && Arrays.toString(Schema.SAVER_IDLE).equals("[1, 2, 5, 10, 15, 30]"), "");
     }
 
     /** The code the TV shows and the one the phone sends are both ASCII digits, whatever language the TV is set to (ar-SA and fa-IR format %d with their own digits). */

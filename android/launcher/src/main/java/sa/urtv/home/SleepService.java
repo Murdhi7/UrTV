@@ -24,6 +24,12 @@ public class SleepService extends AccessibilityService {
     /** Is the service on? (the person or ADB enabled it, and Android has started it) */
     static boolean enabled() { return running != null; }
 
+    /** Presses Back for the phone remote (any app in front); false when the service is off. */
+    static boolean back() {
+        SleepService s = running;
+        return s != null && s.performGlobalAction(GLOBAL_ACTION_BACK);
+    }
+
     /** Turn the screen off now; false when the service is off or this Android is older than 9. */
     static boolean sleepNow() {
         SleepService s = running;

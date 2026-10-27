@@ -19,6 +19,11 @@ public final class Schema {
     /** AdhanVoices.COUNT: the number of adhan recordings of ours (tests/phone_test.py checks they agree) */
     public static final int ADHAN_VOICES = 21;
     public static final int MIN_SLEEP = 0, MAX_SLEEP = 180;
+    /** «مؤقت النوم» of the home (SleepTimer.MINUTES, and 0 = cancel) and the screensaver's idle minutes (Prefs.IDLE_MINUTES): tests/phone_test.py checks they agree. */
+    public static final int[] SLEEP_MINUTES = {0, 15, 30, 60, 90};
+    public static final int[] SAVER_IDLE = {1, 2, 5, 10, 15, 30};
+    public static final String[] DO_OPS = {"screensaver", "sleep_cancel"};
+    public static final String[] TOOLS = {"@tasks", "@saver", "@inputs", "@settings", "@listen"};
 
     /** A checked body: the allowed keys with their typed values, or why it was refused (a fixed word, never the input). */
     public static final class Clean {
@@ -78,13 +83,26 @@ public final class Schema {
                 if (!pin(body)) return no("bad pin");
                 return c;
             }
+            case "launch": {
+                Clean c = only(body, "target");
+                if (!c.ok()) return c;
+                if (!target(body.get("target"))) return no("bad target");
+                return c;
+            }
+            case "adhanstop": return only(body);
+            case "do": {
+                Clean c = only(body, "op");
+                if (!c.ok()) return c;
+                if (!(body.get("op") instanceof String) || !Arrays.asList(DO_OPS).contains(body.get("op"))) return no("bad op");
+                return c;
+            }
             case "logout": return only(body);
             default: return no("unknown endpoint");
         }
     }
 
     private static Clean set(Map<String, Object> b) {
-        Clean c = only(b, "city", "home_cards", "adhan_on", "adhan_voice", "adhan_fajr_voice", "adhan_short", "adhan_stopkey", "adhan_volume", "pin");
+        Clean c = only(b, "city", "home_cards", "adhan_on", "adhan_voice", "adhan_fajr_voice", "adhan_short", "adhan_stopkey", "adhan_volume", "sleep_minutes", "saver_idle", "pin");
         if (!c.ok()) return c;
         if (!pin(b)) return no("bad pin");
         boolean any = false;
@@ -106,6 +124,8 @@ public final class Schema {
                 case "adhan_on": case "adhan_short": case "adhan_stopkey": if (!(v instanceof Boolean)) return no("bad " + k); break;
                 case "adhan_voice": case "adhan_fajr_voice": if (!range(v, 1, ADHAN_VOICES)) return no("bad " + k); break;
                 case "adhan_volume": if (!range(v, 10, 100)) return no("bad adhan_volume"); break;
+                case "sleep_minutes": if (!oneOf(v, SLEEP_MINUTES)) return no("bad sleep_minutes"); break;
+                case "saver_idle": if (!oneOf(v, SAVER_IDLE)) return no("bad saver_idle"); break;
                 default: return no("unknown key");
             }
         }
@@ -136,6 +156,22 @@ public final class Schema {
 
     private static boolean pin(Map<String, Object> b) {
         return !b.containsKey("pin") || (b.get("pin") instanceof String && ((String) b.get("pin")).matches("[0-9]{4}"));
+    }
+
+    private static boolean oneOf(Object v, int[] allowed) {
+        if (!(v instanceof Long)) return false;
+        for (int a : allowed) if (a == (Long) v) return true;
+        return false;
+    }
+
+    /** An app's package name as the system writes it (letters, digits, underscores, at least two dotted parts). */
+    public static boolean packageName(Object v) {
+        return v instanceof String && ((String) v).length() <= 150 && ((String) v).matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+");
+    }
+
+    /** What /api/launch may name: a package, or one of TOOLS. Whether it is one of the favourites is checked again where it is applied. */
+    public static boolean target(Object v) {
+        return packageName(v) || (v instanceof String && Arrays.asList(TOOLS).contains(v));
     }
 
     private static boolean range(Object v, int lo, int hi) {

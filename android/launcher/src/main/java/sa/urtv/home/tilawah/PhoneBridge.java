@@ -61,6 +61,32 @@ public final class PhoneBridge {
         return out;
     }
 
+    /** Adds what the phone's «يعمل الآن» shows about the adhan: adhan_live, adhan_prayer (while it plays) and next_adhan {prayer, in_seconds}. */
+    public static void addAdhanLive(Context c, Map<String, Object> out) {
+        boolean live = MusicService.adhanLive();
+        out.put("adhan_live", live);
+        int p = MusicService.adhanPrayer();
+        out.put("adhan_prayer", live && p >= 0 && p < PrayerTimes.NAMES.length ? PrayerTimes.NAMES[p] : "");
+        try {
+            PrayerTimes.Next n = PrayerTimes.nextAlarm(c);
+            if (n != null) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("prayer", n.name());
+                m.put("in_seconds", Math.max(0L, (n.at - System.currentTimeMillis()) / 1000));
+                out.put("next_adhan", m);
+            }
+        } catch (RuntimeException ignored) {
+            // no place or times yet: the page just shows no next adhan
+        }
+    }
+
+    /** «أوقف الأذان الآن»: stops the adhan that is playing and nothing else; false when none is. */
+    public static boolean stopAdhan(Context c) {
+        if (!MusicService.adhanLive()) return false;
+        MusicService.stopAdhan(c);
+        return true;
+    }
+
     /** Applies the adhan keys of a checked "set" (adhan_on, adhan_voice, adhan_fajr_voice, adhan_short, adhan_stopkey, adhan_volume). Null when saved, else a fixed code. */
     public static String adhan(Context c, Map<String, Object> v) {
         Prefs prefs = new Prefs(c);
