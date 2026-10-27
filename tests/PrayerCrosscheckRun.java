@@ -11,7 +11,8 @@ import java.util.TimeZone;
  * For tests/prayer_crosscheck_test.py: PrayerMath.compute (the launcher's arithmetic) against tests/prayer_crosscheck.tsv, the times of every
  * city of the app from the independent reference (a port of adhan-js, see tests/prayer_crosscheck_gen.mjs). Each of the six times may differ
  * from the reference by one minute (both round to the minute; the reference is Meeus' full series, this is the short one).
- * A row whose zone has another UTC offset on this machine than on the one that wrote the file (an older time-zone database) is skipped and counted.
+ * A row whose zone has another UTC offset on this machine than on the one that wrote the file (another time-zone database) is re-based by
+ * the difference and counted apart from formula errors; only a zone this machine does not know at all is skipped.
  * Prints PASS/FAIL lines and a summary of how far the two are apart.
  */
 public final class PrayerCrosscheckRun {

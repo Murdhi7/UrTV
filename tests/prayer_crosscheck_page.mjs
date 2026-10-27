@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const rows = readFileSync(path.join(ROOT, 'tests/prayer_crosscheck.tsv'), 'utf8').split('\n').filter(l => l && !l.startsWith('#')).map(l => l.split('\t'));
+const rows = readFileSync(path.join(ROOT, 'tests/prayer_crosscheck.tsv'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#')).map(l => l.split('\t'));
 const TOLERANCE = 1;
 const mins = t => t.split(' ').map(x => +x.slice(0, 2) * 60 + +x.slice(3));
 const NAMES = ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'];
@@ -67,7 +67,7 @@ check('page crosscheck: at most 2% of the rows skipped for time-zone data', skip
 
 // the same page against the timetables four authorities printed (tests/prayer_published.tsv), each within its own margin
 {
-  const pub = readFileSync(path.join(ROOT, 'tests/prayer_published.tsv'), 'utf8').split('\n').filter(l => l && !l.startsWith('#')).map(l => l.split('\t'));
+  const pub = readFileSync(path.join(ROOT, 'tests/prayer_published.tsv'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#')).map(l => l.split('\t'));
   const bad = [];
   let n = 0, w = 0;
   for (const zone of new Set(pub.map(r => r[1]))) {
