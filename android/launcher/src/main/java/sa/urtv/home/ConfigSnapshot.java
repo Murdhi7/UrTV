@@ -16,10 +16,14 @@ final class ConfigSnapshot {
     final String fragment;
     /** an older screensaver does not say: on, the default */
     final boolean greetingOn, adhanBarOn, listenPillOn, updateBellOn;
+    /** «أكمل المشاهدة» under the favourites; an older screensaver does not say: on (the row still needs the TV listings permission) */
+    final boolean watchNextOn;
     /** «المظهر»: auto, light or dark (Look.mode); an older screensaver does not say: dark, as the home always was */
     private final String appearance;
 
-    private ConfigSnapshot(String fragment, boolean greetingOn, boolean adhanBarOn, boolean listenPillOn, boolean updateBellOn, String appearance) {
+    private ConfigSnapshot(String fragment, boolean greetingOn, boolean adhanBarOn, boolean listenPillOn, boolean updateBellOn, String appearance,
+            boolean watchNextOn) {
+        this.watchNextOn = watchNextOn;
         this.fragment = fragment;
         this.greetingOn = greetingOn;
         this.adhanBarOn = adhanBarOn;
@@ -49,7 +53,7 @@ final class ConfigSnapshot {
 
     private static ConfigSnapshot query(Context c) {
         String fragment = null;
-        boolean greeting = true, bar = true, listenPill = true, updateBell = true;
+        boolean greeting = true, bar = true, listenPill = true, updateBell = true, watchNext = true;
         String appearance = null;
         try (Cursor cur = c.getContentResolver().query(URI, null, null, null, null)) {
             if (cur != null && cur.moveToFirst()) {
@@ -62,13 +66,15 @@ final class ConfigSnapshot {
                 if (l >= 0 && "0".equals(cur.getString(l))) listenPill = false;
                 int u = cur.getColumnIndex("update_bell");   // an older screensaver does not say: on, the default
                 if (u >= 0 && "0".equals(cur.getString(u))) updateBell = false;
+                int w = cur.getColumnIndex("watch_next");
+                if (w >= 0 && "0".equals(cur.getString(w))) watchNext = false;
                 int a = cur.getColumnIndex("appearance");
                 if (a >= 0) appearance = cur.getString(a);
             }
         } catch (RuntimeException ignored) {
             // the screensaver is missing or signed with another key: the defaults (Riyadh, on)
         }
-        return new ConfigSnapshot(fragment, greeting, bar, listenPill, updateBell, appearance);
+        return new ConfigSnapshot(fragment, greeting, bar, listenPill, updateBell, appearance, watchNext);
     }
 
     /** {city, zone id}; null when the screensaver gave nothing: the TV's own zone then */

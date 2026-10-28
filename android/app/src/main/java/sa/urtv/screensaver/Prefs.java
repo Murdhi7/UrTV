@@ -691,6 +691,9 @@ final class Prefs {
 
     /** «جرس التحديثات» on the home screen: on by default (it shows only on evidence of waiting updates, so it cannot hurt) */
     boolean updateBell() { return sp.getBoolean("updateBell", true); }
+    /** «أكمل المشاهدة» under the home screen's favourites (default on; it shows only once the home app may read the TV's Watch Next list). */
+    boolean watchNext() { return sp.getBoolean("watchNext", true); }
+    void setWatchNext(boolean v) { sp.edit().putBoolean("watchNext", v).apply(); }
     void setUpdateBell(boolean v) { sp.edit().putBoolean("updateBell", v).apply(); }
 
     List<String> teamIds() {

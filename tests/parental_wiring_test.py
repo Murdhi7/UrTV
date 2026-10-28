@@ -72,7 +72,7 @@ check("kids mode counts only with a PIN, and shows every app when off",
       "pinSet && kidsKept" in policy and "return !s.kids || s.allowed.contains(pkg);" in policy)
 load = "\n".join(main).split("private List<App> loadApps(")[1].split("\n    }\n")[0]
 check("the kids-mode filter is in the one place the home screen's apps are loaded, before their art is", "ParentalPolicy.visible(family, ai.packageName)" in load
-      and load.index("ParentalPolicy.visible") < load.index("loadBanner"))
+      and load.index("ParentalPolicy.visible") < load.index("appOf(") and "loadBanner" in "\n".join(main).split("private App appOf(")[1].split("\n    }\n")[0])
 check("nothing is kept in the launcher's own preferences (a separate file, absent until used)", 'getSharedPreferences("Parental"' in parental)
 check("the default for every setting is off", 'getBoolean("kids", false)' in parental and 'getString("locked", "")' in parental and 'getString("allowed", "")' in parental)
 check("no key of the remote is taken by the home screen for this lock", "KEYCODE" not in parental + policy)

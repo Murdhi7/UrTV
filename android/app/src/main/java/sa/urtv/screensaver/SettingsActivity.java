@@ -63,6 +63,9 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        // no window animation: on the TV test one screen of settings was drawn over another while one came in and the other went out
+        getWindow().setWindowAnimations(0);
+        overridePendingTransition(0, 0);
         prefs = new Prefs(this);
         UpdateJob.schedule(this);
         // the same design as the «تلاوة وأذان» screens: the dark green, a dimmed photo of ours behind, glass rows, the hint at the bottom
@@ -151,7 +154,23 @@ public class SettingsActivity extends Activity {
         if (category != null) hubAt = category;
         screen = category;
         entering = true;
+        scroll.scrollTo(0, 0);   // the new screen from its top at once, never drawn at the old one's place first
         render();
+    }
+
+    @Override
+    public void finish() {
+        super.finish();
+        overridePendingTransition(0, 0);   // nothing fades over the screen behind it
+    }
+
+    /**
+     * The first row (on the categories: the first line of tiles) brings the page back to its very top, so the title and the line over
+     * it show again (the TV test: after going down and up again, the header stayed out of sight). After the scroll view's own move.
+     */
+    private void topWhenFirst(View v) {
+        int at = rows().indexOf(v);
+        if (at == 0 || (screen == null && at == 1)) scroll.post(() -> scroll.smoothScrollTo(0, 0));
     }
 
     private boolean on(String category) { return screen != null && screen.equals(category); }
@@ -292,8 +311,13 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { prefs.setUpdateBell(!prefs.updateBell()); render(); } });
         row("ترتيب التطبيقات المفضلة", "قائمة ترتّب فيها المفضلة بالأسهم", R.drawable.ic_star,
             new Runnable() { public void run() { openDockSettings(); } });
-        row("صفوف القنوات", "«أكمل المشاهدة» وصفوف التطبيقات تحت المفضلة: أيها يظهر وترتيبها", R.drawable.ic_star,
-            new Runnable() { public void run() { openChannelRows(); } });
+        // «أكمل المشاهدة»: on or off; turned on while the home app may not read the TV's list yet, it opens the home app's one question
+        row("أكمل المشاهدة", watchNextLabel(), R.drawable.ic_play,
+            new Runnable() { public void run() {
+                if (prefs.watchNext() && !homeMayReadWatchNext()) { openWatchNextPermission(); return; }   // on, not allowed yet: the question
+                prefs.setWatchNext(!prefs.watchNext());
+                if (prefs.watchNext() && !homeMayReadWatchNext()) openWatchNextPermission();
+                render(); } });
         row("أسماء المصادر", "غيّر اسم كل مصدر، مثل PS5", R.drawable.ic_settings,
             new Runnable() { public void run() { openInputNames(); } });
         row("تعديل المفضلة", "تحريك التطبيقات على الشاشة الرئيسية وحذفها", R.drawable.ic_star,
@@ -302,6 +326,9 @@ public class SettingsActivity extends Activity {
         // switch, so the line never says «متوقف»: the screen it opens shows the real state, with «إيقاف التحكم من الجوال» on it
         row("تحكم من الجوال", "تشغيله وإيقافه وربط جوال، وفي الشاشة حالته الآن", R.drawable.ic_settings,
             new Runnable() { public void run() { openPhoneControl(); } });
+        // «كل التطبيقات»: the home screen's «تعديل التطبيقات», or the order by name again (what is hidden stays hidden)
+        row("ترتيب كل التطبيقات", "تحريكها وإخفاؤها على الشاشة الرئيسية، أو الرجوع للترتيب الأصلي", R.drawable.ic_star,
+            new Runnable() { public void run() { pickAppsOrder(); } });
         row("تحديث تلفزيوني", "يعرض الإصدار ويتحقق من التحديث", R.drawable.ic_sync,
             new Runnable() { public void run() { openUpdate(); } });
 
@@ -464,6 +491,7 @@ public class SettingsActivity extends Activity {
         v.setTextDirection(View.TEXT_DIRECTION_RTL);
         card.addView(v);
         card.setOnClickListener(x -> open(cat));
+        card.setOnFocusChangeListener((x, has) -> { if (has) topWhenFirst(x); });
         return card;
     }
 
@@ -821,10 +849,20 @@ public class SettingsActivity extends Activity {
         }
     }
 
-    /** «صفوف القنوات» lives in the launcher (it reads the TV's lists and shows the rows). */
-    private void openChannelRows() {
+    /** The home app may read the TV's Watch Next list (its READ_TV_LISTINGS, granted once). */
+    private boolean homeMayReadWatchNext() {
+        return getPackageManager().checkPermission("android.permission.READ_TV_LISTINGS", "sa.urtv.home") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
+    private String watchNextLabel() {
+        if (!prefs.watchNext()) return "متوقف";
+        return homeMayReadWatchNext() ? "يعمل · ما وقفته في نصه، تحت المفضلة" : "يعمل · يحتاج السماح مرة واحدة: اختيار";
+    }
+
+    /** The home app's one question for the TV's list («السماح»); it closes by itself when that is allowed already. */
+    private void openWatchNextPermission() {
         try {
-            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.ChannelsActivity"));
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.WatchNextActivity"));
         } catch (RuntimeException e) {   // not installed, or an older launcher without the screen
             toast("حدّث الواجهة الرئيسية «تلفزيونك» أو ثبّتها أولاً");
         }
@@ -853,6 +891,22 @@ public class SettingsActivity extends Activity {
         try {
             startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setClassName("sa.urtv.home", "sa.urtv.home.MainActivity")
                 .putExtra("edit_favourites", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
+    /** «ترتيب كل التطبيقات»: the mode on the home screen, or «رجوع للترتيب الأصلي»; both are the launcher's (it owns the grid). */
+    private void pickAppsOrder() {
+        new Dlg(this).setTitle("ترتيب كل التطبيقات")
+            .setItems(new String[] {"تعديل التطبيقات", "رجوع للترتيب الأصلي"}, (d, i) -> openAppsOrder(i == 1))
+            .show();
+    }
+
+    private void openAppsOrder(boolean reset) {
+        try {
+            startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setClassName("sa.urtv.home", "sa.urtv.home.MainActivity")
+                .putExtra(reset ? "reset_apps_order" : "edit_apps", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         } catch (RuntimeException e) {
             toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
         }
@@ -1574,6 +1628,7 @@ public class SettingsActivity extends Activity {
         card.setOnFocusChangeListener((v, has) -> {
             // No scaling: a scaled rounded card overlapped its neighbours and blurred the text. The glass changes by itself (glass_row).
             chevron.setTextColor(has ? 0xFFD6AF6B : 0x99C6BBA4);
+            if (has) topWhenFirst(v);
         });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.bottomMargin = dp(9);

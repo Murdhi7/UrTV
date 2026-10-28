@@ -107,6 +107,7 @@ python3 tests/bounded_test.py
 python3 tests/adhan_bar_test.py
 python3 tests/adhan_keys_test.py
 python3 tests/fav_edit_test.py
+python3 tests/apps_edit_test.py
 python3 tests/remote_keys_test.py
 python3 tests/dpad_rtl_test.py
 python3 tests/home_grid_test.py
@@ -116,6 +117,7 @@ python3 tests/tv_rows_test.py
 python3 tests/adhan_reply_test.py
 python3 tests/clock_zone_test.py
 python3 tests/phone_test.py
+python3 tests/pairing_screen_test.py
 python3 tests/type_into_test.py
 python3 tests/phone_qr_test.py
 python3 tests/update_test.py

@@ -28,8 +28,8 @@ check("«ترتيب المفضلة» saves through Dock.save", "Dock.save(this, 
 check("dock.sh's SET_DOCK saves through Dock.save", re.search(r"Dock\.save\(c, row\)", receiver) is not None)
 check("Dock.save keeps the order in the \"dock\" preference and tells the home screen", 'putString("dock"' in dock.split("static void save")[1] and "CHANGED" in dock.split("static void save")[1])
 check("an unchanged row is not saved (no top-up kept by a visit)", "if (e.changed())" in leave)
-check("the mode asks the settings' lock before it starts (ParentalPolicy.MENU_ARRANGE, «قفل الإعدادات»)",
-      re.search(r"private void beginEdit\(String pkg\) \{\s*guarded\(ParentalPolicy\.MENU_ARRANGE, null, \"تعديل المفضلة\", \(\) -> startEdit\(pkg\)\);", main) is not None)
+check("the mode asks the settings' lock before it starts (ParentalPolicy.MENU_ARRANGE, «قفل الإعدادات»); in kids mode it does not start",
+      re.search(r"private void beginEdit\(String pkg\) \{\s*if \(kidsNoEdit\(\)\) return;\s*guarded\(ParentalPolicy\.MENU_ARRANGE, null, \"تعديل المفضلة\", \(\) -> startEdit\(pkg\)\);", main) is not None)
 check("startEdit is reached only through beginEdit", len(re.findall(r"startEdit\(", main)) == 2)
 check("the adhan rule is asked before the mode sees a key",
       main.index("if (adhanTakes(e)) return true;") < main.index("if (edit != null && editKey(e)) return true;"))
@@ -77,7 +77,8 @@ check("«تراجع»: every redraw of the mode wires it before it moves the foc
 check("«تراجع»: a focus request the chip refuses (not laid out yet) is made again once it is",
       "!target.requestFocus() && target == undoChip" in paint and "undoChip.post(" in paint and "edit.onUndo()" in paint)
 check("«تراجع»: a rewiring of the screen while the mode is on (the row, the pills) ends with the mode's own wiring",
-      fn("private void wireFocus()").rstrip().endswith("if (edit != null) wireEditFocus();   // a rewiring while «تعديل المفضلة» is on (the row, the pills) keeps the mode's own"))
+      fn("private void wireFocus()").rstrip().split("\n")[-2].strip() == "if (edit != null) wireEditFocus();   // a rewiring while «تعديل المفضلة» is on (the row, the pills) keeps the mode's own"
+      and fn("private void wireFocus()").rstrip().endswith("if (appsEdit != null) wireAppsEditFocus();"))
 check("«تراجع»: leaving the mode wires the row's own ways again (up to the pills)", "wireFocus();" in fn("private void endEditUi(int focus)"))
 check("«تراجع»: Back while it shows undoes (FavEdit.back), checked case by case below", "if (undoAvailable(now)) return undo(now);" in edit.split("int back(long now)")[1].split("\n    }\n")[0])
 dock_sh = (ROOT / "optimize/dock.sh").read_text(encoding="utf-8")

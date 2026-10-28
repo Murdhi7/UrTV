@@ -37,6 +37,7 @@ public class DockActivity extends Activity {
     private final List<View> cards = new ArrayList<>(), removes = new ArrayList<>();
     private int moving = -1;
     private View screen;
+    private ScrollView scroll;
     private boolean verified;
     private int swallowUp = -1;   // the OK that drops an app must not also click it
 
@@ -47,7 +48,7 @@ public class DockActivity extends Activity {
         apps = Dock.launchable(this);
         row.addAll(Dock.shown(this, apps));
 
-        ScrollView scroll = new ScrollView(this);
+        scroll = new ScrollView(this);
         scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
             new int[]{0xFF0A2016, 0xFF04120C, 0xFF020806}));
         scroll.setVerticalScrollBarEnabled(false);
@@ -140,6 +141,13 @@ public class DockActivity extends Activity {
                 removes.get(i).setNextFocusDownId(removes.get(i + 1).getId());
             }
         }
+        // the first app brings the list back to its very top, the title over it (the TV test: back up, the header stayed hidden)
+        View first = cards.isEmpty() ? reset : cards.get(0);
+        final View.OnFocusChangeListener was = first.getOnFocusChangeListener();
+        first.setOnFocusChangeListener((v, has) -> {
+            if (was != null) was.onFocusChange(v, has);
+            if (has) scroll.post(() -> scroll.smoothScrollTo(0, 0));
+        });
         View f = cards.isEmpty() ? reset : cards.get(Math.max(0, Math.min(focus, cards.size() - 1)));
         f.post(f::requestFocus);
     }

@@ -44,7 +44,8 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
 #theme { flex:0 0 52px; padding:0; font-size:20px; }
 #bar { position:fixed; bottom:0; inset-inline:0; z-index:5; background:var(--bar); border-top:1px solid var(--line); display:flex; padding:6px 8px calc(6px + env(safe-area-inset-bottom)); gap:6px; max-width:560px; margin:0 auto; }
 #bar button { flex:1 1 0; min-height:56px; border:0; background:none; font-size:14px; padding:4px 2px; border-radius:12px; color:var(--dim); line-height:1.3; }
-#bar button b { display:block; font-size:20px; font-weight:400; }
+#bar button svg { display:block; width:26px; height:26px; margin:0 auto 3px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+#bar button.on svg { stroke-width:2; }
 #bar button.on { background:var(--gold); color:var(--ink); font-weight:700; }
 #modes button.on { background:var(--gold); color:var(--ink); border-color:var(--gold); font-weight:700; }
 #now { display:flex; align-items:center; gap:10px; margin:12px 0; }
@@ -73,7 +74,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
 <section id="login">
   <h1>تحكم من الجوال</h1>
   <p id="loginInfo">افتح هذه الصفحة بمسح الرمز الظاهر على التلفزيون، أو اكتب الرمز المكوّن من ٦ أرقام الظاهر تحت العنوان.</p>
-  <input id="code" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="الرمز (٦ أرقام)" dir="ltr" aria-label="الرمز">
+  <input id="code" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="الرمز (٦ أرقام)" dir="ltr" aria-label="الرمز">
   <div class="row"><button id="codeGo" class="gold">اتصال</button></div>
   <p id="loginState" role="status"></p>
 </section>
@@ -169,6 +170,12 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
   </div>
 
   <nav id="bar" aria-label="الأقسام"></nav>
+  <svg id="ico" class="hidden" viewBox="0 0 24 24" aria-hidden="true">
+    <g id="ico-remote"><rect x="7.5" y="2.5" width="9" height="19" rx="4.5"/><circle cx="12" cy="8" r="2.2"/><path d="M10 13.5h4M10 16.5h4"/></g>
+    <g id="ico-apps"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></g>
+    <g id="ico-now"><path d="M5 8.5v7l5.5-3.5z"/><path d="M14 9a4 4 0 0 1 0 6M16.5 6.5a7.5 7.5 0 0 1 0 11"/></g>
+    <g id="ico-settings"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></g>
+  </svg>
 </section>
 
 <div id="msg" class="hidden" role="status"></div>
@@ -324,7 +331,19 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
   };
 
   // ---- the app: four tabs
-  var TABS = [['remote', 'الريموت', '🎮'], ['apps', 'التطبيقات', '▦'], ['now', 'يعمل الآن', '♪'], ['settings', 'الإعدادات', '⚙']];
+  // the tabs' icons: our own, one line drawing each in the text's colour (no emoji: a phone draws those in its own colours and style),
+  // so the dark and the light look and the gold «on» tab all take them as they are
+  // the tabs' icons: our own line drawings in the page (#ico, under the bar), one style in the text's colour (no emoji: a phone draws
+  // those in its own colours), so the dark and the light look and the gold «on» tab all take them; a copy of one for each tab
+  function icon(name) {
+    var s = $('ico').cloneNode(false);
+    s.removeAttribute('id'); s.removeAttribute('class');
+    var g = $('ico-' + name).cloneNode(true);
+    g.removeAttribute('id');
+    s.appendChild(g);
+    return s;
+  }
+  var TABS = [['remote', 'الريموت'], ['apps', 'التطبيقات'], ['now', 'يعمل الآن'], ['settings', 'الإعدادات']];
   function tab(name) {
     curTab = name;
     TABS.forEach(function (t) { $('t-' + t[0]).classList.toggle('hidden', t[0] !== name); });
@@ -340,7 +359,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
     if (!$('bar').children.length) {
       TABS.forEach(function (t) {
         var b = el('button'); b.setAttribute('data-t', t[0]);
-        b.appendChild(el('b', '', t[2])); b.appendChild(document.createTextNode(t[1]));
+        b.appendChild(icon(t[0])); b.appendChild(document.createTextNode(t[1]));
         b.onclick = function () { tab(t[0]); };
         $('bar').appendChild(b);
       });
