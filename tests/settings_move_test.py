@@ -51,7 +51,7 @@ for bad in st.get("refuse", []):          # a value the TV refuses (answers erro
     if bad in cmd:
         out("error: refused by the fake TV: " + bad)
 ENUM = {"digits": ["hindi", "latin"], "clocksize": ["large", "medium", "small"], "mkstyle": ["arrows", "prices"],
-        "cardstyle": ["current", "dark1", "glass1", "dark3", "glass3"], "prayermethod": ["auto", "jafari"],
+        "cardstyle": ["current", "dark1", "glass1", "dark3", "glass3"], "prayermethod": ["auto", "gulf", "jafari"],
         "sunrise": ["on", "off"], "prayerbar": ["on", "off"], "wxmore": ["on", "off"], "months": ["default", "levant"],
         "greeting": ["on", "off"], "listenpill": ["on", "off"], "updatebell": ["on", "off"], "adhanbar": ["on", "off"], "clock24": ["on", "off"], "mkbar": ["on", "off"], "prayeradj": ["on", "off"]}
 if "SaverReceiver" in cmd and cmd.endswith(".GET"):
@@ -270,7 +270,7 @@ refused("clock size unknown", lambda d: d.update(clock_size="huge"), "clock_size
 refused("clock24 not a boolean", lambda d: d.update(clock24="on"), "clock24 must be true or false")
 refused("greeting not a boolean", lambda d: d.update(greeting=1), "greeting must be true or false")
 refused("listen_pill not a boolean", lambda d: d.update(listen_pill="off"), "listen_pill must be true or false")
-refused("prayer method unknown", lambda d: d["prayer"].update(method="mwl"), "prayer.method must be one of auto jafari")
+refused("prayer method unknown", lambda d: d["prayer"].update(method="mwl"), "prayer.method must be one of auto gulf jafari")
 refused("prayer adjust 21", lambda d: d["prayer"]["adjust"].update(fajr=21), "prayer.adjust.fajr must be a whole number from -20 to 20")
 refused("prayer adjust -21", lambda d: d["prayer"]["adjust"].update(isha=-21), "prayer.adjust.isha")
 refused("prayer adjust a fraction", lambda d: d["prayer"]["adjust"].update(asr=1.5), "prayer.adjust.asr")

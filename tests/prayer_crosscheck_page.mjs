@@ -17,9 +17,10 @@ const browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: p
 let failed = 0;
 const check = (name, ok, detail = '') => { console.log((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : '  -> ' + detail)); if (!ok) failed++; };
 
-// one page per zone and method kind (the Ja'fari rows are the same zone with #pm=jafari)
+// one page per zone and method kind (the Ja'fari and Omani Gulf-method rows are the same zone with #pm=jafari / #pm=gulf)
 const groups = new Map();
-for (const r of rows) { const k = r[0] + (r[6] === '0' ? '|jafari' : ''); (groups.get(k) || groups.set(k, []).get(k)).push(r); }
+const pmOf = r => r[6] === '0' ? 'jafari' : (r[6] === '8' && r[0] === 'Asia/Muscat') ? 'gulf' : '';   // the rows chosen by hand (#pm=): the others are the zone's own
+for (const r of rows) { const k = r[0] + '|' + pmOf(r); (groups.get(k) || groups.set(k, []).get(k)).push(r); }
 let done = 0, skipped = 0, badRows = 0, wrongMethod = 0, wrongRamadan = 0, rebased = 0;
 const driftZones = new Set();
 const worst = [0, 0, 0, 0, 0, 0], detail = [];
@@ -31,7 +32,7 @@ for (const [key, list] of groups) {
   const errors = [];
   p.on('pageerror', e => errors.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
-  await p.goto('file://' + path.join(ROOT, 'dist/tv.html') + '#tz=' + encodeURIComponent(zone) + (kind ? '&pm=jafari' : '') + '&gap=0');
+  await p.goto('file://' + path.join(ROOT, 'dist/tv.html') + '#tz=' + encodeURIComponent(zone) + (kind ? '&pm=' + kind : '') + '&gap=0');
   await p.waitForFunction(() => typeof computePrayers === 'function' && typeof CONFIG === 'object', null, { timeout: 8000 });
   for (const r of list) {
     const [, name, lat, lon, date, ram, method, noon, want] = r;
@@ -48,7 +49,7 @@ for (const [key, list] of groups) {
     const shift = got.off - +noon;
     if (shift) { rebased++; driftZones.add(zone); }
     done++;
-    if (+method !== 0 && got.m !== +method) { wrongMethod++; detail.push(`${name} ${zone}: page picks method ${got.m}, reference ${method}`); }
+    if (got.m !== +method) { wrongMethod++; detail.push(`${name} ${zone}: page picks method ${got.m}, reference ${method}`); }
     if (+method === 4 && got.ram !== (ram === '1')) { wrongRamadan++; detail.push(`${name} ${date}: page says Ramadan=${got.ram}, file ${ram}`); }
     const a = mins(got.t), b = mins(want).map(m => m + shift);
     let bad = false;

@@ -141,8 +141,8 @@ final class Prefs {
         return java.util.TimeZone.getDefault().getID();
     }
 
-    /** «طريقة الحساب» (default auto = the country's own): PrayerMethod.AUTO or JAFARI; sent as #pm=jafari only for the latter. */
-    String prayerMethod() { return PrayerMethod.JAFARI.equals(sp.getString("prayerMethod", "auto")) ? PrayerMethod.JAFARI : PrayerMethod.AUTO; }
+    /** «طريقة الحساب» (default auto = the country's own): PrayerMethod.AUTO, GULF or JAFARI; sent as #pm=gulf / #pm=jafari only for those. */
+    String prayerMethod() { String v = sp.getString("prayerMethod", "auto"); return PrayerMethod.JAFARI.equals(v) ? PrayerMethod.JAFARI : PrayerMethod.GULF.equals(v) ? PrayerMethod.GULF : PrayerMethod.AUTO; }
     void setPrayerMethod(String v) { sp.edit().putString("prayerMethod", v).apply(); }
 
     static final int MAX_TEAMS = 20;

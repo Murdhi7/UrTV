@@ -1217,10 +1217,10 @@ public class SettingsActivity extends Activity {
     }
 
     private void pickPrayerMethod() {
-        final String[] values = {PrayerMethod.AUTO, PrayerMethod.JAFARI};
-        String[] labels = {PrayerMethod.label(PrayerMethod.AUTO, prefs.cityTz()), PrayerMethod.label(PrayerMethod.JAFARI, prefs.cityTz())};
+        final String[] values = {PrayerMethod.AUTO, PrayerMethod.GULF, PrayerMethod.JAFARI};
+        String[] labels = {PrayerMethod.label(PrayerMethod.AUTO, prefs.cityTz()), PrayerMethod.label(PrayerMethod.GULF, prefs.cityTz()), PrayerMethod.label(PrayerMethod.JAFARI, prefs.cityTz())};
         new Dlg(this).raw().setTitle("طريقة الحساب")
-            .setSingleChoiceItems(labels, PrayerMethod.JAFARI.equals(prefs.prayerMethod()) ? 1 : 0,
+            .setSingleChoiceItems(labels, PrayerMethod.JAFARI.equals(prefs.prayerMethod()) ? 2 : PrayerMethod.GULF.equals(prefs.prayerMethod()) ? 1 : 0,
                 (d, i) -> { prefs.setPrayerMethod(values[i]); d.dismiss(); render(); })
             .show();
     }

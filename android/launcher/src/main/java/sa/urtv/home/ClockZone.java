@@ -65,17 +65,19 @@ final class ClockZone {
 
     /**
      * The prayer calculation's name when it is not Umm al-Qura (the Saudi default says nothing): the country's by the city's zone, or the
-     * Ja'fari one (pm=jafari). The same words as the screensaver's line (CAL_LABEL in template.html); PrayerMethod.authority in the app and
+     * Ja'fari one (pm=jafari) or the Gulf one (pm=gulf). The same words as the screensaver's line (CAL_LABEL in template.html); PrayerMethod.authority in the app and
      * PrayerMath.methodFor here use the same zones (tests/prayer_method_test.py).
      */
     static String calendar(String tz, String pm) {
         if ("jafari".equals(pm)) return "الحساب الجعفري";
+        if ("gulf".equals(pm)) return "حساب الخليج";
         if (tz == null) return "";
         switch (tz) {
             case "Asia/Kuwait": return "حساب الكويت";
             case "Asia/Qatar": return "حساب قطر";
             case "Asia/Dubai": return "حساب الإمارات";
-            case "Asia/Bahrain": case "Asia/Muscat": return "حساب الخليج";
+            case "Asia/Bahrain": return "حساب الخليج";
+            case "Asia/Muscat": return "حساب عُمان";
             case "Africa/Cairo": case "Asia/Damascus": case "Asia/Beirut": case "Asia/Gaza": case "Asia/Hebron": case "Asia/Jerusalem": return "حساب الهيئة المصرية";
             case "Asia/Amman": return "حساب الأردن";
             case "Africa/Casablanca": case "Africa/El_Aaiun": return "حساب المغرب";
