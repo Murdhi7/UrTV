@@ -3139,9 +3139,9 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'nex
 {
   const method = async hash => { const { p, ctx } = await open('tv.html', hash, { now: new Date('2026-10-23T09:00:00Z') }); const m = await p.evaluate(() => CONFIG.prayerMethod); await ctx.close(); return m; };
   const got = [await method('tz=Asia%2FRiyadh'), await method('tz=Asia%2FKuwait'), await method('tz=Asia%2FQatar'), await method('tz=Asia%2FDubai'), await method('tz=Asia%2FBahrain'),
-    await method('tz=Asia%2FMuscat'), await method('tz=Europe%2FOslo'), await method(''), await method('tz=Asia%2FKuwait&pm=jafari'), await method('pm=auto&tz=Asia%2FQatar')];
-  check('prayer method: Riyadh 4, Kuwait 9, Qatar 10, Dubai 16, Bahrain 8, Muscat 8, Oslo 4, no zone 4, #pm=jafari 0 anywhere, #pm=auto the country\'s',
-    got.join() === '4,9,10,16,8,8,4,4,0,10', got.join());
+    await method('tz=Asia%2FMuscat'), await method('tz=Europe%2FOslo'), await method(''), await method('tz=Asia%2FKuwait&pm=jafari'), await method('pm=auto&tz=Asia%2FQatar'), await method('tz=Asia%2FMuscat&pm=gulf'), await method('tz=Asia%2FRiyadh&pm=gulf')];
+  check('prayer method: Riyadh 4, Kuwait 9, Qatar 10, Dubai 16, Bahrain 8, Muscat 100 (Oman\'s ministry, ours), Oslo 4, no zone 4, #pm=jafari 0 anywhere, #pm=auto the country\'s, #pm=gulf 8 anywhere',
+    got.join() === '4,9,10,16,8,100,4,4,0,10,8,8', got.join());
   // Egypt, the Levant and North Africa: each zone its method (Aladhan's ids; Syria, Lebanon and Palestine the Egyptian, 5)
   const zones = { 'Africa/Cairo': 5, 'Asia/Amman': 23, 'Asia/Damascus': 5, 'Asia/Beirut': 5, 'Asia/Gaza': 5, 'Asia/Hebron': 5, 'Africa/Casablanca': 21, 'Africa/Algiers': 19, 'Africa/Tunis': 18 };
   const gotZ = [];
@@ -3188,7 +3188,8 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'nex
       ['Kuwait', 'tz=Asia%2FKuwait&lat=29.3697&lon=47.9783', '2026-10-23', '04:35 05:55 11:32 14:45 17:10 18:27'],
       ['Doha', 'tz=Asia%2FQatar&lat=25.2854&lon=51.5310', '2026-10-23', '04:19 05:36 11:18 14:34 17:00 18:30'],
       ['Manama', 'tz=Asia%2FBahrain&lat=26.2154&lon=50.5832', '2026-10-23', '04:17 05:41 11:22 14:37 17:03 18:33'],
-      ['Muscat', 'tz=Asia%2FMuscat&lat=23.5880&lon=58.3829', '2026-10-23', '04:45 06:07 11:51 15:08 17:34 19:04'],
+      ['Muscat (Oman\'s ministry)', 'tz=Asia%2FMuscat&lat=23.5880&lon=58.3829', '2026-10-23', '04:51 06:07 11:56 15:13 17:39 18:50'],
+      ['Muscat, Gulf method (#pm=gulf)', 'tz=Asia%2FMuscat&lat=23.5880&lon=58.3829&pm=gulf', '2026-10-23', '04:45 06:07 11:51 15:08 17:34 19:04'],
       ['Sharjah', 'tz=Asia%2FDubai&lat=25.3463&lon=55.4209', '2026-10-12', '04:58 06:12 12:08 15:28 17:57 19:11'],
       ['Riyadh, Ja\'fari', 'tz=Asia%2FRiyadh&lat=24.6877&lon=46.7219&pm=jafari', '2026-10-23', '04:47 05:55 11:37 14:54 17:34 18:18']]) {
     const { p, ctx, errors } = await open('tv.html', hash, { now: new Date(when + 'T09:00:00Z') });
