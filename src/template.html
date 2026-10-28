@@ -109,6 +109,7 @@
   .week li .rt{flex:0 0 auto;color:#E0BA74;font-size:.74em;font-variant-numeric:tabular-nums}
   .week li .dt{flex:1 1 auto;color:#9C9279;font-size:.72em;min-width:3.2em;text-align:left}
   .week li .tm{white-space:nowrap}
+  .week li span.tm,.week li span.team-label{flex:none;max-width:none;overflow:visible;text-overflow:clip;padding:0;margin:0}
   .week li .team-crest{width:1.05em;height:1.05em;vertical-align:middle;margin-inline-end:.18em}
   .week ul.flip li{animation:weekIn .5s ease both}
   .week ul.flip li:nth-child(2){animation-delay:.06s}
@@ -798,10 +799,7 @@ const TEAM_SHORT = {
 
 const FIT_RANGE = document.createRange();
 function fitsRow(span){
-  FIT_RANGE.selectNodeContents(span);
-  const css = getComputedStyle(span);
-  return FIT_RANGE.getBoundingClientRect().width <= span.getBoundingClientRect().width
-    - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight) + .05;
+  return span.scrollWidth <= span.clientWidth + 1;
 }
 function shortenTeams(span){
   span.querySelectorAll('.tm[data-short]').forEach(t=>{
