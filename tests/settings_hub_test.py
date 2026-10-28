@@ -129,4 +129,17 @@ check("the tiles and the rows are found again by their tag after a rebuild (the 
       'card.setTag("hub:" + cat);' in st and "if (all.contains(v)) return v;" in st)
 for fn_ in ("openAdhanSettings()", "openDockSettings()", "openInputNames()", "openDockEdit()", "openUpdate()", "openPhoneControl()", "openFamilyDns()", "pickCity()", "updateNow()"):
     check(f"the row's own action is kept: {fn_}", fn_ in render)
+# ---- the TV test of 3.145: after going down and up again the header stayed hidden; once, two screens were drawn over each other
+top = st[st.index("private void topWhenFirst(View v)"):].split("\n    }\n")[0]
+check("the first row (on the categories, the first line of tiles) brings the page back to its very top, after the scroll view's own move",
+      "if (at == 0 || (screen == null && at == 1)) scroll.post(() -> scroll.smoothScrollTo(0, 0));" in top
+      and "if (has) topWhenFirst(v);" in rowfn and "card.setOnFocusChangeListener((x, has) -> { if (has) topWhenFirst(x); });" in st)
+check("a screen just opened is at its top at once (never drawn at the old one's place first)",
+      "scroll.scrollTo(0, 0);" in st[st.index("private void open(String category)"):].split("\n    }\n")[0])
+check("the settings have no window animation in or out, so no two screens are ever drawn over each other",
+      "getWindow().setWindowAnimations(0);" in st and "overridePendingTransition(0, 0);" in st[st.index("public void finish()"):].split("\n    }\n")[0])
+dock = (ROOT / "android/launcher/src/main/java/sa/urtv/home/DockActivity.java").read_text(encoding="utf-8")
+check("«ترتيب المفضلة»: the first app brings the list back to its top, the title over it",
+      "View first = cards.isEmpty() ? reset : cards.get(0);" in dock and "if (has) scroll.post(() -> scroll.smoothScrollTo(0, 0));" in dock
+      and "if (was != null) was.onFocusChange(v, has);" in dock)
 sys.exit(1 if failed else 0)

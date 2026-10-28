@@ -63,6 +63,9 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        // no window animation: on the TV test one screen of settings was drawn over another while one came in and the other went out
+        getWindow().setWindowAnimations(0);
+        overridePendingTransition(0, 0);
         prefs = new Prefs(this);
         UpdateJob.schedule(this);
         // the same design as the «تلاوة وأذان» screens: the dark green, a dimmed photo of ours behind, glass rows, the hint at the bottom
@@ -136,7 +139,23 @@ public class SettingsActivity extends Activity {
         if (category != null) hubAt = category;
         screen = category;
         entering = true;
+        scroll.scrollTo(0, 0);   // the new screen from its top at once, never drawn at the old one's place first
         render();
+    }
+
+    @Override
+    public void finish() {
+        super.finish();
+        overridePendingTransition(0, 0);   // nothing fades over the screen behind it
+    }
+
+    /**
+     * The first row (on the categories: the first line of tiles) brings the page back to its very top, so the title and the line over
+     * it show again (the TV test: after going down and up again, the header stayed out of sight). After the scroll view's own move.
+     */
+    private void topWhenFirst(View v) {
+        int at = rows().indexOf(v);
+        if (at == 0 || (screen == null && at == 1)) scroll.post(() -> scroll.smoothScrollTo(0, 0));
     }
 
     private boolean on(String category) { return screen != null && screen.equals(category); }
@@ -452,6 +471,7 @@ public class SettingsActivity extends Activity {
         v.setTextDirection(View.TEXT_DIRECTION_RTL);
         card.addView(v);
         card.setOnClickListener(x -> open(cat));
+        card.setOnFocusChangeListener((x, has) -> { if (has) topWhenFirst(x); });
         return card;
     }
 
@@ -1564,6 +1584,7 @@ public class SettingsActivity extends Activity {
         card.setOnFocusChangeListener((v, has) -> {
             // No scaling: a scaled rounded card overlapped its neighbours and blurred the text. The glass changes by itself (glass_row).
             chevron.setTextColor(has ? 0xFFD6AF6B : 0x99C6BBA4);
+            if (has) topWhenFirst(v);
         });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.bottomMargin = dp(9);
