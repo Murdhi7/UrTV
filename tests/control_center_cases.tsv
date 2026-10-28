@@ -1,11 +1,5 @@
-# control center text (ControlText.java). freed: before, after, tried, -, answer, note | mbps: value, -, -, -, answer, note | signal: rssi, -, -, -, answer, note
-# network: wired, wifi, ssid, rssi, answer (name|detail), note | output: types, -, -, -, answer, note | killable: pkg, system, keyboard, -, answer, note
-freed	1000000000	1300000000	6		تحرر ٢٨٦ ميجابايت	300000000 bytes, rounded to whole MB (digits are Digits.of's job: western here)
-freed	1000000000	1000000000	6		لم يتحرر شيء: الذاكرة مرتاحة	nothing freed: said plainly
-freed	1000000000	900000000	6		لم يتحرر شيء: الذاكرة مرتاحة	the system took memory back meanwhile: never a negative number
-freed	1000000000	1000400000	6		لم يتحرر شيء: الذاكرة مرتاحة	under half a MB is 0
-freed	1000000000	1000600000	6		تحرر ١ ميجابايت	just over half a MB is 1
-freed	1000000000	1300000000	0		لا تطبيقات في الخلفية لإغلاقها	no app was asked: not a «freed» claim
+# control center text (ControlText.java). mbps: value, -, -, -, answer, note | signal: rssi, -, -, -, answer, note
+# network: wired, wifi, ssid, rssi, answer (name|detail), note | output: types, product names ('|'-separated, one per type, may be empty), -, -, answer, note | layout: W H density n, -, answer (cols rows tileW tileH panelW panelH compact), note
 mbps	12.34				١٢٫٣ ميجابت/ث	one decimal below 100
 mbps	250.6				٢٥١ ميجابت/ث	whole above 100
 mbps	0				٠٫٠ ميجابت/ث	zero is shown as zero
@@ -24,16 +18,27 @@ network	0	0	null	0	غير متصل|افتح إعدادات الشبكة	not conn
 output	2				سماعات التلفزيون	the TV's own speakers
 output	10				HDMI ARC (مضخم أو ساوند بار)	ARC
 output	29				HDMI ARC (مضخم أو ساوند بار)	eARC says the same
-output	2,8,8				سماعات التلفزيون، بلوتوث	each named once
+output	2,8,8				بلوتوث	the speakers are not where the sound goes while a Bluetooth device is there; named once
 output	8				بلوتوث	Bluetooth
 output	0,15,16				لا يُعرف	types that are not outputs a person names
 output					لا يُعرف	the TV said nothing
-killable	com.example.player	0	0		true	an app the person installed
-killable	sa.urtv.home	0	0		false	ours: the home
-killable	sa.urtv.screensaver	0	0		false	ours: the screensaver (the adhan)
-killable	com.android.vending	0	0		false	a system package name
-killable	com.example.preinstalled	1	0		false	a system app
-killable	com.example.pad	0	1		false	the keyboard
-killable	com.google.android.inputmethod.latin	0	0		false	a keyboard by name even if the TV did not list it
-killable	android	0	0		false	the framework
-killable		0	0		false	nothing
+output	8	JBL Flip 5			بلوتوث: JBL Flip 5	the product name the device reports
+output	10	Sony HT-A7000			HDMI ARC (مضخم أو ساوند بار): Sony HT-A7000	the soundbar's own name on ARC
+output	29	HDMI			HDMI ARC (مضخم أو ساوند بار)	a name that only repeats the kind is left out
+output	2,9	TCL 4K TV|HDMI			سماعات التلفزيون	the TV's own model name is not said for its speakers; a plain HDMI out is not the sound's way when there are speakers
+output	9	HDMI			HDMI	plain HDMI is all there is
+output	2,10	TCL 4K TV|			HDMI ARC (مضخم أو ساوند بار)	ARC connected: the speakers are not named
+output	11	   			USB	a blank name is no name
+output	11	Logitech Z407 Speaker System Extra Long Name Here			USB: Logitech Z407 Speaker Sy…	a long name is cut
+output	8,22	Buds|Headset X			بلوتوث: Buds، USB: Headset X	two devices, each with its name
+layout	1920	1080	1.0	8	4 2 170 116 746 342 false false	1080p at density 1
+layout	1920	1080	2.0	8	4 2 340 232 1492 684 false false	1080p at density 2 (960x540 dp)
+layout	1920	1080	3.0	8	4 2 344 321 1574 972 true false	1080p at density 3 (640x360 dp)
+layout	1280	720	1.0	8	4 2 170 116 746 342 false false	720p at density 1
+layout	1280	720	1.333	8	4 2 227 155 995 456 false false	720p at tvdpi
+layout	1280	720	2.0	8	4 2 229 214 1048 648 true false	720p at density 2 (640x360 dp)
+layout	960	540	1.0	8	4 2 170 116 746 342 false false	540p at density 1
+layout	960	540	2.0	8	4 2 164 133 788 486 true true	540p at density 2 (480x270 dp)
+layout	1920	1080	2.0	7	4 2 340 232 1492 684 false false	7 tiles (no screensaver app)
+layout	1920	1080	2.0	9	4 3 340 232 1492 936 false false	9 tiles
+layout	600	700	1.0	8	3 3 145 116 491 468 false false	a narrow tall screen: 3 columns

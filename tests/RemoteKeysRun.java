@@ -28,7 +28,8 @@ public final class RemoteKeysRun {
             switch (d.kind) {
                 case RemoteKeys.EAT: r = "EAT"; break;
                 case RemoteKeys.OPEN_APP: r = "APP:" + d.pkg; break;
-                case RemoteKeys.OPEN_SETTINGS: r = "SETTINGS"; break;
+                case RemoteKeys.OPEN_OUR_SETTINGS: r = "OUR_SETTINGS"; break;
+                case RemoteKeys.OPEN_SETTINGS: r = "TV_SETTINGS"; break;
                 case RemoteKeys.OPEN_INPUTS: r = "INPUTS"; break;
                 default: r = "PASS";
             }

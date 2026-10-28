@@ -18,7 +18,7 @@ reset							-
 key	190	0	0	0		PASS	nothing installed: nothing
 key	191	0	0	0		PASS	nothing installed: nothing
 reset							-
-key	176	0	0	0		SETTINGS	the settings key needs no app
+key	176	0	0	0		OUR_SETTINGS	the settings key needs no app and opens OUR settings
 key	176	0	0	1		EAT	repeat consumed
 key	176	0	1	0		EAT	release consumed
 reset							-
@@ -62,14 +62,14 @@ key	190	0	0	0	YouTube,Netflix	APP:com.google.android.youtube.tv	its release was 
 key	190	0	0	2	YouTube,Netflix	EAT	and its repeats are still consumed
 key	190	0	1	0	YouTube,Netflix	EAT	and its release too
 reset							-
-key	176	0	0	0	YouTube,Netflix	SETTINGS	Settings opens the TV settings
-key	176	0	0	0	YouTube,Netflix	SETTINGS	a lost release: the next press works at once
+key	176	0	0	0	YouTube,Netflix	OUR_SETTINGS	Settings opens our settings
+key	176	0	0	0	YouTube,Netflix	OUR_SETTINGS	a lost release: the next press works at once
 key	0	578	0	0	YouTube,Netflix	INPUTS	the star key (scan code) opens the inputs
 key	0	578	0	0	YouTube,Netflix	INPUTS	a lost release: the next press works at once
-key	83	0	0	0		SETTINGS	a TCL remote's Settings key arrives as KEYCODE_NOTIFICATION (83) and opens the TV's settings
+key	83	0	0	0		OUR_SETTINGS	a TCL remote's Settings key arrives as KEYCODE_NOTIFICATION (83) and opens our settings
 key	83	0	0	1		EAT	its repeat is consumed
 key	83	0	1	0		EAT	its release is consumed
 key	83	0	1	0		PASS	a release with no press before it goes on as it did
 key	83	0	0	1		PASS	a repeat with no press before it does not act
-key	83	0	0	0	YouTube,Netflix	SETTINGS	with the apps installed it is the same
-key	83	0	0	0		SETTINGS	a lost release: the next press works at once
+key	83	0	0	0	YouTube,Netflix	OUR_SETTINGS	with the apps installed it is the same
+key	83	0	0	0		OUR_SETTINGS	a lost release: the next press works at once
