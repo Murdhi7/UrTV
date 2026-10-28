@@ -45,7 +45,7 @@ res = "android/launcher/src/main/res/"
 xml = text(res + "xml/type_service.xml")
 body = svc.split("static String typeText(")[1].split("    /** The package an intent opens")[0]
 check("typing is a service of its own, turned on on its own: it can read the screen, the sleep service cannot (no window content, no events)",
-      'canRetrieveWindowContent="true"' in xml and "android:accessibilityEventTypes" not in xml and 'canRetrieveWindowContent="false"' in text(res + "xml/sleep_service.xml")
+      'canRetrieveWindowContent="true"' in xml and 'android:accessibilityEventTypes="typeWindowStateChanged"' in xml and 'canRetrieveWindowContent="false"' in text(res + "xml/sleep_service.xml")
       and "android:accessibilityEventTypes" not in text(res + "xml/sleep_service.xml") and "getRootInActiveWindow" not in sleep and "AccessibilityNodeInfo" not in sleep
       and "onAccessibilityEvent(AccessibilityEvent e) { }" in svc)
 man = text("android/launcher/src/main/AndroidManifest.xml")
@@ -56,14 +56,31 @@ check("it only types when the service is on, the window names its package and is
       and body.index("TypeInto.allowed(") < body.index("TypeInto.pick(") and "ParentalPolicy.TV_SETTINGS" in body and "ParentalPolicy.WIFI" in body
       and 'pkg.equals("sa.urtv.screensaver")' in body and "pkg.equals(c.getPackageName())" in body)
 check("a password field is never typed into", "TypeInto.fieldProblem(picked)" in body and "PASSWORD" in body)
-check("nothing of the screen is logged or stored (no Log, no preferences, no file, no broadcast in the typing code)", not re.search(r"\bLog\.|SharedPreferences|getSharedPreferences|FileOutputStream|sendBroadcast|setPrimaryClip|toString\(\)\.getBytes", body + ti))
+check("nothing of the screen is stored (no preferences, no file, no broadcast in the typing code)", not re.search(r"SharedPreferences|getSharedPreferences|FileOutputStream|sendBroadcast|setPrimaryClip|toString\(\)\.getBytes", body + ti))
+# TV6 row 10: window-state events are declared ONLY so Android tracks the active window (else getRootInActiveWindow stays null); none is read
+xml_code = re.sub(r'<!--.*?-->', '', xml, flags=re.S)
+ev = re.findall(r'android:accessibilityEventTypes="([^"]*)"', xml_code)
+check("the typing service declares exactly one event type, typeWindowStateChanged (no content or text events), and reads none of them",
+      ev == ["typeWindowStateChanged"] and "onAccessibilityEvent(AccessibilityEvent e) { }" in svc and "flagRetrieveInteractiveWindows" not in xml_code
+      and "typeWindowContentChanged" not in xml_code and "typeViewTextChanged" not in xml_code and "canPerformGestures" not in xml_code)
+# the log: tag UrTVType, fixed words and a length only. Every log line of the typing path is checked by pattern.
+logs = re.findall(r'Log\.\w\(([^;]*)\);', svc + act) + re.findall(r'(?<!void )\blog\(([^;]*)\);', svc)
+check("the typing path logs (tag UrTVType) at each hop", all(w in (svc + act) for w in ('"text request: mode="', '"foreground=other"', '"service=on"', '"service=off"', '"root=present"', '"root=null"', '"field=none"', '"field=password"', '"field=found"', '"result="')) and len(logs) >= 6, len(logs))
+okline = re.compile(r'^(?:Log\.\w\()?(?:"UrTVType", |TAG, )?("[a-z= ]*"|"text request: mode=" \+ \("append"\.equals\(mode\) \? "append" : "replace"\) \+ " search=" \+ search \+ " len=" \+ \(text == null \? 0 : text\.length\(\)\)|"result=" \+ word|[a-z]+ != null \? "service=on" : "service=off"|root != null \? "root=present" : "root=null"|r == TypeInto\.Refusal\.NO_FIELD \? "field=none" : r == TypeInto\.Refusal\.PASSWORD_FIELD \? "field=password" : "field=found"|Foreground\.current\(\) == null \? "foreground=other" : "foreground=own"|line)$')
+bad = [l for l in logs if not okline.match(l.strip())]
+check("no log line carries the text, a package name or anything of a node: only fixed words and the length", not bad, bad)
+check("a log line has its own tag and the helper is one line", 'static final String TAG = "UrTVType";' in svc and 'static void log(String line) { Log.i(TAG, line); }' in svc)
+check("the focused input field (findFocus FOCUS_INPUT) is tried first, then the tree walk",
+      "root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)" in body and body.index("findFocus(") < body.index("TypeInto.pick("))
+check("a field is editable by the flag, an EditText class, or taking ACTION_SET_TEXT",
+      "info.isEditable() || editText(info) || canSetText(info)" in svc and "AccessibilityAction.ACTION_SET_TEXT" in svc and 'endsWith("EditText")' in svc)
 check("what the field holds is used only to build the new text, in one expression, and never returned", body.count("field.getText()") == 1 and "return now" not in body and "return out" not in body)
 check("the answer is one of a few fixed words", re.search(r'TYPED = "typed_other", TYPED_NO_SEARCH = "typed_other_nosearch", OFF = "service_off", LOCKED = "locked", REFUSED = "refused",\s+NO_FIELD = "no_field", PASSWORD = "password_field", FAILED = "failed";', svc) is not None
       and not re.search(r"return [a-z]+\.get(Text|ContentDescription|Package)", body))
 check("the phone path: the service off is a failure the page explains (nothing is copied), locked, refused and password stay failures, only «no field» falls back to the clipboard",
       'default: return Result.fail(r);' in act and 'case "no_field": break;' in act and 'if (Foreground.current() == null)' in act)
 check("the node walk is bounded (depth and a small count)", "depth >= 40" in svc and "new int[] {500}" in svc)
-check("search presses the keyboard's action only on Android 11+ and only when asked", "SDK_INT < 30" in body and "ACTION_IME_ENTER" in body and body.index("if (!search) return TYPED;") < body.index("ACTION_IME_ENTER"))
+check("search presses the keyboard's action only on Android 11+ and only when asked", "SDK_INT < 30" in body and "ACTION_IME_ENTER" in body and body.index("if (!search) return done(TYPED);") < body.index("ACTION_IME_ENTER"))
 check("the state tells the page whether the typing service is on (its own field, apart from Back's keys_everywhere)", '"typing_service", PhoneApps.typingEnabled()' in act and '"keys_everywhere", PhoneApps.keysEverywhere()' in act)
 for d in ("docs/FEATURES.md", "docs/SETTINGS.md"):
     t = text(d)

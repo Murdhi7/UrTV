@@ -250,7 +250,7 @@
         </service>
 
         <!-- The phone remote's typing into other apps: a second accessibility service, on only when the owner turns it on (or
-             optimize/dock.sh type-setup). It listens to no events and looks at the screen only when a phone sends text: see TypeService. -->
+             optimize/dock.sh type-setup). It reads no event (it only asks Android for window changes, to know which app is in front) and looks at the screen only when a phone sends text: see TypeService. -->
         <service
             android:name=".TypeService"
             android:exported="true"
