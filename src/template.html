@@ -539,8 +539,9 @@ function tickWork(){
   const el = document.getElementById('work-count'), sub = document.getElementById('work-sub');
   if(!el || !sub) return;
   const p = riyadhParts(), nowM = p.h*60 + p.mi + p.s/60;
-  const leftM = Math.max(0, 22*60 - nowM);
-  el.textContent = humanRemaining(Math.ceil(leftM*60));
+  // Once 10 pm passes, count to 10 pm on the following day instead of sticking at zero.
+  const secondsUntilTen = (22*60*60 - (p.h*3600 + p.mi*60 + p.s) + 24*60*60) % (24*60*60);
+  el.textContent = humanRemaining(Math.ceil(secondsUntilTen || 24*60*60));
   const weekday = new Intl.DateTimeFormat('en-US',{timeZone:CONFIG.timezone,weekday:'short'}).format(new Date());
   const day = ({Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6})[weekday];
   // Always count down to the next Thursday, including when today is Thursday.
@@ -1116,6 +1117,14 @@ function renderPanel(animate){
   else if(P === 'verse'){ const q = quoteOfDay(); hd.textContent = q.title; rows = q.rows; }
   if(PANEL_TITLE[P]) hd.textContent = PANEL_TITLE[P];
   if(!rows.length){
+    // Keep the last rendered match list while a new screensaver session is still loading.
+    // The TV can briefly lose network access; showing an empty state here would erase the
+    // saved, fully formatted card even though the bottom match ticker still has its cache.
+    if(P === 'matches' && !MATCHES_LOADED){
+      if(ul.querySelector('li:not(.empty)')) return;
+      ul.innerHTML = '<li class="empty">جارٍ تحميل المباريات…</li>';
+      return;
+    }
     ul.classList.remove('flip');
     ul.innerHTML = `<li class="empty">${P === 'matches' ? 'لا مباريات هذا الأسبوع' : 'لا تتوفر بيانات الآن'}</li>`;
     return;
