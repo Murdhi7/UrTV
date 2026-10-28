@@ -10,8 +10,9 @@ package sa.urtv.home;
  *  - "was not set" (null) is not the same as "could not be read" (UNREADABLE): an unreadable value is never recorded;
  *  - "off" puts back exactly what was recorded; a null original is deleted, not written as a default;
  *  - after the change, in this order: Private DNS must show active for HOST (VALIDATE_MS), then a FRESH random name must get an answer
- *    from the resolver in time (FRESH_MS; see {@link #resolverAnswers}), then the internet must still work (HTTP_MS), together
- *    INTERNET_MS, else the originals go back at once;
+ *    from the resolver in time (up to FRESH_TRIES tries of FRESH_MS each, a new name every time: a freshly set strict Private DNS fails
+ *    lookups until its TLS check is done; see {@link #resolverAnswers}), then the internet must still work (HTTP_MS), together
+ *    INTERNET_MS (40 s at most, each step ends as soon as it succeeds), else the originals go back at once;
  *  - the check is crash safe: a flag (checkingSince) is saved before the first write and cleared only after ENABLED or a revert;
  *    a process that starts (or a boot) with the flag set calls recover(), which puts the originals back;
  *  - "off" puts back only while the value is still ours; if it was changed from elsewhere the record is dropped and nothing is written;
@@ -21,11 +22,12 @@ public final class FamilyDns {
     public static final String HOST = "family.adguard-dns.com";
     public static final int PORT = 853;
     public static final int PROBE_MS = 5000;
-    public static final int INTERNET_MS = 20000;
-    /** INTERNET_MS = waiting for Private DNS to show active + one fresh name + fresh https requests. */
-    public static final int VALIDATE_MS = 8000, FRESH_MS = 4000, HTTP_MS = INTERNET_MS - VALIDATE_MS - FRESH_MS;
-    /** A "no such name" answer that comes back faster than this means the resolver answered (DNS works); slower, or none, is broken. */
-    public static final int FAST_ANSWER_MS = 3000;
+    public static final int INTERNET_MS = 40000;
+    /** INTERNET_MS = waiting for Private DNS to show active + up to FRESH_TRIES fresh names (FRESH_MS each) + fresh https requests. */
+    public static final int VALIDATE_MS = 12000, FRESH_MS = 6000, FRESH_TRIES = 3, HTTP_MS = INTERNET_MS - VALIDATE_MS - FRESH_TRIES * FRESH_MS;
+    /** A "no such name" answer that comes back faster than this means the resolver answered (DNS works); slower, or none, is broken.
+     *  Wide on purpose: the first query through a new DNS-over-TLS connection pays the TLS handshake. */
+    public static final int FAST_ANSWER_MS = 6000;
     public static final int MIN_SDK = 28;
     public static final String KEY_MODE = "private_dns_mode";
     public static final String KEY_SPEC = "private_dns_specifier";
@@ -51,11 +53,13 @@ public final class FamilyDns {
         int sdkInt();
         /** Within ms the active network shows Private DNS active with server name host (not a cached answer). */
         boolean privateDnsValidated(String host, int ms);
+        /** Sleeps ms (a port so the tests do not wait). */
+        void sleep(int ms);
         /** Resolves a unique random name (nothing can have cached it) through the system resolver, waiting at most waitMs. */
         Lookup lookupFreshName(int waitMs);
         /** A fresh, uncached request to connectivitycheck.gstatic.com succeeds within totalMs. */
         boolean internetWorks(int totalMs);
-        /** When the 20 s check began (ms), 0 = no check in progress. Saved before the first write. */
+        /** When the check began (ms), 0 = no check in progress. Saved before the first write. */
         long checkingSince();
         boolean markChecking();
         void clearChecking();
@@ -88,6 +92,20 @@ public final class FamilyDns {
     }
 
     /**
+     * Up to FRESH_TRIES lookups of new random names, each given FRESH_MS (a try that failed early waits out the rest of its slot, so the
+     * tries span the time Private DNS needs to validate); true on the first answer. Still false when the resolver never answers.
+     */
+    private boolean freshNameAnswers() {
+        for (int i = 0; i < FRESH_TRIES; i++) {
+            Lookup l = p.lookupFreshName(FRESH_MS);
+            if (resolverAnswers(l)) return true;
+            long used = l == null ? 0 : l.elapsedMs;
+            if (i < FRESH_TRIES - 1 && used < FRESH_MS) p.sleep((int) (FRESH_MS - used));
+        }
+        return false;
+    }
+
+    /**
      * The validated Private DNS servers of the active network, when the TV can say how many (LinkProperties.getValidatedPrivateDnsServers, hidden
      * API on some versions, reached by reflection): none validated means the strict setting is not working, even if the setting propagated.
      * null = this TV cannot say, which is not a reason to refuse.
@@ -102,6 +120,16 @@ public final class FamilyDns {
      */
     public static Lookup.Kind unknownHostKind(boolean causeIsGai, int gaiError, int eaiNodata, int eaiNoname) {
         return causeIsGai && (gaiError == eaiNodata || gaiError == eaiNoname) ? Lookup.Kind.NOT_FOUND : Lookup.Kind.FAILED;
+    }
+
+    /**
+     * Fallback for a TV that does not let the app read GaiException.error (hidden field): the resolver's own «no such name / no data» text.
+     * A timeout or a refused connection has other texts («Temporary failure in name resolution», …), so those stay failures.
+     */
+    public static boolean messageIsNoSuchName(String m) {
+        if (m == null) return false;
+        String s = m.toLowerCase(java.util.Locale.ROOT);
+        return s.contains("no address associated with hostname") || s.contains("name or service not known") || s.contains("eai_nodata") || s.contains("eai_noname");
     }
 
     public enum Result { ENABLED, ALREADY_ON_BY_OTHER, NEEDS_GRANT, NO_ROUTE, UNREADABLE_VALUE, NOT_RECORDED, NOT_TAKEN, REVERTED, RESTORED, NOTHING_TO_RESTORE, RESTORE_FAILED, UNSUPPORTED, CHANGED_BY_SOMEONE_ELSE }
@@ -152,7 +180,7 @@ public final class FamilyDns {
             p.clearRecord(); p.clearChecking();
             return Result.NOT_TAKEN;
         }
-        if (!p.privateDnsValidated(HOST, VALIDATE_MS) || !resolverAnswers(p.lookupFreshName(FRESH_MS)) || !p.internetWorks(HTTP_MS)) {
+        if (!p.privateDnsValidated(HOST, VALIDATE_MS) || !freshNameAnswers() || !p.internetWorks(HTTP_MS)) {
             if (!restore(rec)) return Result.RESTORE_FAILED;   // REVERTED only once the old values were read back
             p.clearRecord(); p.clearChecking();
             return Result.REVERTED;

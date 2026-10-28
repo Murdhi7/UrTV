@@ -25,7 +25,15 @@ public class FamilyDnsRun {
         public boolean deleteGlobal(String k) { writes++; if (breakRestore) return false; g.remove(k); return true; }
         public int sdkInt() { return sdk; }
         public boolean privateDnsValidated(String h, int ms) { return validated && h.equals(FamilyDns.HOST) && ms == FamilyDns.VALIDATE_MS; }
-        public FamilyDns.Lookup lookupFreshName(int ms) { lookups++; return ms == FamilyDns.FRESH_MS ? new FamilyDns.Lookup(lookup, lookupMs) : new FamilyDns.Lookup(FamilyDns.Lookup.Kind.FAILED, 0); }
+        int failFirst;   // the first N lookups fail fast (the resolver is still validating), then `lookup` applies
+        long slept;
+        public void sleep(int ms) { slept += ms; }
+        public FamilyDns.Lookup lookupFreshName(int ms) {
+            lookups++;
+            if (ms != FamilyDns.FRESH_MS) return new FamilyDns.Lookup(FamilyDns.Lookup.Kind.FAILED, 0);
+            if (lookups <= failFirst) return new FamilyDns.Lookup(FamilyDns.Lookup.Kind.FAILED, 100);
+            return new FamilyDns.Lookup(lookup, lookupMs);
+        }
         public boolean internetWorks(int ms) { return internet && ms == FamilyDns.HTTP_MS; }
         public long checkingSince() { return checking; }
         public boolean markChecking() { checking = 111; return true; }
@@ -138,7 +146,7 @@ public class FamilyDnsRun {
         // 19 fresh name: fast NXDOMAIN and a resolved address continue; timeout, slow NXDOMAIN, other failure revert with the originals back
         StringBuilder sb = new StringBuilder();
         Object[][] cases = {{FamilyDns.Lookup.Kind.NOT_FOUND, 50L}, {FamilyDns.Lookup.Kind.RESOLVED, 3500L},
-            {FamilyDns.Lookup.Kind.TIMEOUT, 4000L}, {FamilyDns.Lookup.Kind.NOT_FOUND, 3500L}, {FamilyDns.Lookup.Kind.FAILED, 10L}};
+            {FamilyDns.Lookup.Kind.TIMEOUT, 6000L}, {FamilyDns.Lookup.Kind.NOT_FOUND, 6500L}, {FamilyDns.Lookup.Kind.FAILED, 10L}};
         for (Object[] c : cases) {
             f = tv("opportunistic", "x.example"); f.lookup = (FamilyDns.Lookup.Kind) c[0]; f.lookupMs = (Long) c[1];
             FamilyDns.Result r = new FamilyDns(f).enable();
@@ -172,5 +180,19 @@ public class FamilyDnsRun {
         Fake nt = tv("opportunistic", "x.example"); nt.failModePut = true;
         FamilyDns.Result r25b = new FamilyDns(nt).enable();
         System.out.println(r25 + " " + (f.rec == null) + " " + f.checking + " | " + r25b + " " + nt.state() + " " + (nt.rec == null) + " " + nt.checking);
+        // 26 retries: a resolver still validating (two fast failures) then answering is ENABLED; the same slot rule waits out the rest of each try
+        f = tv("opportunistic", "x.example"); f.failFirst = 2; f.lookupMs = 4500;   // a slow first answer (TLS handshake) is accepted now
+        FamilyDns.Result r26 = new FamilyDns(f).enable();
+        Fake nv = tv("opportunistic", "x.example"); nv.failFirst = 99;   // never answers: three tries, then REVERTED, originals back
+        FamilyDns.Result r26b = new FamilyDns(nv).enable();
+        Fake one = tv("opportunistic", "x.example");   // answers at once: one lookup, no sleep
+        FamilyDns.Result r26c = new FamilyDns(one).enable();
+        System.out.println(r26 + " " + f.lookups + " " + f.slept + " | " + r26b + " " + nv.lookups + " " + nv.state() + " " + (nv.rec == null) + " " + nv.checking
+            + " | " + r26c + " " + one.lookups + " " + one.slept);
+        // 27 the budget, and the resolver's own text as «no such name» (a TV that hides GaiException.error)
+        System.out.println(FamilyDns.INTERNET_MS + " " + (FamilyDns.VALIDATE_MS + FamilyDns.FRESH_TRIES * FamilyDns.FRESH_MS + FamilyDns.HTTP_MS) + " " + FamilyDns.HTTP_MS
+            + " | " + FamilyDns.messageIsNoSuchName("android_getaddrinfo failed: EAI_NODATA (No address associated with hostname)")
+            + " " + FamilyDns.messageIsNoSuchName("Unable to resolve host \"a.b\": No address associated with hostname")
+            + " " + FamilyDns.messageIsNoSuchName("android_getaddrinfo failed: EAI_AGAIN (Temporary failure in name resolution)") + " " + FamilyDns.messageIsNoSuchName(null));
     }
 }
