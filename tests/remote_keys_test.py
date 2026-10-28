@@ -23,6 +23,9 @@ check("dispatchKeyEvent asks the adhan rule first, then RemoteKeys, then the Men
 check("the key numbers are written out (no Android in RemoteKeys)", "import android" not in keys and "KeyEvent." not in re.sub(r"//.*|/\*.*?\*/", "", keys, flags=re.S))
 check("the apps open through the family lock (REMOTE_APP / REMOTE_SETTINGS), the star through the Menu key's path",
       "ParentalPolicy.REMOTE_APP" in main and "ParentalPolicy.REMOTE_SETTINGS" in main and "ParentalPolicy.MENU_KEY" in body)
+check("the Settings key (176 and 83) opens OUR settings behind «قفل الإعدادات» (OUR_SETTINGS), falling back to the TV's settings when our app is missing",
+      "KEYCODE_SETTINGS:\n            case KEYCODE_NOTIFICATION: return new Decision(OPEN_OUR_SETTINGS, null);" in keys and "ParentalPolicy.OUR_SETTINGS" in main
+      and "OPEN_SETTINGS" not in keys.split("private static Decision map")[1])
 check("an app hidden by kids mode counts as not installed (the key then does nothing)", "ParentalPolicy.visible(" in main.split("Set<String> remoteInstalled()")[1][:600] if "Set<String> remoteInstalled()" in main else False)
 check("no GLOBAL_BUTTON receiver (the system sends that broadcast to a named component only)",
       "GLOBAL_BUTTON" not in (ROOT / "android/launcher/src/main/AndroidManifest.xml").read_text(encoding="utf-8"))

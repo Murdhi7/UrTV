@@ -35,7 +35,7 @@ SOFTWARE.
 
 ### What else of talkies is in UrTV, and what it follows
 
-- the **Control Center** (the round pill and its panel: sleep timer, turn off now, free memory, network, speed test, sound output, screensaver,
+- the **Control Center** (the round pill and its panel: sleep timer, turn off now, network, speed test, sound output, screensaver,
   settings) is adapted from talkies' Control Center (`Sleep.java`, `SleepService.java` and the Control Center code of `HomeActivity.java`), which
   is itself adapted from tv-vibehack's launcher (https://github.com/samdegan2311/tv-vibehack, branch `pr/control-center`, MIT, © 2026 Gathin);
 - the **speed test** (`SpeedTest`) is adapted from talkies' `SpeedTest.java`, which is adapted from Matinee (https://github.com/Jarvis322/matinee,

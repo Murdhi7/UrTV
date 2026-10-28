@@ -441,7 +441,7 @@ ask	PILL_CENTER		GO
 state	1	0	@center		-
 targets	PILL_CENTER			@center
 
-paths				ARRANGE_SCREEN,CARD_TASKS,GRID,INPUT_LIVE_TV,INPUT_PICKER,MENU,MENU_ARRANGE,MENU_KEY,MENU_UPDATE,PARENTAL_SCREEN,PILL_CENTER,PILL_INPUTS,PILL_LISTEN,PILL_SAVER,PILL_SAVER_SETTINGS,PILL_SLEEP,PILL_TASKS,PILL_TV_SETTINGS,PILL_UPDATES,PILL_WIFI,REMOTE_APP,REMOTE_SETTINGS,SLEEP_ACCESSIBILITY,TILE,UPDATE_SCREEN
+paths				ARRANGE_SCREEN,CARD_TASKS,GRID,INPUT_LIVE_TV,INPUT_PICKER,MENU,MENU_ARRANGE,MENU_KEY,MENU_UPDATE,OUR_SETTINGS,PARENTAL_SCREEN,PILL_CENTER,PILL_INPUTS,PILL_LISTEN,PILL_SAVER,PILL_SAVER_SETTINGS,PILL_SLEEP,PILL_TASKS,PILL_TV_SETTINGS,PILL_UPDATES,PILL_WIFI,REMOTE_APP,REMOTE_SETTINGS,SLEEP_ACCESSIBILITY,TILE,UPDATE_SCREEN
 # `dock.sh pin lock/unlock`: what may be named, and what `pin status` says about a kept list
 state	1	0	com.netflix.ninja,@wifi		-
 lockedline					@wifi,com.netflix.ninja
@@ -476,3 +476,13 @@ state	1	0	play		-
 ask	PILL_UPDATES	play	ASK
 state	1	0	wifi.pkg		-
 ask	PILL_UPDATES	play	GO
+# «إعدادات تلفزيونك» (the control center's tile) and the remote's Settings key: our settings screen, locked by «قفل الإعدادات» (@urtv) only
+nothing				-
+ask	OUR_SETTINGS		GO
+state	1	0	@urtv		-
+ask	OUR_SETTINGS		ASK
+unlock	OUR_SETTINGS		-
+ask	OUR_SETTINGS		GO
+state	1	0	@tvsettings,@saver,@center		-
+ask	OUR_SETTINGS		GO
+targets	OUR_SETTINGS			@urtv

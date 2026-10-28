@@ -86,7 +86,7 @@ which is off with it. Our home now answers these keys **while it is in front**:
 |---|---|---|---|---|
 | YouTube | `KEYCODE_BUTTON_3` (190) | opens `com.google.android.youtube.tv`, only if installed | the six reports above | key number from the report and Android's reference; needs a TV |
 | Netflix | `KEYCODE_BUTTON_4` (191) | opens `com.netflix.ninja`, only if installed | the six reports above | same; needs a TV |
-| Settings | `KEYCODE_SETTINGS` (176), and on a TCL (seen on the owner's, build 3.144) `KEYCODE_NOTIFICATION` (83) | opens the TV's settings (the «الإعدادات» pill), behind «قفل الإعدادات» | the six reports above; the TCL's own log line (`UrTVKeys`) said 83 | 176 is Android's reference number; 83 is what a TCL sends. The YouTube and Netflix keys never reach the app there (the system takes them first: they open, our log shows nothing) |
+| Settings | `KEYCODE_SETTINGS` (176), and on a TCL (seen on the owner's, build 3.144) `KEYCODE_NOTIFICATION` (83) | opens **our** settings (the screensaver app's `SettingsActivity`, the same screen as the «إعدادات تلفزيونك» tile of «مركز التحكم»), behind «قفل الإعدادات» (`@urtv`); without that app it falls back to the TV's own settings (behind `@tvsettings`). The TV's own settings stay on the «الإعدادات» pill and tile | the six reports above; the TCL's own log line (`UrTVKeys`) said 83; the step-6 test of 3.145 found the key opened Android's own settings (`com.android.tv.settings`), which was the old rule, not a missed key | 176 is Android's reference number; 83 is what a TCL sends. The YouTube and Netflix keys never reach the app there (the system takes them first: they open, our log shows nothing) |
 | Star | Linux `KEY_JOURNAL`, scan code 0x242 (578); Android's generic key map has no name for it, so the keycode may be `KEYCODE_UNKNOWN` (0) | what the Menu key does: the «المصادر» list (our choice: the star is the nearest thing to Menu) | TCL G08 | scan code from the report and the Linux headers; the keycode is not known, so the scan code is matched; needs a TV |
 
 How: a key acts on the first press only; its repeats and its release are consumed, so nothing else reacts. An app that is not
@@ -107,6 +107,7 @@ Honest notes:
   `adb logcat -s UrTVKeys` prints `key=<keycode> scan=<scancode>` for every first press that reaches our home. Inside other apps nothing
   of ours sees these keys either way; only the accessibility key filter (the separate branch `work/khalid-settingskey`) could see keys in
   other apps (it sees them before the window manager does); this change does not depend on it and leaves it as it is.
+- If after this change the Settings key still opens Android's own settings, the TV took the key before our home saw it (no `UrTVKeys` line with `key=83` or `key=176` appears while the key is pressed on our home): then nothing in the app can change it; use the «إعدادات تلفزيونك» tile of «مركز التحكم» instead.
 - Nothing here is checked on a real TV yet: each row needs one press on each of the six models.
 
 ## D-pad direction on the home screen and its rows

@@ -5,8 +5,8 @@ import java.util.Set;
 /**
  * The shortcut keys of the remote, on our home screen. With the stock launcher switched off, nothing answers them any more: the system
  * sends them (as an explicit broadcast) to a receiver that lives in the stock launcher, so they would do nothing. While our home is in
- * front it sees the key first, and this says what to do with it: open YouTube or Netflix (only when that app is installed), open the
- * TV's settings, or open the inputs list (the Menu key's list: the «star» key does what Menu does).
+ * front it sees the key first, and this says what to do with it: open YouTube or Netflix (only when that app is installed), open our
+ * settings (the Settings key; the TV's own settings stay on the «الإعدادات» pill and tile), or open the inputs list (the Menu key's list: the «star» key does what Menu does).
  *
  * Only a press (DOWN, first, not a repeat) acts; the repeats and the release of a key that acted are consumed, so nothing else reacts to
  * them. A key the home does not map, or an app that is not installed, is left alone (PASS) and behaves as it did before. The adhan's
@@ -35,10 +35,12 @@ final class RemoteKeys {
     static final int EAT = 1;
     /** open {@link Decision#pkg} */
     static final int OPEN_APP = 2;
-    /** open the TV's settings */
+    /** open the TV's own settings (what the Settings key fell back to when our settings are missing; no key maps to it any more) */
     static final int OPEN_SETTINGS = 3;
     /** open the inputs list, as the Menu key does */
     static final int OPEN_INPUTS = 4;
+    /** open OUR settings (the screensaver app's settings screen): what the remote's Settings key does on our home */
+    static final int OPEN_OUR_SETTINGS = 5;
 
     static final class Decision {
         final int kind;
@@ -88,7 +90,7 @@ final class RemoteKeys {
             case KEYCODE_BUTTON_3: return app(YOUTUBE, installed);
             case KEYCODE_BUTTON_4: return app(NETFLIX, installed);
             case KEYCODE_SETTINGS:
-            case KEYCODE_NOTIFICATION: return new Decision(OPEN_SETTINGS, null);
+            case KEYCODE_NOTIFICATION: return new Decision(OPEN_OUR_SETTINGS, null);
             default: break;
         }
         if (scanCode == SCAN_STAR) return new Decision(OPEN_INPUTS, null);
