@@ -60,8 +60,10 @@ public class PhoneActivity extends Activity implements PrivateScreen {
         scroll.addView(frame);
         col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(0, dp(28), 0, dp(40));
-        frame.addView(col, new FrameLayout.LayoutParams(dp(640), -2, Gravity.CENTER_HORIZONTAL));
+        col.setPadding(0, dp(20), 0, dp(16));
+        // wide enough for the code's two columns (the QR beside the address and the code) on one TV screen, no scrolling
+        int wide = Math.min(Math.round(getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density) - 96, 1000);
+        frame.addView(col, new FrameLayout.LayoutParams(dp(wide), -2, Gravity.CENTER_HORIZONTAL));
         scroll.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // its buttons and D-pad ids are right-to-left: pinned, so a TV set to English does not mirror them
         setContentView(scroll);
     }
@@ -118,6 +120,7 @@ public class PhoneActivity extends Activity implements PrivateScreen {
         PhoneControl.Pending pending = control.pending();
         List<Sessions.Info> phones = control.phones();
         View focus = null;
+        LinearLayout below = col;   // where the phones and «إيقاف» go: under the code, in the right column, when the code is shown
         if (pending != null && pending.waiting()) {
             col.addView(text("جوال جديد يطلب التحكم", 22, "Medium", GOLD, Gravity.RIGHT), right(dp(4)));
             col.addView(text("العنوان: " + ltr(pending.ip) + ". اضغط «سماح» فقط إذا كان هذا جوالك.", 15, "Regular", TEXT, Gravity.RIGHT), right(dp(14)));
@@ -142,25 +145,40 @@ public class PhoneActivity extends Activity implements PrivateScreen {
             if (o == null) {
                 col.addView(text(control.lastStop().isEmpty() ? "لا يوجد رمز جاهز." : stopText(control.lastStop()), 16, "Medium", GOLD, Gravity.RIGHT), right(dp(14)));
             } else {
+                // one page, two columns (the owner, on the TV test: no scrolling, the address and the code stand out): on the right the
+                // address and the 6-digit code each in their own large box, the countdown, the phones and «إيقاف»; on the left the QR code
                 shownToken = o.token;
-                col.addView(text("امسح الرمز بكاميرا الجوال", 18, "Medium", TEXT, Gravity.RIGHT), right(dp(10)));
+                LinearLayout body = new LinearLayout(this);
+                body.setOrientation(LinearLayout.HORIZONTAL);   // right to left, as the screen: the first column is the right one
+                LinearLayout info = new LinearLayout(this);
+                info.setOrientation(LinearLayout.VERTICAL);
+                info.addView(text("افتح هذا العنوان في متصفح الجوال", 15, "Regular", DIM, Gravity.RIGHT), right(dp(6)));
+                info.addView(boxed(ltr(control.address() + "/p"), 28, GOLD, 0f), right(dp(14)));
+                info.addView(text("واكتب هذا الرمز", 15, "Regular", DIM, Gravity.RIGHT), right(dp(6)));
+                info.addView(boxed(ltr(spaced(o.code)), 48, TEXT, 0.08f), right(dp(8)));
+                countdown = text("", 13, "Regular", DIM, Gravity.RIGHT);
+                info.addView(countdown, right(dp(14)));
+                below = info;
+                body.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
+                LinearLayout qrCol = new LinearLayout(this);
+                qrCol.setOrientation(LinearLayout.VERTICAL);
+                qrCol.setGravity(Gravity.CENTER_HORIZONTAL);
+                qrCol.addView(text("أو امسح الرمز بكاميرا الجوال", 15, "Regular", DIM, Gravity.CENTER), new LinearLayout.LayoutParams(-1, -2));
                 QrView qr = new QrView(this);
                 qr.setCode(QrCode.encode(control.pairUrl(o)));
-                LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(dp(300), dp(300));
-                qp.gravity = Gravity.CENTER_HORIZONTAL;
-                qp.bottomMargin = dp(12);
-                col.addView(qr, qp);
-                col.addView(text("أو افتح هذا العنوان في متصفح الجوال:", 14, "Regular", DIM, Gravity.RIGHT), right(dp(2)));
-                col.addView(text(ltr(control.address() + "/p"), 20, "Medium", GOLD, Gravity.RIGHT), right(dp(6)));
-                col.addView(text("واكتب الرمز: " + ltr(o.code), 20, "Medium", TEXT, Gravity.RIGHT), right(dp(4)));
-                countdown = text("", 13, "Regular", DIM, Gravity.RIGHT);
-                col.addView(countdown, right(dp(14)));
+                LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(dp(240), dp(240));
+                qp.topMargin = dp(8);
+                qrCol.addView(qr, qp);
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(280), -2);
+                cp.setMarginStart(dp(36));
+                body.addView(qrCol, cp);
+                col.addView(body, right(dp(8)));
                 update();
             }
         }
 
-        col.addView(text("الجوالات المتصلة", 16, "Medium", GOLD, Gravity.RIGHT), right(dp(8)));
-        if (phones.isEmpty()) col.addView(text("لا يوجد جوال متصل.", 14, "Regular", DIM, Gravity.RIGHT), right(dp(10)));
+        below.addView(text("الجوالات المتصلة", 16, "Medium", GOLD, Gravity.RIGHT), right(dp(4)));
+        if (phones.isEmpty()) below.addView(text("لا يوجد جوال متصل.", 14, "Regular", DIM, Gravity.RIGHT), right(dp(8)));
         int n = 0;
         for (final Sessions.Info s : phones) {
             n++;
@@ -178,7 +196,7 @@ public class PhoneActivity extends Activity implements PrivateScreen {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
             lp.rightMargin = dp(4);
             row.addView(label, lp);
-            col.addView(row, rowParams());
+            below.addView(row, rowParams());
             if (focus == null) focus = cancel;
         }
         View stop = button("إيقاف التحكم من الجوال", RED, new View.OnClickListener() {
@@ -188,8 +206,8 @@ public class PhoneActivity extends Activity implements PrivateScreen {
             }
         });
         LinearLayout.LayoutParams sp = button();
-        sp.topMargin = dp(18);
-        col.addView(stop, sp);
+        sp.topMargin = below == col ? dp(18) : dp(4);
+        below.addView(stop, sp);
         if (focus == null) focus = stop;
         col.addView(text("الجلسة تنتهي بعد " + Digits.of("30") + " دقيقة بلا استخدام أو " + Digits.of("4") + " ساعات كحد أقصى، ولا يُحفظ شيء بعد إعادة التشغيل.", 12, "Regular", DIM, Gravity.RIGHT), right(dp(6)));
         return focus;
@@ -224,6 +242,25 @@ public class PhoneActivity extends Activity implements PrivateScreen {
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /** A value that must stand out (the address, the code): large, in a framed box of its own. */
+    private TextView boxed(String s, float sp, int color, float spacing) {
+        TextView t = text(s, sp, "Medium", color, Gravity.CENTER);
+        t.setLetterSpacing(spacing);
+        t.setPadding(dp(16), dp(10), dp(16), dp(12));
+        t.setSingleLine(true);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(16));
+        bg.setColor(0x1AD6AF6B);
+        bg.setStroke(dp(2), 0x80D6AF6B);
+        t.setBackground(bg);
+        return t;
+    }
+
+    /** «123 456»: the six digits read in two halves. */
+    static String spaced(String code) {
+        return code != null && code.length() == 6 ? code.substring(0, 3) + " " + code.substring(3) : code;
+    }
 
     /** Latin text (an address, a code) inside an Arabic line: kept in its own direction. */
     private static String ltr(String s) { return "⁦" + s + "⁩"; }
