@@ -44,13 +44,26 @@ check("one bitmap per process: only GlassSource decodes the backdrop, and keeps 
 check("the screens draw that same bitmap, never a copy", "new BitmapDrawable(c.getResources(), backdrop);   // the same bitmap, not a copy" in paint
       and "createBitmap" not in paint and "copy(" not in paint)
 users = sorted(p.name for p, s in java.items() if "GlassSource.page(" in s or "GlassSource.page(" in s.replace("sa.urtv.home.GlassSource.page(", "GlassSource.page("))
-want = ["DockActivity.java", "InputNamesActivity.java", "ParentalActivity.java", "PhoneActivity.java", "SettingsActivity.java", "SetupActivity.java",
-        "TasksActivity.java", "UpdateActivity.java", "WatchNextActivity.java"]
+want = ["DockActivity.java", "FamilyDnsActivity.java", "InputNamesActivity.java", "ParentalActivity.java", "PhoneActivity.java", "SettingsActivity.java",
+        "SetupActivity.java", "TasksActivity.java", "UpdateActivity.java", "WatchNextActivity.java"]
 check("every screen of ours draws its page with GlassSource.page", all(w in users for w in want), sorted(set(want) - set(users)))
-# Khalid's two screens take the helper after his tv6 is merged (the supervisor's order): named here until then, never silently
-LATER = {"FamilyDnsActivity.java"}
-old = [str(p.relative_to(ROOT)) for p, s in java.items() if "0xFF0A2016, 0xFF04120C, 0xFF020806" in s and p.name not in LATER]
-check("no screen keeps the old dark green page (but " + ", ".join(sorted(LATER)) + ", Khalid's, after his tv6 merge)", not old, old)
+old = [str(p.relative_to(ROOT)) for p, s in java.items() if "0xFF0A2016, 0xFF04120C, 0xFF020806" in s]
+check("no screen keeps the old dark green page", not old, old)
+cc = read(HOME / "ControlCenter.java")
+check("«مركز التحكم»: the glass look of now, opaque over the look's solid colour (it sits over the home's photo), glass tiles, the solid focus fill",
+      "GlassStyle.Look l = GlassSource.look(act);" in cc and "PANEL = GlassStyle.over(l.dialog, l.base);" in cc and "fill.setColor(f ? FOCUSED : TILE);" in cc
+      and "name.setTextColor(f ? ON : TEXT);" in cc and "0xF0242428" not in cc)
+TIL = HOME / "tilawah"
+for name in ("MainActivity.java", "SurahActivity.java", "PlayerActivity.java", "AdhanActivity.java"):
+    t = read(TIL / name)
+    check(f"«تلاوة وأذان» {name}: the glass look of now (its light or dark resources) and the glass page",
+          "super.attachBaseContext(Ui.glassContext(base));" in t and "Ui.glassPage(this, R.id.bg);" in t)
+ui = read(TIL / "Ui.java")
+check("«تلاوة وأذان»: light or dark from «المظهر» (GlassSource.light), not the TV's own night mode; the old photo layer is let go",
+      "sa.urtv.home.GlassSource.light(base)" in ui and "UI_MODE_NIGHT_NO : Configuration.UI_MODE_NIGHT_YES" in ui and "setImageDrawable(null)" in ui)
+lres = ROOT / "android/launcher/src/main/res"
+greens = [p.name for p in (lres / "drawable").glob("*.xml") if re.search(r"#(2E3F7A5C|1A123A28|4D9C9A5E|33467A52|733F7A5C|661A4630|8C2F6B4C|8C0F2D1F|26DCB86F|40DCB86F|00040E09|E6040E09)", read(p), re.I)]
+check("«تلاوة وأذان»: no drawable keeps the old green glass", not greens, greens)
 
 # ---- the settings app reads it through a signature permission
 lm, am = read(ROOT / "android/launcher/src/main/AndroidManifest.xml"), read(ROOT / "android/app/src/main/AndroidManifest.xml")
@@ -87,6 +100,16 @@ check("the dialogs' focused row is GlassStyle's focus fill and ink (dark and lig
       and f'#{look["LIGHT"]["focus"][2:].upper()}' in read(res / "drawable/glass_focus_light.xml").upper()
       and hexrgb(look["DARK"]["onFocus"]) in read(res / "color/glass_item.xml").upper() and hexrgb(look["LIGHT"]["onFocus"]) in read(res / "color/glass_item_light.xml").upper())
 check("the light dialogs keep nothing grey behind them (the frosted glass is checked over the page as it is)", 'backgroundDimAmount">0<' in light_style)
+def colours(path):
+    return {m.group(1): m.group(2).upper() for m in re.finditer(r'<color name="(\w+)">(#[0-9A-Fa-f]+)</color>', read(path))}
+for nm, path, l in (("light", lres / "values/colors.xml", look["LIGHT"]), ("dark", lres / "values-night/colors.xml", look["DARK"])):
+    c = colours(path)
+    want_c = {"bg": hexrgb(l["base"]), "glass_text": hexrgb(l["text"]), "glass_sub": hexrgb(l["sub"]), "glass_accent": hexrgb(l["accent"]), "glass_warn": hexrgb(l["warn"]),
+              "glass_panel": hexargb(l["panel"]), "glass_line": hexargb(l["line"]), "glass_dialog": hexargb(l["dialog"]), "glass_focus": hexargb(l["focus"]),
+              "on_focus": hexrgb(l["onFocus"]), "on_focus_sub": hexrgb(l["onFocusSub"])}
+    check(f"«تلاوة وأذان» {nm}: its colours are GlassStyle's", all(c.get(k) == v for k, v in want_c.items()), {k: (c.get(k), v) for k, v in want_c.items() if c.get(k) != v})
+check("«تلاوة وأذان»: every word is a state list, the focus ink on a focused or selected row (sand, dim, gold, red)",
+      all('android:state_selected="true" android:color="@color/on_focus' in read(lres / f"color/{n}.xml") for n in ("sand", "dim", "gold", "red")))
 phone = read(ROOT / "android/launcher/src/main/assets/phone/index.html")
 dark_t = re.search(r":root \{([^}]*)\}", phone).group(1)
 light_t = re.search(r':root\[data-theme="light"\] \{([^}]*)\}', phone).group(1)

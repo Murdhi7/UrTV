@@ -156,7 +156,9 @@ public final class GlassStyle {
         int dialogHi = over(l.dialog, pageHi), dialogLo = over(l.dialog, pageLo);
         return new int[][] {
             {pageHi, pageLo, 0}, {panelHi, panelLo, 0}, {dialogHi, dialogLo, 0}, {over(l.hint, pageHi), over(l.hint, pageLo), 0},
+            {over(l.panel, dialogHi), over(l.panel, dialogLo), 0},   // a tile on a dialog (the Control Center's)
             {over(l.focus, panelHi), over(l.focus, panelLo), 1}, {over(l.focus, dialogHi), over(l.focus, dialogLo), 1},
+            {over(l.focus, over(l.panel, dialogHi)), over(l.focus, over(l.panel, dialogLo)), 1},
         };
     }
 

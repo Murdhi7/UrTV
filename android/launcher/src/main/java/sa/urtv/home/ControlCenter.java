@@ -48,7 +48,9 @@ final class ControlCenter {
         Typeface font(String family);
     }
 
-    private static final int PANEL = 0xF0242428, FOCUSED = 0xF2FFFFFF, TILE = 0x33FFFFFF;
+    // the glass look the home shows (GlassSource.look, when the panel opens): the panel opaque over the look's solid colour (it sits over the
+    // home's photo as it is), the tiles a glass panel on it, the focused one the solid focus fill; GlassStyle checks each of them
+    private int PANEL, LINE, FOCUSED, TILE, TEXT, SUB, ON, ON_SUB, ACCENT;
 
     private final Activity act;
     private final Host host;
@@ -76,6 +78,9 @@ final class ControlCenter {
     /** Opens the panel over the home screen; the focus returns to the anchor (the pill) when it closes. */
     void open(View anchor) {
         if (showing()) return;
+        GlassStyle.Look l = GlassSource.look(act);   // the look of now, before any tile is made
+        PANEL = GlassStyle.over(l.dialog, l.base); LINE = l.line; FOCUSED = l.focus; TILE = l.panel; TEXT = l.text; SUB = l.sub;
+        ON = l.onFocus; ON_SUB = l.onFocusSub; ACCENT = l.accent;
         List<Tile> tiles = new ArrayList<>();
 
         tiles.add(tile("sleep", "مؤقت النوم", sleepLine(), R.drawable.ic_sleep, () -> { dismiss(); host.openSleep(anchor); }));
@@ -111,12 +116,12 @@ final class ControlCenter {
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(dp(22));
         bg.setColor(PANEL);
-        bg.setStroke(dp(1), 0x26FFFFFF);
+        bg.setStroke(dp(1), LINE);
         panel.setBackground(bg);
 
         title = new TextView(act);
         title.setText(ControlText.NAME);
-        title.setTextColor(Color.WHITE);
+        title.setTextColor(TEXT);
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         title.setTypeface(host.font("sans-serif-medium"));
         title.setGravity(Gravity.RIGHT);
@@ -258,9 +263,9 @@ final class ControlCenter {
         private void paint() {
             boolean f = hasFocus();
             fill.setColor(f ? FOCUSED : TILE);
-            name.setTextColor(f ? 0xFF111111 : Color.WHITE);
-            value.setTextColor(f ? 0xFF333333 : 0xCCFFFFFF);
-            glyph.getDrawable().setTint(f ? 0xFF111111 : Color.WHITE);
+            name.setTextColor(f ? ON : TEXT);
+            value.setTextColor(f ? ON_SUB : SUB);
+            glyph.getDrawable().setTint(f ? ON : TEXT);
         }
     }
 
@@ -327,7 +332,7 @@ final class ControlCenter {
         if (title == null || offPending) return;
         offPending = true;
         title.setText(ControlText.SLEEP_OFF_NOTICE);
-        title.setTextColor(0xFFD6AF6B);
+        title.setTextColor(ACCENT);
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         title.setLineSpacing(0, 1.1f);
         ui.postDelayed(() -> {

@@ -2,7 +2,6 @@ package sa.urtv.home;
 
 import android.app.Activity;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -25,7 +24,8 @@ import android.widget.TextView;
  * in front.
  */
 public class FamilyDnsActivity extends Activity {
-    private static final int GOLD = 0xFFD6AF6B, INK = 0xFF04120C, TEXT = 0xFFF6EFE0, DIM = 0xFFC6BBA4;
+    private int GOLD, INK, TEXT, DIM;   // from the glass look (glass(), before anything is drawn)
+    private GlassStyle.Look look;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable poll = new Runnable() { public void run() { refresh(); } };
@@ -36,8 +36,7 @@ public class FamilyDnsActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0xFF0A2016, 0xFF04120C, 0xFF020806}));
+        glass(scroll);   // the glass look: the home's photo, small and blurred once, under its veil
         scroll.setVerticalScrollBarEnabled(false);
         FrameLayout frame = new FrameLayout(this);
         scroll.addView(frame);
@@ -52,15 +51,12 @@ public class FamilyDnsActivity extends Activity {
         state = text("", 17, "Medium", GOLD);
         col.addView(state, right(dp(18)));
 
-        button = text("", 18, "Medium", INK);
+        button = text("", 18, "Medium", TEXT);
         button.setGravity(Gravity.CENTER);
         button.setPadding(dp(16), dp(14), dp(16), dp(14));
         button.setFocusable(true);
         button.setClickable(true);
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        bg.setColor(GOLD);
-        button.setBackground(bg);
+        GlassPaint.card(button, look, 14);   // the panel, the solid focus fill and its ink while focused
         button.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { toggle(); } });
         col.addView(button, right(dp(16)));
 
@@ -147,4 +143,10 @@ public class FamilyDnsActivity extends Activity {
     }
 
     private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
+
+    /** The glass look on this page (GlassSource: the home's photo under its veil, or the look's solid colour), and this screen's colours from it. */
+    private void glass(View page) {
+        look = GlassSource.page(this, page);
+        GOLD = look.accent; INK = look.onFocus; TEXT = look.text; DIM = look.sub;
+    }
 }

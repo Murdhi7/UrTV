@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.Dialog;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -39,11 +40,16 @@ public class PlayerActivity extends Activity {
         }
     };
 
+    @Override protected void attachBaseContext(Context base) {
+        super.attachBaseContext(Ui.glassContext(base));   // the glass look of now: light (values/) or dark (values-night/)
+    }
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         sa.urtv.home.Digits.init(this);   // the screensaver's «الأرقام» setting
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_player);
+        Ui.glassPage(this, R.id.bg);   // the glass page
         cat = Catalog.get(this);
         openedAt = SystemClock.elapsedRealtime();
 

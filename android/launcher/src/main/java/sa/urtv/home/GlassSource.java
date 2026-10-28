@@ -45,14 +45,14 @@ public final class GlassSource {
     }
 
     /** Light now? «المظهر» as the screensaver keeps it; automatic follows what the home shows (it writes it), else the clock. */
-    static boolean light(Context c) {
+    public static boolean light(Context c) {
         String mode = ConfigSnapshot.read(c).appearance();
         if (Look.AUTO.equals(mode) && prefs(c).contains("glass_home_light")) return prefs(c).getBoolean("glass_home_light", false);
         Calendar now = Calendar.getInstance();
         return Look.light(mode, null, now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE));
     }
 
-    static GlassStyle.Look look(Context c) { return GlassStyle.of(light(c)); }
+    public static GlassStyle.Look look(Context c) { return GlassStyle.of(light(c)); }
 
     /** A screen's page: the backdrop under its veil, in the look of now. Returns that look, for the screen's own colours. */
     public static GlassStyle.Look page(Activity a, View root) {

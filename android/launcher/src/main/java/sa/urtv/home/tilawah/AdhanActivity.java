@@ -1,6 +1,7 @@
 package sa.urtv.home.tilawah;
 
 import android.app.Activity;
+import android.content.Context;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -31,10 +32,15 @@ public class AdhanActivity extends Activity {
     /** 1 when the list starts with the person's own recording, else 0 */
     private int own;
 
+    @Override protected void attachBaseContext(Context base) {
+        super.attachBaseContext(Ui.glassContext(base));   // the glass look of now: light (values/) or dark (values-night/)
+    }
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         sa.urtv.home.Digits.init(this);   // the screensaver's «الأرقام» setting
         setContentView(R.layout.activity_adhan);
+        Ui.glassPage(this, R.id.bg);   // the glass page
         prefs = new Prefs(this);
         own = OwnAdhan.exists(this) ? 1 : 0;
         fajr = getIntent().getBooleanExtra(EXTRA_FAJR, false);
@@ -84,6 +90,7 @@ public class AdhanActivity extends Activity {
         if (lastSelected != null && lastSelected != view) resetRow(lastSelected);
         if (view == null) { lastSelected = null; return; }
         view.setBackgroundResource(R.drawable.row_selected);
+        view.setSelected(true);   // its words in the focus ink (res/color)
         View cursor = view.findViewById(R.id.cursor);
         if (cursor != null) cursor.setVisibility(View.VISIBLE);
         lastSelected = view;
@@ -91,6 +98,7 @@ public class AdhanActivity extends Activity {
 
     private void resetRow(View view) {
         view.setBackgroundResource(R.drawable.row_bg);
+        view.setSelected(false);
         View cursor = view.findViewById(R.id.cursor);
         if (cursor != null) cursor.setVisibility(View.INVISIBLE);
     }
@@ -115,7 +123,7 @@ public class AdhanActivity extends Activity {
                     ? getString(R.string.adhan_chosen, Adhan.place(voice))
                     : Adhan.place(voice));
             detail.setTypeface(Ui.font(AdhanActivity.this, "Thmanyah-Light.otf"));
-            detail.setTextColor(getResources().getColor(chosen ? R.color.gold : R.color.dim));
+            detail.setTextColor(getResources().getColorStateList(chosen ? R.color.gold : R.color.dim, null));   // the focus ink when selected
             return view;
         }
     }

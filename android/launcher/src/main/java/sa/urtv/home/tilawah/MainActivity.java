@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
+import android.content.Context;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.KeyEvent;
@@ -51,10 +52,15 @@ public class MainActivity extends Activity {
         if (intent != null && "adhan".equals(intent.getStringExtra(EXTRA_OPEN))) selectTab(TAB_ADHAN);
     }
 
+    @Override protected void attachBaseContext(Context base) {
+        super.attachBaseContext(Ui.glassContext(base));   // the glass look of now: light (values/) or dark (values-night/)
+    }
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         sa.urtv.home.Digits.init(this);   // the screensaver's «الأرقام» setting
         setContentView(R.layout.activity_main);
+        Ui.glassPage(this, R.id.bg);   // the glass page
         cat = Catalog.get(this);
         prefs = new Prefs(this);
 
@@ -264,6 +270,7 @@ public class MainActivity extends Activity {
             return;
         }
         view.setBackgroundResource(R.drawable.row_selected);
+        view.setSelected(true);   // its words in the focus ink (res/color)
         View cursor = view.findViewById(R.id.cursor);
         if (cursor != null) cursor.setVisibility(View.VISIBLE);
         lastSelected = view;
@@ -271,6 +278,7 @@ public class MainActivity extends Activity {
 
     private void resetRow(View view) {
         view.setBackgroundResource(R.drawable.row_bg);
+        view.setSelected(false);
         View cursor = view.findViewById(R.id.cursor);
         if (cursor != null) cursor.setVisibility(View.INVISIBLE);
     }
@@ -417,7 +425,7 @@ public class MainActivity extends Activity {
             detail.setText(row.detail);
             name.setTypeface(Ui.font(MainActivity.this, "Thmanyah-Medium.otf"));
             detail.setTypeface(Ui.font(MainActivity.this, "Thmanyah-Light.otf"));
-            name.setTextColor(getResources().getColor(row.next ? R.color.gold : R.color.sand));
+            name.setTextColor(getResources().getColorStateList(row.next ? R.color.gold : R.color.sand, null));   // the focus ink when selected
             return view;
         }
     }
