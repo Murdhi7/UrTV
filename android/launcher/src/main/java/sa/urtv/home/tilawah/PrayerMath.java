@@ -40,6 +40,11 @@ final class PrayerMath {
      *      library's method-info lists the Moroccan Awqaf ministry)
      *  19  Algeria, the Ministry of Religious Affairs and Awqaf: Fajr 18°, Isha 17° (Aladhan's id 19; the angles salahtimes.com and Aladhan's list give)
      *  18  Tunisia, the Ministry of Religious Affairs: Fajr 18°, Isha 18° (Aladhan's id 18; salahtimes.com lists the ministry's method with these angles)
+     * 100  Oman, the Ministry of Awqaf and Religious Affairs (Muscat's default): Fajr 18°, Isha 18°, Dhuhr, Asr and Maghrib +5 minutes, sunrise, Fajr
+     *      and Isha untouched. **Not an Aladhan id** (Aladhan has no such method; 100 is ours), so it is always computed here and never asked of
+     *      Aladhan. The ministry publishes no parameters: these are the ones egyjs/afnon-android-tv-launcher (MIT, Method.OMAN_AWQAF) fitted to the
+     *      ministry's own 2026 timetable (Muscat, Sohar, Nizwa, Salalah) to within about two minutes. The older Gulf method (8) stays available
+     *      for Oman as the settings' {@code pm=gulf}.
      * Asr is the shadow-length-one (Shafi'i) Asr for all of them; Maghrib is sunset (0.833°) except for the Ja'fari.
      */
     static final class Method {
@@ -56,6 +61,8 @@ final class PrayerMath {
     }
 
     static final int JAFARI = 0, UMM_AL_QURA = 4, GULF = 8, KUWAIT = 9, QATAR = 10, DUBAI = 16, EGYPT = 5, JORDAN = 23, MOROCCO = 21, ALGERIA = 19, TUNISIA = 18;
+    /** our own id for Oman's ministry: Aladhan has none, so ids from here up are never sent to it (see {@link #aladhanKnows}) */
+    static final int OMAN = 100;
     private static final Method[] METHODS = {
         new Method(JAFARI, 16, 14, 0, 4),
         new Method(UMM_AL_QURA, 18.5, 0, 90, .833),
@@ -68,7 +75,11 @@ final class PrayerMath {
         new Method(MOROCCO, 19, 17, 0, .833, 0, 5, 0, 5),
         new Method(ALGERIA, 18, 17, 0, .833),
         new Method(TUNISIA, 18, 18, 0, .833),
+        new Method(OMAN, 18, 18, 0, .833, 0, 5, 5, 5),
     };
+
+    /** Does Aladhan have this method under this id? Ours (OMAN) it has not: the times are computed here only. */
+    static boolean aladhanKnows(int id) { return id < OMAN; }
 
     static Method method(int id) {
         for (Method m : METHODS) if (m.id == id) return m;
@@ -77,17 +88,19 @@ final class PrayerMath {
 
     /**
      * The method of a place: the Ja'fari when the settings say {@code pm=jafari}, else the country's own, told by the city's time zone
-     * (Kuwait, Qatar, UAE; Bahrain and Oman the Gulf one), else Umm al-Qura. The page (CONFIG.prayerMethod) and the app (PrayerMethod) say
+     * (Kuwait, Qatar, UAE; Bahrain the Gulf one, Oman its ministry's), else Umm al-Qura. The page (CONFIG.prayerMethod) and the app (PrayerMethod) say
      * the same; tests/prayer_method_test.py compares the three.
      */
     static int methodFor(String tz, String pm) {
         if ("jafari".equals(pm)) return JAFARI;
+        if ("gulf".equals(pm)) return GULF;   // «الخليج» chosen by hand, for Oman or anywhere
         if (tz == null) return UMM_AL_QURA;
         switch (tz) {
             case "Asia/Kuwait": return KUWAIT;
             case "Asia/Qatar": return QATAR;
             case "Asia/Dubai": return DUBAI;
-            case "Asia/Bahrain": case "Asia/Muscat": return GULF;
+            case "Asia/Bahrain": return GULF;
+            case "Asia/Muscat": return OMAN;
             case "Africa/Cairo": case "Asia/Damascus": case "Asia/Beirut": case "Asia/Gaza": case "Asia/Hebron": case "Asia/Jerusalem": return EGYPT;
             case "Asia/Amman": return JORDAN;
             case "Africa/Casablanca": case "Africa/El_Aaiun": return MOROCCO;

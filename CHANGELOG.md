@@ -5,7 +5,7 @@ Newest first. `next` is where changes land first; a release is what was tested t
 ## On `next` (not released yet)
 
 **Prayer times and adhan**
-- Gulf cities, each country's own prayer method, and Ja'fari.
+- Gulf cities, each country's own prayer method, and Ja'fari. Oman uses its Ministry of Awqaf's method (Fajr and Isha 18°, Dhuhr, Asr and Maghrib +5 minutes, from egyjs/afnon-android-tv-launcher, MIT); the Gulf method stays as «طريقة الحساب» ← الخليج.
 - «تعديل وقت الصلاة»: move each prayer by its own minutes.
 - The adhan bar names the prayer before the adhan; the Fajr voice and a short adhan; honest buffering.
 - The adhan keeps its right time through previews and city changes; the TV's volume comes back after any adhan.

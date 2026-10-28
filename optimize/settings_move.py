@@ -50,7 +50,7 @@ ALLOWED_TOP = ("schema", "city", "digits", "prayer", "hijri_offset", "clock24", 
 # The same lists the apps validate (android/app/src/main/java/sa/urtv/screensaver/Prefs.java; tests/settings_move_test.py
 # reads that file and fails if these drift from it).
 DIGITS = ("hindi", "latin")
-PRAYER_METHODS = ("auto", "jafari")
+PRAYER_METHODS = ("auto", "gulf", "jafari")
 CARD_STYLES = ("current", "dark1", "glass1", "dark3", "glass3")
 CLOCK_SIZES = ("large", "medium", "small")
 MK_STYLES = ("arrows", "prices")
