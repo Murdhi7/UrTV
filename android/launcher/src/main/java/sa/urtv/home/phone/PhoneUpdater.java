@@ -550,6 +550,7 @@ public final class PhoneUpdater {
     static void onResult(Context c, Intent intent) {
         int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, Integer.MIN_VALUE);
         String pkg = intent.getStringExtra("pkg");
+        Log.i(TAG, "installer answered: status=" + status + " (-1 = the confirm screen is needed, 0 = installed without one)");   // a number only: tells a silent step from a confirmed one
         if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
             Intent screen = intent.getParcelableExtra(Intent.EXTRA_INTENT);
             if (screen == null) { fail(c, "failed", pkg == null ? "" : pkg, "installer"); return; }

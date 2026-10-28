@@ -94,6 +94,9 @@ final class PhoneActions implements Actions {
     // ---- text
 
     @Override public Result text(final String text, String mode, boolean search) {
+        // the typing log (tag UrTVType): fixed words and the length only, never the text or a package name
+        android.util.Log.i("UrTVType", "text request: mode=" + ("append".equals(mode) ? "append" : "replace") + " search=" + search + " len=" + (text == null ? 0 : text.length()));
+        android.util.Log.i("UrTVType", Foreground.current() == null ? "foreground=other" : "foreground=own");
         if (Foreground.current() == null) {   // another app in front: through the accessibility service, when the owner turned it on
             String r = PhoneApps.typeText(app, text, "append".equals(mode), search);
             switch (r) {

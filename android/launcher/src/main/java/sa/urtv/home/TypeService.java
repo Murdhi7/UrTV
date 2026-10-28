@@ -7,6 +7,7 @@ import android.content.pm.ResolveInfo;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
@@ -16,11 +17,17 @@ import java.util.List;
 /**
  * Types the phone remote's text into ANOTHER app: the text field of the app in front is found and set through this accessibility service. A
  * service of its own, apart from the sleep timer's (SleepService, which reads nothing): this one can read the screen, so the owner turns it
- * on on its own (the TV's accessibility settings, or optimize/dock.sh type-setup). It listens to no events; it looks at the screen only at the
- * moment a phone sends text, only to find the field, and nothing it sees is kept, logged or sent back (the phone gets one fixed word).
+ * on on its own (the TV's accessibility settings, or optimize/dock.sh type-setup). It asks Android for window-change events only so that
+ * Android keeps track of which window is in front (with no event type declared, an app's window events are never sent and
+ * getRootInActiveWindow stays null); onAccessibilityEvent is empty, so none is read. It looks at the screen only at the moment a phone sends
+ * text, only to find the field, and nothing it sees is kept, logged or sent back (the phone gets one fixed word).
+ *
+ * The log (tag UrTVType, one line per hop, in PhoneActions and here) has only fixed words and the length of the text: never the text, a
+ * package name or anything of a node. The tester reads it to see how far a typing went.
  */
 public class TypeService extends AccessibilityService {
     private static volatile TypeService running;
+    static final String TAG = "UrTVType";
 
     @Override protected void onServiceConnected() { running = this; }
     @Override public boolean onUnbind(android.content.Intent i) { running = null; return super.onUnbind(i); }
@@ -40,7 +47,8 @@ public class TypeService extends AccessibilityService {
         private final int[] budget;
         private final int depth;
         Wrapped(AccessibilityNodeInfo info, int[] budget, int depth) { this.info = info; this.budget = budget; this.depth = depth; }
-        @Override public boolean editable() { return info.isEditable(); }
+        /** Editable by any of the ways an app can say it: the flag (some apps set it only while focused), an EditText, or it takes ACTION_SET_TEXT. */
+        @Override public boolean editable() { return info.isEditable() || editText(info) || canSetText(info); }
         @Override public boolean focused() { return info.isFocused(); }
         @Override public boolean password() { return info.isPassword(); }
         @Override public boolean visible() { return info.isVisibleToUser(); }
@@ -57,6 +65,19 @@ public class TypeService extends AccessibilityService {
         }
     }
 
+    private static boolean editText(AccessibilityNodeInfo i) {
+        CharSequence cn = i.getClassName();
+        return cn != null && cn.toString().endsWith("EditText");
+    }
+
+    private static boolean canSetText(AccessibilityNodeInfo i) {
+        List<AccessibilityNodeInfo.AccessibilityAction> acts = i.getActionList();
+        return acts != null && acts.contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_TEXT);
+    }
+
+    /** One line of the log: fixed words only (see the class comment). */
+    static void log(String line) { Log.i(TAG, line); }
+
     /**
      * Types the phone's text into the text field of the app in front: the focused editable field, else the first one on screen. Only when the service is
      * on, and never into an app the home screen would ask the PIN for (or, in kids mode, hide), nor into a password field. "append" adds to what the
@@ -64,30 +85,45 @@ public class TypeService extends AccessibilityService {
      */
     static String typeText(Context c, String text, boolean append, boolean search) {
         TypeService s = running;
+        log(s != null ? "service=on" : "service=off");
         AccessibilityNodeInfo root = s == null ? null : s.getRootInActiveWindow();
+        if (s != null) log(root != null ? "root=present" : "root=null");
         String pkg = root == null || root.getPackageName() == null ? null : root.getPackageName().toString();
         ParentalPolicy.State st = Parental.state(c);
         boolean ours = pkg != null && (pkg.equals(c.getPackageName()) || pkg.equals("sa.urtv.screensaver"));
         boolean systemScreen = pkg != null && ((Parental.needsPin(c, ParentalPolicy.TV_SETTINGS) && pkg.equals(packageOf(c, Settings.ACTION_SETTINGS)))
             || (Parental.needsPin(c, ParentalPolicy.WIFI) && pkg.equals(packageOf(c, Settings.ACTION_WIFI_SETTINGS))));
         TypeInto.Refusal r = TypeInto.allowed(s != null, pkg, ours, pkg != null && Parental.needsPin(c, pkg), pkg != null && !ParentalPolicy.visible(st, pkg), systemScreen);
-        if (r == TypeInto.Refusal.SERVICE_OFF) return OFF;
-        if (r == TypeInto.Refusal.LOCKED) return LOCKED;
-        if (r == TypeInto.Refusal.REFUSED) return REFUSED;
-        TypeInto.Node picked = TypeInto.pick(new Wrapped(root, new int[] {500}, 0));
+        if (r == TypeInto.Refusal.SERVICE_OFF) return done(OFF);
+        if (r == TypeInto.Refusal.LOCKED) return done(LOCKED);
+        if (r == TypeInto.Refusal.REFUSED) return done(REFUSED);
+        // the field that has the input focus first (Android knows it even for a box the tree walk would not call editable), else the walk
+        TypeInto.Node picked = null;
+        AccessibilityNodeInfo focus = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        if (focus != null) {
+            Wrapped w = new Wrapped(focus, new int[] {0}, 40);
+            if (w.editable() && w.visible()) picked = w;
+        }
+        if (picked == null) picked = TypeInto.pick(new Wrapped(root, new int[] {500}, 0));
         r = TypeInto.fieldProblem(picked);
-        if (r == TypeInto.Refusal.NO_FIELD) return NO_FIELD;
-        if (r == TypeInto.Refusal.PASSWORD_FIELD) return PASSWORD;
+        log(r == TypeInto.Refusal.NO_FIELD ? "field=none" : r == TypeInto.Refusal.PASSWORD_FIELD ? "field=password" : "field=found");
+        if (r == TypeInto.Refusal.NO_FIELD) return done(NO_FIELD);
+        if (r == TypeInto.Refusal.PASSWORD_FIELD) return done(PASSWORD);
         AccessibilityNodeInfo field = ((Wrapped) picked).info;
         CharSequence now = Build.VERSION.SDK_INT >= 26 && field.isShowingHintText() ? null : field.getText();
         String out = TypeInto.compose(now == null ? null : now.toString(), text, append);
-        if (out == null) return FAILED;
+        if (out == null) return done(FAILED);
         Bundle args = new Bundle();
         args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, out);
-        if (!field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) return FAILED;
-        if (!search) return TYPED;
-        if (Build.VERSION.SDK_INT < 30) return TYPED_NO_SEARCH;
-        return field.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.getId()) ? TYPED : TYPED_NO_SEARCH;
+        if (!field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) return done(FAILED);
+        if (!search) return done(TYPED);
+        if (Build.VERSION.SDK_INT < 30) return done(TYPED_NO_SEARCH);
+        return done(field.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.getId()) ? TYPED : TYPED_NO_SEARCH);
+    }
+
+    private static String done(String word) {
+        log("result=" + word);
+        return word;
     }
 
     /** The package an intent opens, or null. */

@@ -298,10 +298,12 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { openInputNames(); } });
         row("تعديل المفضلة", "تحريك التطبيقات على الشاشة الرئيسية وحذفها", R.drawable.ic_star,
             new Runnable() { public void run() { openDockEdit(); } });
+        // first in «الجوال والتحديث» (TV6 row 21: a tester did not find it, and phone control stayed on). This app cannot see the home's
+        // switch, so the line never says «متوقف»: the screen it opens shows the real state, with «إيقاف التحكم من الجوال» on it
+        row("تحكم من الجوال", "تشغيله وإيقافه وربط جوال، وفي الشاشة حالته الآن", R.drawable.ic_settings,
+            new Runnable() { public void run() { openPhoneControl(); } });
         row("تحديث تلفزيوني", "يعرض الإصدار ويتحقق من التحديث", R.drawable.ic_sync,
             new Runnable() { public void run() { openUpdate(); } });
-        row("تحكم من الجوال", "متوقف حتى تشغّله أنت", R.drawable.ic_settings,
-            new Runnable() { public void run() { openPhoneControl(); } });
 
         row("حماية العائلة", "تفعيل أو إيقاف، ويرجع الإعداد القديم تلقائياً", R.drawable.ic_eye,
             new Runnable() { public void run() { openFamilyDns(); } });
@@ -422,7 +424,7 @@ public class SettingsActivity extends Activity {
             case SettingsHub.CONTENT: return "الفرق " + arabicNum(prefs.teams().size()) + " · الأسواق " + (prefs.marketsOn() ? arabicNum(prefs.markets().size()) : "مخفية");
             case SettingsHub.APPS: return "ترتيب المفضلة وتعديلها، وأسماء المصادر";
             case SettingsHub.FAMILY: return "حماية العائلة: تفعيل أو إيقاف";
-            case SettingsHub.PHONE: return Updater.versionLines(this)[0] + " · تحديث تلفزيوني";
+            case SettingsHub.PHONE: return "التحكم من الجوال · " + Updater.versionLines(this)[0];
             default: return "";
         }
     }

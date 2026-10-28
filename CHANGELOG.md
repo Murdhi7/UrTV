@@ -4,6 +4,10 @@ Newest first. `next` is where changes land first; a release is what was tested t
 
 ## On `next` (not released yet)
 
+**Phone**
+- Typing from the phone into other apps: the typing service now declares `typeWindowStateChanged` (read by nobody) so Android tracks the window in front and the field can be found; it also takes the input-focused field first and fields that accept set-text. A fixed-words log (tag `UrTVType`) shows each step.
+- «تحكم من الجوال» is the first row of «الجوال والتحديث», and that tile names it.
+
 **Prayer times and adhan**
 - Gulf cities, each country's own prayer method, and Ja'fari.
 - «تعديل وقت الصلاة»: move each prayer by its own minutes.
