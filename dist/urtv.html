@@ -750,14 +750,35 @@ function arName(en, kind, id){
 }
 const teamAr = (s, id) => arName(s, 'team', id);
 
+const TEAM_BADGES = (()=>{ try{ return JSON.parse(localStorage.getItem('teamBadges') || '{}') || {}; }catch(e){ return {}; } })();
+const BADGE_REQUESTED = new Set();
+function validBadge(url){ return typeof url === 'string' && /^https:\/\/www\.thesportsdb\.com\//i.test(url); }
+function requestTeamBadge(id){
+  if(!id || TEAM_BADGES[id] || BADGE_REQUESTED.has(id)) return;
+  BADGE_REQUESTED.add(id);
+  fetch(`https://www.thesportsdb.com/api/v1/json/${CONFIG.sportsKey}/lookupteam.php?id=${encodeURIComponent(id)}`,{cache:'no-store'})
+    .then(r=>r.ok ? r.json() : null)
+    .then(j=>{
+      const badge = j && j.teams && j.teams[0] && j.teams[0].strBadge;
+      if(!validBadge(badge)) return;
+      TEAM_BADGES[id] = badge;
+      try{ localStorage.setItem('teamBadges', JSON.stringify(TEAM_BADGES)); }catch(e){}
+      renderMatches();
+      if(CONFIG.panel === 'matches') renderPanel(false);
+    }).catch(()=>{});
+}
+
 // Event badge images are part of the shared page so both the preview and the actual saver show them.
 // Keep the user's existing Thmanyah typography and layout intact; a missing badge leaves the name untouched.
 function teamMarkup(ev, side){
   const isHome = side === 'home';
-  const name = teamAr(isHome ? ev.strHomeTeam : ev.strAwayTeam,
-                      isHome ? ev.idHomeTeam : ev.idAwayTeam);
-  const badge = ev[isHome ? 'strHomeTeamBadge' : 'strAwayTeamBadge'];
-  const img = typeof badge === 'string' && /^https:\/\/www\.thesportsdb\.com\//i.test(badge)
+  const id = isHome ? ev.idHomeTeam : ev.idAwayTeam;
+  const name = teamAr(isHome ? ev.strHomeTeam : ev.strAwayTeam, id);
+  const eventBadge = ev[isHome ? 'strHomeTeamBadge' : 'strAwayTeamBadge'];
+  if(validBadge(eventBadge) && id) TEAM_BADGES[id] = eventBadge;
+  const badge = validBadge(eventBadge) ? eventBadge : TEAM_BADGES[id];
+  if(!badge) requestTeamBadge(id);
+  const img = badge
     ? `<img class="team-crest" src="${esc(badge)}" alt="" aria-hidden="true" onerror="this.remove()">` : '';
   return `<span class="team-name">${img}<span>${esc(name)}</span></span>`;
 }
