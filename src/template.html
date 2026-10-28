@@ -210,6 +210,9 @@
   .mrow.flip .mblock + .mblock{animation-delay:.08s}
   .mblock .big > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;
     padding-bottom:.3em;margin-bottom:-.3em}  /* room for the dots under ي, ج… */
+  .team-name{display:inline-flex;align-items:center;gap:.18em;vertical-align:middle;white-space:nowrap}
+  .team-crest{width:.92em;height:.92em;object-fit:contain;flex:0 0 .92em;vertical-align:middle}
+  .week li .team-crest{width:1em;height:1em;flex-basis:1em}
   .none-week{font-size:clamp(26px,2.5vw,54px);font-weight:700;font-family:'ThmanyahDisplay','Thmanyah',serif;color:#A79C85}
 
   /* A new photo settles in over a minute, then holds still: an endless drift kept the TV redrawing
@@ -743,6 +746,18 @@ function arName(en, kind, id){
 }
 const teamAr = (s, id) => arName(s, 'team', id);
 
+// Event badge images are part of the shared page so both the preview and the actual saver show them.
+// Keep the user's existing Thmanyah typography and layout intact; a missing badge leaves the name untouched.
+function teamMarkup(ev, side){
+  const isHome = side === 'home';
+  const name = teamAr(isHome ? ev.strHomeTeam : ev.strAwayTeam,
+                      isHome ? ev.idHomeTeam : ev.idAwayTeam);
+  const badge = ev[isHome ? 'strHomeTeamBadge' : 'strAwayTeamBadge'];
+  const img = typeof badge === 'string' && /^https:\/\/www\.thesportsdb\.com\//i.test(badge)
+    ? `<img class="team-crest" src="${esc(badge)}" alt="" aria-hidden="true" onerror="this.remove()">` : '';
+  return `<span class="team-name">${img}<span>${esc(name)}</span></span>`;
+}
+
 async function fetchNext(id){
   const r = await fetch(`https://www.thesportsdb.com/api/v1/json/${CONFIG.sportsKey}/eventsnext.php?id=${id}`,{cache:'no-store'});
   if(!r.ok) throw 0;
@@ -785,12 +800,12 @@ function matchSlot(id, now, shown){
     shown.add(done.idEvent);
     const day = new Intl.DateTimeFormat(GREG,{timeZone:CONFIG.timezone,weekday:'long'}).format(toDate(done));
     return `<div class="mblock">`
-      + `<div class="big"><span>${esc(teamAr(done.strHomeTeam, done.idHomeTeam))} <span class="sc">${ar(+done.intHomeScore)} - ${ar(+done.intAwayScore)}</span> ${esc(teamAr(done.strAwayTeam, done.idAwayTeam))}</span></div>`
+      + `<div class="big"><span>${teamMarkup(done,'home')} <span class="sc">${ar(+done.intHomeScore)} - ${ar(+done.intAwayScore)}</span> ${teamMarkup(done,'away')}</span></div>`
       + `<div class="sub">النتيجة النهائية · ${day}</div></div>`;
   }
   const ev = MATCHES[id];
   if(!ev || shown.has(ev.idEvent)) return '';
-  const home = esc(teamAr(ev.strHomeTeam, ev.idHomeTeam)), away = esc(teamAr(ev.strAwayTeam, ev.idAwayTeam));
+  const home = teamMarkup(ev,'home'), away = teamMarkup(ev,'away');
   const d = toDate(ev), diff = d - now;
   if(diff < -2.5*3600000 || diff > CONFIG.weekWindowDays * 86400000) return '';   // in progress stays on screen
   shown.add(ev.idEvent);
@@ -1091,7 +1106,7 @@ function matchRows(){
         : now >= t ? '<span class="live">مباشر</span>'
         : (new Intl.DateTimeFormat('en-CA', {timeZone:CONFIG.timezone}).format(d) === today ? 'اليوم' : day(d))
           + ' ' + fmt12(+p.hour % 24, +p.minute);
-      return `<li><span>${esc(teamAr(ev.strHomeTeam, ev.idHomeTeam))}${mid}${esc(teamAr(ev.strAwayTeam, ev.idAwayTeam))}</span><span class="dt">${when}</span></li>`;
+      return `<li><span>${teamMarkup(ev,'home')}${mid}${teamMarkup(ev,'away')}</span><span class="dt">${when}</span></li>`;
     });
 }
 
