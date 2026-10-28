@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""«تحكم من الجوال»'s pairing screen on the TV (the owner, on the TV test of 3.145: it should fit one page with no scrolling, and the
+"""«تحكم من الجوال»: the pairing screen on the TV and the phone page's tabs. The pairing screen (the owner, on the TV test of 3.145: it should fit one page with no scrolling, and the
 address and the code should stand out; the code sat at the very bottom edge). Two columns: the address and the 6-digit code each in a
 large box of their own on the right, the QR code on the left. Checked in the source.   Run: python3 tests/pairing_screen_test.py"""
 import re, sys
@@ -37,4 +37,12 @@ check("the phones and «إيقاف» go in the right column under the code, not 
 check("the countdown is in the right column, under the code", offer.index("info.addView(countdown") > offer.index("boxed(ltr(spaced(o.code))"))
 check("on the phone, the code box takes the space of «123 456» too (7 characters), and only the digits are sent",
       'id="code" inputmode="numeric" autocomplete="off" maxlength="7"' in page and "var c = digits($('code').value).replace(/\\D/g, '');" in page)
+# ---- the phone page's tabs (the owner: the bottom icons need their own design): our own line drawings, one style, in the text's colour
+check("the four tabs have their own drawn icons (remote, apps, now, settings) in the page's markup, no emoji or text glyphs",
+      all(f'<g id="ico-{k}">' in page for k in ("remote", "apps", "now", "settings")) and "🎮" not in page
+      and not re.search(r"\\['(remote|apps|now|settings)', '[^']+', '", page))
+check("…drawn in the text's colour, so the dark and the light look and the gold «on» tab all take them",
+      "#bar button svg {" in page and "stroke:currentColor;" in page and "fill:none;" in page and "#bar button.on { background:var(--gold); color:var(--ink);" in page)
+check("…copied into each tab from the page's own drawings (cloneNode; no HTML built from text, no address)",
+      "var g = $('ico-' + name).cloneNode(true);" in page and "b.appendChild(icon(t[0]));" in page and "innerHTML" not in page and "w3.org" not in page)
 sys.exit(1 if failed else 0)
