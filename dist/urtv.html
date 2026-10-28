@@ -108,6 +108,8 @@
   .week li .ep{flex:0 0 auto;color:#9FB8A8;font-size:.74em;font-variant-numeric:tabular-nums}
   .week li .rt{flex:0 0 auto;color:#E0BA74;font-size:.74em;font-variant-numeric:tabular-nums}
   .week li .dt{flex:1 1 auto;color:#9C9279;font-size:.72em;min-width:3.2em;text-align:left}
+  .week li .tm{white-space:nowrap}
+  .week li .team-crest{width:1.05em;height:1.05em;vertical-align:middle;margin-inline-end:.18em}
   .week ul.flip li{animation:weekIn .5s ease both}
   .week ul.flip li:nth-child(2){animation-delay:.06s}
   .week ul.flip li:nth-child(3){animation-delay:.12s}
@@ -210,9 +212,7 @@
   .mrow.flip .mblock + .mblock{animation-delay:.08s}
   .mblock .big > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;
     padding-bottom:.3em;margin-bottom:-.3em}  /* room for the dots under ي, ج… */
-  .team-name{display:inline-flex;align-items:center;gap:.18em;vertical-align:middle;white-space:nowrap}
-  .team-crest{width:.92em;height:.92em;object-fit:contain;flex:0 0 .92em;vertical-align:middle}
-  .week li .team-crest{width:1em;height:1em;flex-basis:1em}
+  .team-crest{display:inline-block;width:.84em;height:.84em;object-fit:contain;vertical-align:middle;margin-inline-end:.14em}
   .none-week{font-size:clamp(26px,2.5vw,54px);font-weight:700;font-family:'ThmanyahDisplay','Thmanyah',serif;color:#A79C85}
 
   /* A new photo settles in over a minute, then holds still: an endless drift kept the TV redrawing
@@ -752,20 +752,27 @@ const teamAr = (s, id) => arName(s, 'team', id);
 
 const TEAM_BADGES = (()=>{ try{ return JSON.parse(localStorage.getItem('teamBadges') || '{}') || {}; }catch(e){ return {}; } })();
 const BADGE_REQUESTED = new Set();
+const BADGE_RETRY_AFTER = {};
+let BADGE_QUEUE = Promise.resolve(), BADGE_LAST_LOOKUP = 0;
 function validBadge(url){ return typeof url === 'string' && /^https:\/\/www\.thesportsdb\.com\//i.test(url); }
 function requestTeamBadge(id){
-  if(!id || TEAM_BADGES[id] || BADGE_REQUESTED.has(id)) return;
+  if(!id || TEAM_BADGES[id] || BADGE_REQUESTED.has(id) || Date.now() < (BADGE_RETRY_AFTER[id] || 0)) return;
   BADGE_REQUESTED.add(id);
-  fetch(`https://www.thesportsdb.com/api/v1/json/${CONFIG.sportsKey}/lookupteam.php?id=${encodeURIComponent(id)}`,{cache:'no-store'})
-    .then(r=>r.ok ? r.json() : null)
-    .then(j=>{
+  BADGE_QUEUE = BADGE_QUEUE.then(async ()=>{
+    try{
+      const delay = Math.max(0, 1200 - (Date.now() - BADGE_LAST_LOOKUP));
+      if(delay) await new Promise(resolve=>setTimeout(resolve, delay));
+      BADGE_LAST_LOOKUP = Date.now();
+      const r = await fetch(`https://www.thesportsdb.com/api/v1/json/${CONFIG.sportsKey}/lookupteam.php?id=${encodeURIComponent(id)}`,{cache:'no-store'});
+      const j = r.ok ? await r.json() : null;
       const badge = j && j.teams && j.teams[0] && j.teams[0].strBadge;
-      if(!validBadge(badge)) return;
+      if(!validBadge(badge)){ BADGE_RETRY_AFTER[id] = Date.now() + 60000; BADGE_REQUESTED.delete(id); return; }
       TEAM_BADGES[id] = badge;
       try{ localStorage.setItem('teamBadges', JSON.stringify(TEAM_BADGES)); }catch(e){}
       renderMatches();
       if(CONFIG.panel === 'matches') renderPanel(false);
-    }).catch(()=>{});
+    }catch(e){ BADGE_RETRY_AFTER[id] = Date.now() + 60000; BADGE_REQUESTED.delete(id); }
+  });
 }
 
 // Event badge images are part of the shared page so both the preview and the actual saver show them.
@@ -780,7 +787,50 @@ function teamMarkup(ev, side){
   if(!badge) requestTeamBadge(id);
   const img = badge
     ? `<img class="team-crest" src="${esc(badge)}" alt="" aria-hidden="true" onerror="this.remove()">` : '';
-  return `<span class="team-name">${img}<span>${esc(name)}</span></span>`;
+  const short = TEAM_SHORT[name] || '';
+  // Inline wrappers preserve the existing text flow; crests never take part in flex sizing.
+  return `<span class="tm"${short ? ` data-short="${esc(short)}"` : ''}>${img}<span class="team-label">${esc(name)}</span></span>`;
+}
+
+const TEAM_SHORT = {
+  'مانشستر سيتي':'السيتي','مانشستر يونايتد':'اليونايتد','ريال مدريد':'الريال','راسينغ سانتاندير':'راسينغ',
+  'ديبورتيفو ألافيس':'ألافيس','أتلتيكو مدريد':'أتلتيكو','باريس سان جيرمان':'باريس','بايرن ميونخ':'بايرن',
+  'بوروسيا دورتموند':'دورتموند','باير ليفركوزن':'ليفركوزن','نوتنغهام فورست':'فورست','كريستال بالاس':'بالاس',
+  'وولفرهامبتون':'وولفز','سبورتينغ لشبونة':'سبورتينغ','ليفربول':'ليفربول','تشيلسي':'تشيلسي','برشلونة':'برشلونة',
+  'الاتحاد':'الاتحاد','أبها':'أبها'
+};
+
+const FIT_RANGE = document.createRange();
+function fitsRow(span){
+  FIT_RANGE.selectNodeContents(span);
+  const css = getComputedStyle(span);
+  return FIT_RANGE.getBoundingClientRect().width <= span.getBoundingClientRect().width
+    - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight) + .05;
+}
+function shortenTeams(span){
+  span.querySelectorAll('.tm[data-short]').forEach(t=>{
+    const label = t.querySelector('.team-label');
+    if(label) label.textContent = t.dataset.short;
+  });
+}
+function fitMatchCard(){
+  const ul = document.getElementById('week-list');
+  if(CONFIG.panel === 'matches') ul.querySelectorAll('li > span:first-child').forEach(span=>{
+    if(fitsRow(span)) return;
+    span.style.fontSize = '.86em';
+    if(fitsRow(span)) return;
+    shortenTeams(span);
+    if(fitsRow(span)) return;
+    span.querySelectorAll('.team-crest').forEach(img=>img.remove());
+  });
+  document.querySelectorAll('#match-row .mblock .big > span').forEach(span=>{
+    if(fitsRow(span)) return;
+    span.style.fontSize = '.88em';
+    if(fitsRow(span)) return;
+    shortenTeams(span);
+    if(fitsRow(span)) return;
+    span.querySelectorAll('.team-crest').forEach(img=>img.remove());
+  });
 }
 
 async function fetchNext(id){
@@ -882,6 +932,7 @@ function renderMatches(turn){
   if(turn) MATCH_PAGE++;
   MATCH_PAGE %= pages;
   row.innerHTML = slots.slice(MATCH_PAGE * per, MATCH_PAGE * per + per).join('');
+  fitMatchCard();
   if(turn && pages > 1){ row.classList.remove('flip'); void row.offsetWidth; row.classList.add('flip'); }
 }
 
@@ -1080,6 +1131,7 @@ function renderPanel(animate){
     rows = Array.from({length: WEEK_ROWS}, (_, i) => rows[(start + i) % rows.length]);
   }
   ul.innerHTML = rows.join('');
+  if(P === 'matches') fitMatchCard();
   ul.classList.remove('flip');
   if(animate){ void ul.offsetWidth; ul.classList.add('flip'); }
 }
