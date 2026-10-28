@@ -3,7 +3,6 @@ package sa.urtv.home;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
 import android.database.Cursor;
@@ -28,16 +27,17 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Reads the rows for the home screen from Android TV's own lists (the way talkies does, MIT: THIRD_PARTY_NOTICES.md): «أكمل المشاهدة»
- * from Watch Next, and the rows the apps publish (preview channels). Needs READ_TV_LISTINGS, which the owner grants in «صفوف القنوات»;
- * without it nothing is read and the home has no rows, as before. Two steps, both blocking, off the main thread: {@link #load} the
+ * Reads «أكمل المشاهدة» for the home screen from Android TV's Watch Next list (the way talkies does, MIT: THIRD_PARTY_NOTICES.md): what
+ * one is in the middle of and the next episode. Only that row: the rows apps publish were the owner's «a mess, they look like ads»
+ * (the TV test of 3.145). Needs READ_TV_LISTINGS, which the owner allows once in WatchNextActivity; without it nothing is read and the
+ * home has no row, as before. Two steps, both blocking, off the main thread: {@link #load} the
  * rows and their words (the provider only, quick), then {@link #pictures} within a time budget, each picture small on disk
  * (files/tvrows) and in memory, never decoded at full size. TvRowsPick decides the order, the words and what may be read or opened.
  */
 final class TvRows {
     static final String PERMISSION = "android.permission.READ_TV_LISTINGS";
     static final String EPG = "com.android.providers.tv.permission.READ_EPG_DATA";   // some TVs want it too to show other apps' rows
-    private static final int MAX_ITEMS = 15, MAX_WATCH_NEXT = 16;
+    private static final int MAX_WATCH_NEXT = 16;
     static final int ART_W = 400, ART_H = 400;   // a card is about a fifth of the screen wide; a tall poster no taller than this
     private static final long PICTURE_MS = 4000;   // one picture: a provider or a server that does not answer is given up on
 
@@ -60,37 +60,15 @@ final class TvRows {
 
     static boolean allowed(Context c) { return c.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED; }
 
-    static SharedPreferences prefs(Context c) { return c.getSharedPreferences("tvrows", Context.MODE_PRIVATE); }
-
-    /** Every row there is (for «صفوف القنوات»), arranged and marked shown or not, without their cards. */
-    static List<TvRowsPick.Row> arrange(Context c) {
-        if (!allowed(c)) return new ArrayList<>();
-        SharedPreferences p = prefs(c);
-        return TvRowsPick.arrange(found(c), watchNext(c).size(), p.getString("order", null), p.getString("shown", null));
-    }
-
-    /** The owner's choice, kept. */
-    static void save(Context c, List<TvRowsPick.Row> rows) {
-        String[] s = TvRowsPick.save(rows);
-        prefs(c).edit().putString("order", s[0]).putString("shown", s[1]).apply();
-    }
-
-    /** The shown rows with their cards' words, in the owner's order; no pictures yet. Empty without the permission. */
+    /** «أكمل المشاهدة» with its cards' words, no pictures yet; none without the permission or with nothing in it. */
     static List<Row> load(Context c) {
         List<Row> out = new ArrayList<>();
         if (!allowed(c)) return out;
-        List<Item> next = watchNext(c);
-        SharedPreferences p = prefs(c);
-        List<TvRowsPick.Found> found = found(c);
-        for (TvRowsPick.Row r : TvRowsPick.arrange(found, next.size(), p.getString("order", null), p.getString("shown", null))) {
-            if (!r.shown) continue;
-            Row row = new Row();
-            row.key = r.key;
-            row.title = r.title;
-            if (TvRowsPick.WATCH_NEXT.equals(r.key)) row.items.addAll(next);
-            else readItems(c, r, idOf(r.key), row);
-            if (!row.items.isEmpty()) out.add(row);
-        }
+        Row row = new Row();
+        row.key = TvRowsPick.WATCH_NEXT;
+        row.title = TvRowsPick.WATCH_NEXT_TITLE;
+        row.items.addAll(watchNext(c));
+        if (!row.items.isEmpty()) out.add(row);
         return out;
     }
 
@@ -122,74 +100,6 @@ final class TvRows {
         if (!all) return;   // the budget ran out: keep the files, the next visit uses them
         File[] files = dir.listFiles();
         if (files != null) for (File f : files) if (!keep.contains(f.getName())) f.delete();
-    }
-
-    private static final java.util.Map<String, Long> IDS = new java.util.HashMap<>();
-
-    private static long idOf(String key) {
-        synchronized (IDS) { Long id = IDS.get(key); return id == null ? -1 : id; }
-    }
-
-    /** The preview channels with something in them, from apps that are on the TV. */
-    private static List<TvRowsPick.Found> found(Context c) {
-        synchronized (IDS) { IDS.clear(); }   // a channel that went is not looked up by an old id
-        List<TvRowsPick.Found> out = new ArrayList<>();
-        PackageManager pm = c.getPackageManager();
-        String[] cols = {TvContract.Channels._ID, TvContract.Channels.COLUMN_PACKAGE_NAME, TvContract.Channels.COLUMN_DISPLAY_NAME,
-                TvContract.Channels.COLUMN_TYPE, TvContract.Channels.COLUMN_BROWSABLE};
-        java.util.Map<String, Integer> best = new java.util.HashMap<>();
-        try (Cursor cur = c.getContentResolver().query(TvContract.Channels.CONTENT_URI, cols, null, null, null)) {
-            while (cur != null && cur.moveToNext()) {
-                if (!TvContract.Channels.TYPE_PREVIEW.equals(cur.getString(3))) continue;
-                String pkg = cur.getString(1), name = cur.getString(2);
-                if (pkg == null || name == null || pm.getLeanbackLaunchIntentForPackage(pkg) == null) continue;
-                long id = cur.getLong(0);
-                int count = count(c, id);
-                if (count == 0) continue;
-                String key = pkg + "|" + name;
-                Integer had = best.get(key);
-                if (had == null || count > had) { best.put(key, count); synchronized (IDS) { IDS.put(key, id); } }
-                out.add(new TvRowsPick.Found(pkg, name, label(pm, pkg), count, !cur.isNull(4) && cur.getInt(4) == 1));
-            }
-        } catch (RuntimeException e) {
-            // no permission, or the TV has no TV provider: no rows
-        }
-        return out;
-    }
-
-    private static int count(Context c, long id) {
-        try (Cursor cur = c.getContentResolver().query(TvContract.buildPreviewProgramsUriForChannel(id),
-                new String[]{TvContract.PreviewPrograms._ID}, null, null, null)) {
-            return cur == null ? 0 : cur.getCount();
-        } catch (RuntimeException e) {
-            return 0;
-        }
-    }
-
-    private static void readItems(Context c, TvRowsPick.Row r, long id, Row row) {
-        if (id < 0) return;
-        boolean latin = Digits.latin();
-        String app = label(c.getPackageManager(), r.pkg);
-        String[] cols = {TvContract.PreviewPrograms.COLUMN_TITLE, TvContract.PreviewPrograms.COLUMN_SHORT_DESCRIPTION,
-                TvContract.PreviewPrograms.COLUMN_POSTER_ART_URI, TvContract.PreviewPrograms.COLUMN_THUMBNAIL_URI,
-                TvContract.PreviewPrograms.COLUMN_INTENT_URI, TvContract.PreviewPrograms.COLUMN_BROWSABLE,
-                TvContract.PreviewPrograms.COLUMN_SEASON_DISPLAY_NUMBER, TvContract.PreviewPrograms.COLUMN_EPISODE_DISPLAY_NUMBER,
-                TvContract.PreviewPrograms.COLUMN_EPISODE_TITLE};
-        try (Cursor cur = c.getContentResolver().query(TvContract.buildPreviewProgramsUriForChannel(id), cols, null, null, null)) {
-            while (cur != null && cur.moveToNext() && row.items.size() < MAX_ITEMS) {
-                if (!cur.isNull(5) && cur.getInt(5) == 0) continue;
-                Item it = new Item();
-                it.pkg = r.pkg;
-                it.title = str(cur, 0);
-                it.meta = TvRowsPick.meta(str(cur, 6), str(cur, 7), str(cur, 8), it.title, str(cur, 1), r.title.equals(app) ? "" : app, latin);
-                it.link = str(cur, 4).isEmpty() ? null : str(cur, 4);
-                String art = !str(cur, 3).isEmpty() ? str(cur, 3) : str(cur, 2);
-                it.artUri = art.isEmpty() ? null : art;
-                row.items.add(it);
-            }
-        } catch (RuntimeException e) {
-            // the row went while it was read: what was read stays
-        }
     }
 
     /** «أكمل المشاهدة»: continue and next-episode entries, newest first (TvRowsPick.watchNextShown). */

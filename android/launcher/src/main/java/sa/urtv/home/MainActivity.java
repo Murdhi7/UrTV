@@ -385,12 +385,14 @@ public class MainActivity extends Activity {
         dockRow.setBackground(band);
         bottom.addView(dockRow, new LinearLayout.LayoutParams(-1, -2));
 
-        // «صفوف القنوات»: «أكمل المشاهدة» and the apps' rows, between the favourites and «كل التطبيقات» (empty until allowed and chosen)
+        // «أكمل المشاهدة»: one row right under the favourites, in the first screen with the clock and the photo (empty until it is
+        // allowed and has something); the dock band's padding, so its cards sit exactly under the favourites
         tvRowsBox = new LinearLayout(this);
         tvRowsBox.setOrientation(LinearLayout.VERTICAL);
         tvRowsBox.setClipChildren(false);
         tvRowsBox.setClipToPadding(false);
-        content.addView(tvRowsBox, new LinearLayout.LayoutParams(-1, -2));
+        tvRowsBox.setPadding(dp(20), 0, dp(20), 0);
+        bottom.addView(tvRowsBox, new LinearLayout.LayoutParams(-1, -2));
 
         appsLabel = text(11, "sans-serif-medium", 0x99FFFFFF);
         appsLabel.setText("كل التطبيقات");
@@ -954,7 +956,7 @@ public class MainActivity extends Activity {
             c.setNextFocusDownId(!tvCards.isEmpty() ? tvCards.get(0).get(Math.min(i, tvCards.get(0).size() - 1)).getId()
                     : g > 0 ? gridCards.get(Math.min(i, g - 1)).getId() : c.getId());
         }
-        for (int r = 0; r < tvCards.size(); r++) {   // «صفوف القنوات»: a row up to the one above (the favourites), down to the next (the apps)
+        for (int r = 0; r < tvCards.size(); r++) {   // «أكمل المشاهدة»: a row up to the one above (the favourites), down to the next (the apps)
             List<View> row = tvCards.get(r);
             for (int i = 0; i < row.size(); i++) {
                 View c = row.get(i);
@@ -1069,13 +1071,12 @@ public class MainActivity extends Activity {
         else motionPosted = false;
     }
 
-    // ---------------------------------------------------------------- «صفوف القنوات»
+    // ---------------------------------------------------------------- «أكمل المشاهدة»
     private LinearLayout tvRowsBox;
-    private final List<List<View>> tvCards = new ArrayList<>();   // each row's cards, in order (the focus wiring)
+    private final List<List<View>> tvCards = new ArrayList<>();   // the row's cards, in order (the focus wiring; one row at most)
     private int tvRowsGen;   // a load that finishes after a newer one started is dropped
-    private final List<TextView> tvNames = new ArrayList<>(), tvLabels = new ArrayList<>();   // «المظهر» recolours them as the grid's
+    private final List<TextView> tvNames = new ArrayList<>();   // «المظهر» recolours the row's name
 
-    /** Reads the rows off the main thread (TvRows) and shows them; nothing to read without the owner's permission. */
     // their own thread: a slow provider or picture never holds up the apps' loader (the dock, the grid)
     private final java.util.concurrent.ExecutorService tvLoader = java.util.concurrent.Executors.newSingleThreadExecutor();
     private static final long TV_PICTURES_MS = 8000;   // the pictures of one visit; what is not there by then keeps its title
@@ -1088,7 +1089,10 @@ public class MainActivity extends Activity {
     /** The rows' words first (quick), shown; then their pictures as they come, within TV_PICTURES_MS. */
     private void loadTvRows() {
         if (tvRowsBox == null) return;
-        if (!TvRows.allowed(this)) { if (tvRowsBox.getChildCount() > 0) showTvRows(new ArrayList<>()); return; }
+        if (!TvRows.allowed(this) || !ConfigSnapshot.read(this).watchNextOn) {   // not allowed, or turned off in the settings: no row
+            if (tvRowsBox.getChildCount() > 0) { tvShownSig = ""; showTvRows(new ArrayList<>()); }
+            return;
+        }
         final int gen = ++tvRowsGen;
         if (tvLoader.isShutdown()) return;
         tvLoader.execute(() -> {
@@ -1141,15 +1145,13 @@ public class MainActivity extends Activity {
         return TvRowsPick.signature(parts);
     }
 
-    /** Each row: its name over a line of cards the width of the grid's, read from the right, scrolled by the focus. */
+    /**
+     * «أكمل المشاهدة»: its name, then as many cards as there are favourites, each a favourite's width right under one (MainActivity.rowCell,
+     * the band's padding): no row that runs off the screen, nothing cut. Fewer cards keep the favourites' widths, the rest is empty.
+     */
     private void showTvRows(List<TvRows.Row> rows) {
         boolean had = getCurrentFocus() != null && isInTvRows(getCurrentFocus());
-        String hadRow = null;
-        int hadAt = 0;
-        if (had) for (int r = 0; r < tvCards.size(); r++) {   // the card that has the focus, by its row's key and its place
-            int i = tvCards.get(r).indexOf(getCurrentFocus());
-            if (i >= 0 && r < tvShown.size()) { hadRow = tvShown.get(r).key; hadAt = i; }
-        }
+        int hadAt = had && !tvCards.isEmpty() ? Math.max(0, tvCards.get(0).indexOf(getCurrentFocus())) : 0;
         tvShown = rows;
         tvShownSig = tvSignature(rows);
         tvPics.clear();
@@ -1158,42 +1160,31 @@ public class MainActivity extends Activity {
         tvRowsBox.removeAllViews();
         tvCards.clear();
         tvNames.clear();
-        tvLabels.clear();
-        int screenW = getResources().getDisplayMetrics().widthPixels;
-        int cardW = (screenW - 2 * dp(68) - (cols - 1) * dp(20)) / cols;   // one grid tile wide
+        int n = Math.max(1, dockCards.size());
         for (TvRows.Row r : rows) {
             TextView name = text(11, "sans-serif-medium", lightNow ? Look.LIGHT_LOOK.gold : GOLD);
             name.setShadowLayer(dp(3), 0, dp(1), Look.of(lightNow).shadow);   // a halo in the light look, as the clock's lines
-            name.setText(r.title);
+            name.setText(TvRowsPick.WATCH_NEXT_TITLE);   // Arabic, whatever the apps call it
             tvNames.add(name);
-            tvRowsBox.addView(name, llp(-2, -2, dp(68), dp(8), dp(68), dp(18)));
-            android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
-            hs.setHorizontalScrollBarEnabled(false);
-            hs.setClipChildren(false);
-            hs.setClipToPadding(false);
-            hs.setPaddingRelative(dp(68), dp(4), dp(68), dp(4));
+            tvRowsBox.addView(name, llp(-2, -2, 0, dp(14), 0, dp(10)));
             LinearLayout line = new LinearLayout(this);
             line.setOrientation(LinearLayout.HORIZONTAL);
             line.setClipChildren(false);
             line.setClipToPadding(false);
             List<View> cards = new ArrayList<>();
-            for (int i = 0; i < r.items.size(); i++) {
+            int shown = Math.min(n, r.items.size());
+            for (int i = 0; i < shown; i++) {
                 View box = tvCard(r.items.get(i));
-                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(cardW, -2);
-                p.setMarginEnd(i < r.items.size() - 1 ? dp(20) : 0);
-                line.addView(box, p);
+                line.addView(box, rowCell(i, n, -2));
                 cards.add(((ViewGroup) box).getChildAt(0));
             }
-            hs.addView(line);
-            tvRowsBox.addView(hs, llp(-1, -2, 0, 0, 0, dp(26)));
+            for (int i = shown; i < n; i++) line.addView(new View(this), rowCell(i, n, 1));   // fewer cards: still a favourite's width each
+            tvRowsBox.addView(line, new LinearLayout.LayoutParams(-1, -2));
             tvCards.add(cards);
         }
         wireFocus();
-        int back = -1;   // the focus back on the same card (the same row by its key, the same place), else the first
-        for (int r = 0; hadRow != null && r < rows.size(); r++) if (rows.get(r).key.equals(hadRow)) back = r;
-        if (had && back >= 0) tvCards.get(back).get(Math.min(hadAt, tvCards.get(back).size() - 1)).requestFocus();
-        else if (had && !tvCards.isEmpty()) tvCards.get(0).get(0).requestFocus();
-        else if (had && !dockCards.isEmpty()) dockCards.get(0).requestFocus();   // the rows went: back to the favourites
+        if (had && !tvCards.isEmpty()) tvCards.get(0).get(Math.min(hadAt, tvCards.get(0).size() - 1)).requestFocus();   // the same card
+        else if (had && !dockCards.isEmpty()) dockCards.get(0).requestFocus();   // the row went: back to the favourites
     }
 
     private boolean isInTvRows(View v) {
@@ -1201,7 +1192,10 @@ public class MainActivity extends Activity {
         return false;
     }
 
-    /** A card of a row: the picture (or the title on a plain card), a gold line of how far in, the title and its line on the focus. */
+    /**
+     * A card: the picture (or its title on a plain card until it comes), a gold line of how far in. On the focus it is like a favourite:
+     * the page stays at the top with the clock and the photo, and its name (and the episode) is the line above the favourites.
+     */
     private View tvCard(TvRows.Item it) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -1229,7 +1223,7 @@ public class MainActivity extends Activity {
         card.addView(img, new FrameLayout.LayoutParams(-1, -1));
         tvPics.put(it, img);
         tvPlain.put(it, plain);
-        if (it.progress >= 0) {   // «أكمل المشاهدة»: how far in, a gold line at the foot, from the right
+        if (it.progress >= 0) {   // how far in: a gold line at the foot, from the right
             View track = new View(this);
             track.setBackgroundColor(0x66000000);
             card.addView(track, new FrameLayout.LayoutParams(-1, dp(4), Gravity.BOTTOM));
@@ -1250,35 +1244,19 @@ public class MainActivity extends Activity {
         shine.setAlpha(0f);
         card.addView(shine, new FrameLayout.LayoutParams(-1, -1));
         box.addView(card, new LinearLayout.LayoutParams(-1, -2));
-        TextView label = text(11, "sans-serif-medium", lightNow ? Look.LIGHT_LOOK.ink : Color.WHITE);
-        label.setText(it.meta.isEmpty() ? it.title : it.title + "\n" + it.meta);
-        tvLabels.add(label);
-        label.setMaxLines(2);
-        label.setGravity(Gravity.CENTER);
-        label.setAlpha(0f);
-        box.addView(label, llp(-1, -2, 0, dp(10), 0, 0));
         card.setOnClickListener(v -> guarded(ParentalPolicy.GRID, it.pkg, it.title, () -> TvRows.open(this, it)));   // the app's own lock first
         card.setOnFocusChangeListener((v, has) -> {
-            float s = has ? 1.1f : 1f;
-            scaleTo(v, s);   // the same spring as the apps' cards
+            scaleTo(v, has ? 1.12f : 1f);   // as a favourite
             v.animate().translationZ(has ? dp(GlowLook.LIFT_DP) : 0).setInterpolator(new DecelerateInterpolator()).setDuration(has ? 320 : 200).start();
             shine.animate().alpha(has ? 1f : 0f).setDuration(160).start();
-            label.animate().alpha(has ? 1f : 0f).translationY(has ? dp(4) : 0).setDuration(200).start();
             if (!has) return;
             lastFocusedId = v.getId();
-            fadeGlow(0.35f);
-            title.animate().alpha(0f).setDuration(200).start();
-            scrollToTvRow(box);
+            title.setText(it.meta.isEmpty() ? it.title : it.title + "  ·  " + it.meta);
+            title.animate().alpha(1f).setDuration(200).start();
+            fadeGlow(1f);
+            glideTo(0);   // the first screen stays: the clock and the photo
         });
         return box;
-    }
-
-    /** A row of «صفوف القنوات» comes up to the upper part of the screen, as the grid's rows do. */
-    private void scrollToTvRow(View box) {
-        View hs = (View) box.getParent().getParent();
-        int y = tvRowsBox.getTop() + hs.getTop() - dp(40);
-        int max = Math.max(0, content.getHeight() - scroll.getHeight());
-        glideTo(Math.max(0, Math.min(y - (int) (getResources().getDisplayMetrics().heightPixels * 0.30f), max)));
     }
 
     private void scrollToRow(View tileBox) {
@@ -1807,7 +1785,6 @@ public class MainActivity extends Activity {
         for (TextView t : new TextView[]{greeting, ampm, zoneLine, appsLabel}) t.setTextColor(p.gold);
         for (TextView t : new TextView[]{greeting, weatherLine, clock, ampm, date, zoneLine}) t.setShadowLayer(dp(3), 0, dp(1), p.shadow);
         for (TextView t : gridLabels) t.setTextColor(p.ink);
-        for (TextView t : tvLabels) t.setTextColor(p.ink);
         for (TextView t : tvNames) { t.setTextColor(p.gold); t.setShadowLayer(dp(3), 0, dp(1), p.shadow); }
         scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, p.scrim));
         gridShade.setBackgroundColor(p.shade);

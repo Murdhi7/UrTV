@@ -4,7 +4,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />   <!-- hosted wallpapers, the optional card -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <!-- «صفوف القنوات»: «أكمل المشاهدة» and the apps' rows from Android TV's lists; asked in «صفوف القنوات», nothing read without it -->
+    <!-- «أكمل المشاهدة»: the TV's Watch Next list; asked once in WatchNextActivity, nothing read without it -->
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
     <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -147,11 +147,11 @@
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.Material.NoActionBar" />
 
-        <!-- «صفوف القنوات»: which rows show under the favourites and their order; opened from the screensaver's settings, behind its PIN like DockActivity -->
+        <!-- «أكمل المشاهدة»: the one question for the TV's Watch Next list; opened from the screensaver's settings row, behind its PIN like DockActivity -->
         <activity
-            android:name=".ChannelsActivity"
+            android:name=".WatchNextActivity"
             android:exported="true"
-            android:label="صفوف القنوات"
+            android:label="أكمل المشاهدة"
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.Material.NoActionBar" />
 

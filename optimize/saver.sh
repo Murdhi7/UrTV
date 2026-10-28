@@ -20,6 +20,8 @@
 #   optimize/saver.sh greeting off                 home screen: the greeting (by prayer time) and the weather line under it: on (default) or off
 #   optimize/saver.sh listenpill off               home screen: the «تلاوة وأذان» button: on (default) or off. Off removes only the button: the adhan, its alarm and bar, the
 #                                                  any-key stop, the «يُتلى الآن» card and the Quran stay; the screen opens from the app menu (long OK on an app) or the card
+#   optimize/saver.sh watchnext off                home screen: «أكمل المشاهدة» under the favourites: on (default) or off. It shows once the home app may
+#                                                  read the TV's Watch Next list (the owner allows it once from the settings row)
 #   optimize/saver.sh updatebell off               home screen: the «جرس التحديثات» bell: on (default) or off. It shows only while the Play Store has app updates waiting;
 #                                                  off removes only the bell
 #   optimize/saver.sh appearance auto              home screen: «المظهر», dark (default), light, or auto (light from sunrise until Maghrib in the city)
@@ -188,6 +190,7 @@ case "${1:-}" in
   greeting) set1 greeting "${2:?usage: optimize/saver.sh greeting on|off}" ;;
   listenpill) set1 listenpill "${2:?usage: optimize/saver.sh listenpill on|off}" ;;
   updatebell) set1 updatebell "${2:?usage: optimize/saver.sh updatebell on|off}" ;;
+  watchnext) set1 watchnext "${2:?usage: optimize/saver.sh watchnext on|off}" ;;
   appearance) set1 appearance "${2:?usage: optimize/saver.sh appearance dark|light|auto}" ;;
   adhanbar) set1 adhanbar "${2:?usage: optimize/saver.sh adhanbar on|off}" ;;
   updatechannel) set1 updatechannel "${2:?usage: optimize/saver.sh updatechannel next|latest   (testing only)}" ;;

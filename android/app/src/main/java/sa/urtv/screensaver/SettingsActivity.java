@@ -277,8 +277,13 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { prefs.setUpdateBell(!prefs.updateBell()); render(); } });
         row("ترتيب التطبيقات المفضلة", "قائمة ترتّب فيها المفضلة بالأسهم", R.drawable.ic_star,
             new Runnable() { public void run() { openDockSettings(); } });
-        row("صفوف القنوات", "«أكمل المشاهدة» وصفوف التطبيقات تحت المفضلة: أيها يظهر وترتيبها", R.drawable.ic_star,
-            new Runnable() { public void run() { openChannelRows(); } });
+        // «أكمل المشاهدة»: on or off; turned on while the home app may not read the TV's list yet, it opens the home app's one question
+        row("أكمل المشاهدة", watchNextLabel(), R.drawable.ic_play,
+            new Runnable() { public void run() {
+                if (prefs.watchNext() && !homeMayReadWatchNext()) { openWatchNextPermission(); return; }   // on, not allowed yet: the question
+                prefs.setWatchNext(!prefs.watchNext());
+                if (prefs.watchNext() && !homeMayReadWatchNext()) openWatchNextPermission();
+                render(); } });
         row("أسماء المصادر", "غيّر اسم كل مصدر، مثل PS5", R.drawable.ic_settings,
             new Runnable() { public void run() { openInputNames(); } });
         row("تعديل المفضلة", "تحريك التطبيقات على الشاشة الرئيسية وحذفها", R.drawable.ic_star,
@@ -804,10 +809,20 @@ public class SettingsActivity extends Activity {
         }
     }
 
-    /** «صفوف القنوات» lives in the launcher (it reads the TV's lists and shows the rows). */
-    private void openChannelRows() {
+    /** The home app may read the TV's Watch Next list (its READ_TV_LISTINGS, granted once). */
+    private boolean homeMayReadWatchNext() {
+        return getPackageManager().checkPermission("android.permission.READ_TV_LISTINGS", "sa.urtv.home") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
+    private String watchNextLabel() {
+        if (!prefs.watchNext()) return "متوقف";
+        return homeMayReadWatchNext() ? "يعمل · ما وقفته في نصه، تحت المفضلة" : "يعمل · يحتاج السماح مرة واحدة: اختيار";
+    }
+
+    /** The home app's one question for the TV's list («السماح»); it closes by itself when that is allowed already. */
+    private void openWatchNextPermission() {
         try {
-            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.ChannelsActivity"));
+            startActivity(new Intent().setClassName("sa.urtv.home", "sa.urtv.home.WatchNextActivity"));
         } catch (RuntimeException e) {   // not installed, or an older launcher without the screen
             toast("حدّث الواجهة الرئيسية «تلفزيونك» أو ثبّتها أولاً");
         }
