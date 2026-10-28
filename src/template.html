@@ -111,6 +111,15 @@
   .week li .tm{white-space:nowrap}
   .week li span.tm,.week li span.team-label{flex:none;max-width:none;overflow:visible;text-overflow:clip;padding:0;margin:0}
   .week li .team-crest{width:1.05em;height:1.05em;vertical-align:middle;margin-inline-end:.18em}
+  /* Match card rows keep both crests; names and text shrink first when the row is tight. */
+  .week li.mg{display:block;padding:.65vh 0}
+  .week li.mg .mr{display:flex;align-items:center;gap:.62em;max-width:none;overflow:visible;padding:0;margin:0;white-space:nowrap}
+  .week li.mg .mr>*{flex:0 0 auto;max-width:none;overflow:visible;text-overflow:clip;padding:0;margin:0}
+  .week li.mg .mr .dt{flex:1 1 auto;margin-inline-start:auto;min-width:0;text-align:left;font-size:.84em;overflow:hidden;text-overflow:ellipsis}
+  .week li.mg .tm{display:inline-flex;align-items:center;gap:.28em}
+  .week li.mg .team-crest{width:1.18em;height:1.18em;margin:0;object-fit:contain}
+  .week li.mg .mr.nocr .team-crest{display:none}
+  .week li.mg .mr .x{color:#D6AF6B}
   .week ul.flip li{animation:weekIn .5s ease both}
   .week ul.flip li:nth-child(2){animation-delay:.06s}
   .week ul.flip li:nth-child(3){animation-delay:.12s}
@@ -808,16 +817,28 @@ function shortenTeams(span){
     if(label) label.textContent = t.dataset.short;
   });
 }
+const MATCH_FIT_STEPS = [1,.92,.85,.78,.72,.64,.56,.5];
+function matchRowCut(row){
+  const r=row.getBoundingClientRect();
+  return [...row.children].some(c=>{const b=c.getBoundingClientRect();return b.width&&(b.left<r.left-.5||b.right>r.right+.5);});
+}
+function fitGameRow(li){
+  const row=li.firstElementChild;
+  if(!row||!row.classList.contains('mr')) return;
+  const names=[...row.querySelectorAll('.team-label')];
+  names.forEach(n=>{if(n.dataset.full===undefined)n.dataset.full=n.textContent;n.textContent=n.dataset.full;});
+  row.style.fontSize=''; row.classList.remove('nocr');
+  const size=steps=>steps.find(k=>{row.style.fontSize=k===1?'':k+'em';return !matchRowCut(row);});
+  if(size([1])) return;
+  shortenTeams(row);
+  if(size([1])) return;
+  if(size(MATCH_FIT_STEPS)) return;
+  row.classList.add('nocr');
+  size(MATCH_FIT_STEPS);
+}
 function fitMatchCard(){
   const ul = document.getElementById('week-list');
-  if(CONFIG.panel === 'matches') ul.querySelectorAll('li > span:first-child').forEach(span=>{
-    if(fitsRow(span)) return;
-    span.style.fontSize = '.86em';
-    if(fitsRow(span)) return;
-    shortenTeams(span);
-    if(fitsRow(span)) return;
-    span.querySelectorAll('.team-crest').forEach(img=>img.remove());
-  });
+  if(CONFIG.panel === 'matches') ul.querySelectorAll('li.mg').forEach(fitGameRow);
   document.querySelectorAll('#match-row .mblock .big > span').forEach(span=>{
     if(fitsRow(span)) return;
     span.style.fontSize = '.88em';
@@ -1186,7 +1207,7 @@ function matchRows(){
         : now >= t ? '<span class="live">مباشر</span>'
         : (new Intl.DateTimeFormat('en-CA', {timeZone:CONFIG.timezone}).format(d) === today ? 'اليوم' : day(d))
           + ' ' + fmt12(+p.hour % 24, +p.minute);
-      return `<li><span>${teamMarkup(ev,'home')}${mid}${teamMarkup(ev,'away')}</span><span class="dt">${when}</span></li>`;
+      return `<li class="mg"><span class="mr">${teamMarkup(ev,'home')} ${mid} ${teamMarkup(ev,'away')}<span class="dt">${when}</span></span></li>`;
     });
 }
 
