@@ -7,6 +7,9 @@ Newest first. `next` is where changes land first; a release is what was tested t
 **Phone**
 - Typing from the phone into other apps: the typing service now declares `typeWindowStateChanged` (read by nobody) so Android tracks the window in front and the field can be found; it also takes the input-focused field first and fields that accept set-text. A fixed-words log (tag `UrTVType`) shows each step.
 - «تحكم من الجوال» is the first row of «الجوال والتحديث», and that tile names it.
+**Fixes from the TV test**
+- «حماية العائلة (DNS)»: the first check waits for Private DNS and retries a fresh name (up to 40 s), so a working TV is no longer turned down.
+- The adhkar card shows a dhikr at night too (the evening ones when there is no night verse), never only a start time.
 
 **Prayer times and adhan**
 - Gulf cities, each country's own prayer method, and Ja'fari. Oman uses its Ministry of Awqaf's method (Fajr and Isha 18°, Dhuhr, Asr and Maghrib +5 minutes, from egyjs/afnon-android-tv-launcher, MIT); the Gulf method stays as «طريقة الحساب» ← الخليج.

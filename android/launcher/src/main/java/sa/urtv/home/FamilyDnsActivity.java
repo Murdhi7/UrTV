@@ -109,7 +109,7 @@ public class FamilyDnsActivity extends Activity {
             return;
         }
         button.setAlpha(1f);
-        if (FamilyDnsAndroid.busy()) {   // a check takes up to about 20 seconds
+        if (FamilyDnsAndroid.busy()) {   // a check takes up to about 40 seconds
             state.setText("جارٍ الفحص…");
             button.setText("انتظر");
             message.setText("");

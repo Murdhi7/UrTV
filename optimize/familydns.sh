@@ -33,9 +33,9 @@ feature_state() {   # yes | no | unknown: «no» only for the app's own «error:
   local a; a=$(app status)
   case "$a" in "family-dns: "*) echo yes ;; "error: unknown action"*) echo no ;; *) echo unknown ;; esac
 }
-app_idle() {   # wait (up to 70 s) for a running check of the app to end; the last status line
+app_idle() {   # wait (up to 90 s; the app's own check takes at most about 45 s: 5 s probe, 40 s check) for a running check to end; the last status line
   local i s=""
-  for i in $(seq 35); do
+  for i in $(seq 45); do
     s=$(app status)
     case "$s" in *"; working"*) sleep 2 ;; *) break ;; esac
   done
@@ -56,7 +56,7 @@ explain() {   # a result name of the app -> a !! line
   case "$1" in
     ENABLED) ;;
     NO_ROUTE) echo "!! familydns: this TV cannot reach $HOST on port $PORT (DNS over TLS), so nothing was changed. The network may block it" ;;
-    REVERTED) echo "!! familydns: the internet did not work through $HOST, so the old Private DNS setting was put back" ;;
+    REVERTED) echo "!! familydns: the internet did not work through $HOST (Private DNS did not validate, or a fresh name or the internet did not answer within 40 s: up to 12 s for Private DNS, 3 tries of 6 s for a fresh name, 10 s for the internet), so the old Private DNS setting was put back" ;;
     RESTORE_FAILED) echo "!! familydns: the old Private DNS setting could NOT be put back (the TV refused it). It is recorded and will be tried again at the next start of the home app; run optimize/dock.sh familydns off to try now, and check optimize/dock.sh familydns status" ;;
     NOT_TAKEN) echo "!! familydns: this TV did not take the Private DNS setting, so the old one was put back" ;;
     NEEDS_GRANT) echo "!! familydns: the home app has no permission to change it: run optimize/dock.sh familydns grant" ;;
