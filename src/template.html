@@ -3029,10 +3029,9 @@ function wisdomOfDay(){
 }
 
 // «أذكار الصباح والمساء» (from حصن المسلم): only those .github/tools/verify_adhkar.py found in the six books or the Quran.
-// Morning ones from Fajr until Dhuhr, evening ones from Asr until Maghrib, the night ones (the end of al-Baqara) from
-// Isha until Fajr; between them the ones said morning and evening alike («both»), under when the next adhkar begin
-// («أذكار المساء · مع العصر ٣:٠٠ م»): never the verse or the hadith of the day (the owner's report). One timer, and only while a
-// dhikr is on screen: 20 s + 0.1 s per character, at most 60 s.
+// Morning: Fajr to Dhuhr; evening: Asr to Maghrib; night (the end of al-Baqara): Isha to Fajr. Between them the «both» ones,
+// under when the next begin («أذكار المساء · مع العصر ٣:٠٠ م»), never the verse or hadith of the day. A set with no dhikr
+// (the night verse is too long for the screen) falls back to the evening ones, «late»: a dhikr always shows. One timer, 20 s + 0.1 s per character, at most 60 s.
 const ADHKAR = __ADHKAR__;   // assets/shared/adhkar.json, through src/build.py
 const ADHKAR_COUNT = {1:'مرة واحدة', 2:'مرتان', 3:'ثلاث مرات', 4:'أربع مرات', 7:'سبع مرات', 10:'عشر مرات', 33:'ثلاثاً وثلاثين مرة', 100:'مئة مرة'};
 const ADHKAR_ICON = {
@@ -3040,16 +3039,17 @@ const ADHKAR_ICON = {
   evening:'<svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>',
   night:'<svg viewBox="0 0 24 24"><path d="M19 13.5A7.5 7.5 0 0 1 9.5 4.4a7.5 7.5 0 1 0 9.5 9.1z"/><path d="M16.5 3.5v3M15 5h3"/></svg>',
 };
-const ADHKAR_HEAD = {morning:['أذكار الصباح', 'حتى الظهر'], evening:['أذكار المساء', 'حتى المغرب'], night:['الآيتان من آخر سورة البقرة', 'حتى الفجر']}   // the hadith's own words, no new category name;
-// the adhkar's place in a card: card.ad = {i: which, t: the timer, mode: morning|evening|night, n: how many}
+ADHKAR_ICON.late = ADHKAR_ICON.night;
+const ADHKAR_HEAD = {morning:['أذكار الصباح', 'حتى الظهر'], evening:['أذكار المساء', 'حتى المغرب'], night:['الآيتان من آخر سورة البقرة', 'حتى الفجر'], late:['أذكار المساء', 'حتى الفجر']};
 function adhkarWindow(){
   if(!DAY_TIMES) return '';
   const p = riyadhParts(), now = p.h * 60 + p.mi;
   const at = k => { const [h, mi] = String(DAY_TIMES[k]).split(':').map(Number); return h * 60 + mi; };
   if(now >= at('Fajr') && now < at('Dhuhr')) return 'morning';
   if(now >= at('Asr') && now < at('Maghrib')) return 'evening';
-  if(now >= at('Isha') || now < at('Fajr')) return 'night';   // after midnight it is still the night before
-  return '';
+  const late = ADHKAR.some(d => d.when === 'night') ? 'night' : 'late';   // after midnight it is still the night before
+  if(now >= at('Isha') || now < at('Fajr')) return late;
+  return late === 'late' && now >= at('Maghrib') ? late : '';
 }
 function adhkarNext(card){
   card.ad.t = 0;
@@ -3057,25 +3057,22 @@ function adhkarNext(card){
   renderCard(card, card.ad.n > 1);
   fitCards();
 }
-// «أذكار المساء · مع العصر ٣:٠٠ م»: what comes next and when, outside the windows -> [title, when, the next window]
 function adhkarNextWindow(){
   const at = k => { const [h, mi] = String(DAY_TIMES[k]).split(':').map(Number); return fmtTime(h, mi); };
   const p = riyadhParts(), now = p.h * 60 + p.mi, mins = k => { const [h, mi] = String(DAY_TIMES[k]).split(':').map(Number); return h * 60 + mi; };
   return !DAY_TIMES ? ['أذكار الصباح والمساء', 'في أوقاتها، من الفجر ومن العصر', '']
     : now < mins('Asr') ? ['أذكار المساء', 'مع العصر ' + at('Asr'), 'evening'] : ['الآيتان من آخر سورة البقرة', 'بعد العشاء ' + at('Isha'), 'night'];
 }
-// no dhikr to show at all (an empty set): the one line on when the next adhkar begin
 function adhkarWait(){
   const [title, when] = adhkarNextWindow();
   return {title, hd: `<span>${title}</span>`, rows: [`<li class="adw"><span>${esc(when)}</span></li>`]};
 }
 function adhkarCard(card){
   const ad = card.ad, mode = adhkarWindow(), key = mode || 'between';
-  const list = ADHKAR.filter(d => mode ? d.when === mode || (d.when === 'both' && mode !== 'night') : d.when === 'both');
+  const list = ADHKAR.filter(d => mode ? d.when === (mode === 'late' ? 'evening' : mode) || (d.when === 'both' && mode !== 'night') : d.when === 'both');
   if(!list.length){ clearTimeout(ad.t); ad.t = 0; ad.mode = ''; return adhkarWait(); }
   if(key !== ad.mode){ ad.mode = key; ad.i = 0; clearTimeout(ad.t); ad.t = 0; }
   let i = ad.i % list.length;
-  // a card in a small place skips the dhikr that is too long for it (card.maxLen), if a shorter one follows
   if(card.maxLen) for(let k = 0; k < list.length && list[i].text.length > card.maxLen; k++){ ad.i++; i = ad.i % list.length; }
   const d = list[i];
   card.len = d.text.length;
@@ -3087,7 +3084,7 @@ function adhkarCard(card){
   return {
     title,
     hd: `${ADHKAR_ICON[icon] || ''}<span>${title}</span><span class="until">${esc(until)}</span>`,
-    rows: [`<li class="quote${d.quran ? ' quran' : ''}${d.text.length > 560 ? ' q4' : quoteSize(d.text.length)}">${text}</li>`,   // harakat make a dhikr long: one more step
+    rows: [`<li class="quote${d.quran ? ' quran' : ''}${d.text.length > 560 ? ' q4' : quoteSize(d.text.length)}">${text}</li>`,
            `<li class="adf"><span class="s">${esc(ar(d.virtue ? `${d.virtue.text} · ${d.virtue.source.replace(' · ', ' ')}` : d.source))}</span><span class="c">${ADHKAR_COUNT[d.count] || ar(d.count) + ' مرة'}</span>`
            + `<span class="d">${Array.from({length: dots}, (_, k) => k === on ? '<i class="on"></i>' : '<i></i>').join('')}</span></li>`],
   };

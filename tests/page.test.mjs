@@ -154,7 +154,7 @@ const ADHKAR_SAMPLE = [
     virtue: { text: 'مَنْ قَرَأَ بِهِمَا فِي لَيْلَةٍ كَفَتَاهُ', source: 'صحيح البخاري · 5009' } },
 ];
 const LONG_DHIKR = { when: 'both', text: Array(68).fill('سُبْحَانَ اللَّهِ وَبِحَمْدِهِ').join(' ').split(' ').slice(0, 68).join(' '), count: 1, source: 'سنن أبي داود · 5074' };
-const atRiyadh = (p, hhmm) => p.evaluate(([hhmm, sample]) => {
+const atRiyadh = (p, hhmm, sample = ADHKAR_SAMPLE) => p.evaluate(([hhmm, sample]) => {
   const T = Date.parse('2026-10-22T' + hhmm + ':00+03:00'), R = Date;
   window.Date = class extends R { constructor(...a) { a.length ? super(...a) : super(T); } static now() { return T; } };
   ADHKAR.length = 0; ADHKAR.push(...sample);
@@ -165,7 +165,7 @@ const atRiyadh = (p, hhmm) => p.evaluate(([hhmm, sample]) => {
   return { hd: hd.textContent.replace(/\s+/g, ' ').trim(), icon: !!hd.querySelector('svg'), timer: CARDS[0].ad.t !== 0,
     text: document.querySelector('#week-list .quote')?.textContent, foot: document.querySelector('#week-list .adf')?.textContent || '',
     dots: [...document.querySelectorAll('#week-list .adf .d i')].map(i => i.classList.contains('on') ? 1 : 0).join('') };
-}, [hhmm, ADHKAR_SAMPLE]);
+}, [hhmm, sample]);
 {
   const { p, ctx, errors } = await open('tv.html', 'panel=adhkar');
   const m = await atRiyadh(p, '06:00'), e = await atRiyadh(p, '16:00'), noon = await atRiyadh(p, '13:00'), dusk = await atRiyadh(p, '18:30');
@@ -231,6 +231,13 @@ const atRiyadh = (p, hhmm) => p.evaluate(([hhmm, sample]) => {
   });
   check('adhkar with an empty set between the windows: «أذكار المساء · مع العصر ٣:٠٠ م», no timer, not the verse or hadith',
     none[0] === 'أذكار المساء' && none[1] === 'مع العصر ٣:٠٠ م' && none[2] === 0, JSON.stringify(none));
+  // the owner's report (row 7): the build leaves the night verse out when it is too long for the screen. The card then shows the
+  // evening adhkar (and the «both» ones) from Maghrib until Fajr, under «أذكار المساء · حتى الفجر»: never a heading with only a start time
+  const NO_NIGHT = ADHKAR_SAMPLE.filter(d => d.when !== 'night'), evMore = NO_NIGHT.filter(d => d.when !== 'morning');
+  const late = [await atRiyadh(p, '22:00', NO_NIGHT), await atRiyadh(p, '03:00', NO_NIGHT), await atRiyadh(p, '18:30', NO_NIGHT)];
+  check('adhkar at night without a night verse (22:00, 03:00, 18:30): a dhikr of the evening set shows under «أذكار المساء · حتى الفجر», footer and timer',
+    late.every(r => r.hd === 'أذكار المساءحتى الفجر' && r.icon && r.timer && r.foot && r.dots === evMore.map((_, k) => +!k).join('')
+      && r.text.replace(/[\u064B-\u065F]/g, '') === evMore[0].text.replace(/[\u064B-\u065F]/g, '')), JSON.stringify(late));
   check('adhkar: no script errors', !errors.length, errors.join('; '));
   await ctx.close();
 }

@@ -4,6 +4,10 @@ Newest first. `next` is where changes land first; a release is what was tested t
 
 ## On `next` (not released yet)
 
+**Fixes from the TV test**
+- «حماية العائلة (DNS)»: the first check waits for Private DNS and retries a fresh name (up to 40 s), so a working TV is no longer turned down.
+- The adhkar card shows a dhikr at night too (the evening ones when there is no night verse), never only a start time.
+
 **Prayer times and adhan**
 - Gulf cities, each country's own prayer method, and Ja'fari.
 - «تعديل وقت الصلاة»: move each prayer by its own minutes.
