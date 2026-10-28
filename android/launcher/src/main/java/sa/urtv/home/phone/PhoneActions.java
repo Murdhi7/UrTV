@@ -165,6 +165,7 @@ final class PhoneActions implements Actions {
         m.putAll(PhoneBridge.state(app));
         PhoneBridge.addAdhanLive(app, m);
         m.put("sleep_timer", PhoneApps.sleep(app));
+        m.putAll(sa.urtv.home.GlassSource.phoneState(app));   // the glass look: which backdrop, and the veils it needs (thousandths)
         if (b != null && b.getString("idle") != null) {
             m.put("saver_idle", b.getString("idle"));
             List<Object> options = new ArrayList<>();
@@ -234,6 +235,8 @@ final class PhoneActions implements Actions {
     }
 
     @Override public byte[] icon(String pkg) { return PhoneApps.icon(app, pkg); }
+
+    @Override public byte[] backdrop() { return sa.urtv.home.GlassSource.png(app); }
 
     @Override public Result launch(String target) {
         String r = PhoneApps.launch(app, target);

@@ -7,10 +7,17 @@
 <meta name="color-scheme" content="dark light">
 <title>تحكم من الجوال</title>
 <style>
-:root { --bg:#04120c; --card:#0d2418; --line:#2f4d39; --gold:#d6af6b; --gt:#d6af6b; --text:#f6efe0; --dim:#c6bba4; --red:#ee8b70; --ink:#04120c; --tile:#1a4030; --bar:#08190f; }
-:root[data-theme="light"] { --bg:#f7f3ea; --card:#ffffff; --line:#b9ae94; --gold:#c99a3e; --gt:#775210; --text:#1d2b22; --dim:#4a574d; --red:#a63a1f; --ink:#04120c; --tile:#e6dcc3; --bar:#ffffff; }
+/* the glass look (GlassStyle: the same colours on the TV; tests/glass_test.py checks them): the home's photo, small and blurred once on
+   the TV (/api/backdrop), under the veil it needs (--vd/--vl from /api/state); smoked glass dark, frosted white glass light; no blur here */
+:root { --bg:#17181b; --card:rgba(20,22,26,.42); --line:rgba(255,255,255,.14); --gold:#f3f3f3; --gt:#ffffff; --text:#ffffff; --dim:#dadce0; --red:#ffc2b3; --ink:#14161a; --tile:rgba(20,22,26,.42); --bar:#18191c; --veil:#000000; --va:var(--vd,.95); }
+:root[data-theme="light"] { --bg:#ecedef; --card:rgba(255,255,255,.62); --line:rgba(20,22,26,.12); --gold:#202226; --gt:#14161a; --text:#14161a; --dim:#3a3e46; --red:#8e2a10; --ink:#ffffff; --tile:rgba(255,255,255,.62); --bar:#fcfcfd; --veil:#f5f6f8; --va:var(--vl,.95); }
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html,body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif; }
+html,body { margin:0; color:var(--text); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif; }
+html { background:var(--bg); }
+#glassbg,#glassveil { position:fixed; inset:0; z-index:-1; pointer-events:none; }
+#glassbg { background:var(--bg); }
+#glassbg img { width:100%; height:100%; object-fit:cover; display:block; }
+#glassveil { background:var(--veil); opacity:var(--va); }
 body { max-width:560px; margin:0 auto; padding:0 16px calc(84px + env(safe-area-inset-bottom)); overflow-x:hidden; }
 body.login { padding-bottom:24px; }
 h1 { font-size:22px; margin:14px 0 6px; }
@@ -70,6 +77,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
 </style>
 </head>
 <body class="login">
+<div id="glassbg" aria-hidden="true"></div><div id="glassveil" aria-hidden="true"></div>
 
 <section id="login">
   <h1>تحكم من الجوال</h1>
@@ -202,6 +210,32 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
     try { localStorage.setItem('urtvTheme', n); } catch (e) { }
   };
 
+  // ---- the glass look: the home's photo, small and blurred once on the TV, under the veil it needs (the TV works it out per photo)
+  var glassStamp = -1;
+  function glass(s) {
+    var st = document.documentElement.style;
+    if (typeof s.glass_dark === 'number') st.setProperty('--vd', String(s.glass_dark / 1000));
+    if (typeof s.glass_light === 'number') st.setProperty('--vl', String(s.glass_light / 1000));
+    if (typeof s.glass_stamp !== 'number' || s.glass_stamp === glassStamp) return;
+    glassStamp = s.glass_stamp;
+    if (!s.glass_stamp) { $('glassbg').textContent = ''; return; }
+    var h = {}; if (sess) h['X-UrTV-Session'] = sess;
+    fetch('/api/backdrop', { credentials: 'same-origin', headers: h }).then(function (r) {
+      if (!r.ok) throw 0;
+      return r.blob();
+    }).then(function (b) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        if (typeof fr.result !== 'string' || fr.result.indexOf('data:image/png') !== 0) return;
+        var im = document.createElement('img'); im.alt = '';   // as the icons: our own PNG, read as data, nothing from elsewhere
+        im.setAttribute('src', fr.result);
+        $('glassbg').textContent = '';
+        $('glassbg').appendChild(im);
+      };
+      fr.readAsDataURL(b);
+    }).catch(function () { glassStamp = -1; });
+  }
+
   var MSG = {
     other_app: 'تطبيق آخر أمام الشاشة: لا يسمح أندرويد بإرسال هذا الزر إليه. الرئيسية والصوت وتشغيل/إيقاف تعمل دائمًا.',
     private_screen: 'شاشة السماح لا تُحرَّك من الجوال، استعمل ريموت التلفزيون.',
@@ -294,6 +328,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
     document.body.classList.toggle('login', !app);
   }
   function leave() {
+    glass({ glass_stamp: 0 }); glassStamp = -1;   // signed out: the home's photo goes from the page
     sess = null; state = null; apps = null; pinVal = ''; icons = {}; iconQ = []; iconWait = {}; svcOff = false; famSeen = false;
     clearInterval(tick); tick = null; stopRep();
     try { sessionStorage.removeItem('urtv'); } catch (e) { }
@@ -393,6 +428,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
   }
   // the parts that change by themselves (every poll), then the forms (only when the person arrives or has just saved)
   function render(s, full) {
+    glass(s);
     var live = !!s.adhan_live, p = s.player || {};
     var secs = typeof s.seconds_left === 'number' ? s.seconds_left : 0;
     $('left').textContent = 'بقي ' + Math.max(1, Math.round(secs / 60)) + ' دقيقة';

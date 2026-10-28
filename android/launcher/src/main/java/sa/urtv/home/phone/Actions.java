@@ -44,6 +44,9 @@ public interface Actions {
     /** A favourite's icon as a PNG, or null for anything that is not one of them. */
     byte[] icon(String pkg);
 
+    /** The glass look's small blurred backdrop of the home's photo (a PNG, 240x135), or null while there is none. */
+    byte[] backdrop();
+
     /** Opens an app or a pill with the home screen's own parental check: ok with "opened" or "pin_on_tv" (the TV asks for the PIN), else a fixed failure. */
     Result launch(String target);
 

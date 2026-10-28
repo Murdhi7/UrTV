@@ -76,6 +76,7 @@ public final class PhoneRun {
             m.put("tools", tools);
             return m;
         }
+        @Override public byte[] backdrop() { calls.add("backdrop"); return null; }
         @Override public byte[] icon(String pkg) { calls.add("icon:" + pkg); return pkg.equals("com.example.video") ? new byte[] {(byte) 0x89, 'P', 'N', 'G', 13, 10, 26, 10} : null; }
         @Override public Result launch(String target) { calls.add("launch:" + target); return target.equals("@tasks") ? Result.ok("pin_on_tv") : Result.ok("opened"); }
         @Override public Result adhanStop() { calls.add("adhan_stop"); return Result.ok("done"); }

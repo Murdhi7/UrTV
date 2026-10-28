@@ -57,6 +57,7 @@ final class PhoneApi implements PhoneServer.Handler {
             switch (r.path) {
                 case "/api/apps": return ok(control.actions().apps());
                 case "/api/family": return ok(control.actions().family());
+                case "/api/backdrop": return backdrop();
                 default: break;
             }
             if (r.path.startsWith("/api/icon/")) return icon(r.path.substring("/api/icon/".length()));
@@ -181,6 +182,16 @@ final class PhoneApi implements PhoneServer.Handler {
         return resp;
     }
 
+    /** The glass look's small blurred backdrop of the home's photo, for the page's background; 404 while there is none. */
+    private PhoneServer.Response backdrop() {
+        byte[] png = control.actions().backdrop();
+        if (png == null) return json(404, err("not_found"));
+        PhoneServer.Response resp = new PhoneServer.Response(200, "image/png", png);
+        headers(resp);
+        resp.headers.put("Cache-Control", "private, max-age=600");
+        return resp;
+    }
+
     private static PhoneServer.Response ok(Map<String, Object> body) {
         Map<String, Object> out = ok();
         out.putAll(body);
@@ -261,7 +272,7 @@ final class PhoneApi implements PhoneServer.Handler {
     /** For tests: the endpoints that need a session. */
     static List<String> sessionPaths() {
         List<String> l = new ArrayList<>();
-        for (String p : new String[] {"/api/state", "/api/key", "/api/text", "/api/set", "/api/quran", "/api/cities", "/api/update", "/api/launch", "/api/adhan_stop", "/api/do", "/api/apps", "/api/family", "/api/icon/com.example.app", "/api/logout"}) l.add(p);
+        for (String p : new String[] {"/api/state", "/api/key", "/api/text", "/api/set", "/api/quran", "/api/cities", "/api/update", "/api/launch", "/api/adhan_stop", "/api/do", "/api/apps", "/api/family", "/api/icon/com.example.app", "/api/backdrop", "/api/logout"}) l.add(p);
         return l;
     }
 }

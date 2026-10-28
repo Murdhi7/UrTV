@@ -441,7 +441,7 @@ await T('themes', async () => {
     await tab(S, 'settings');
     const c = await S.p.evaluate(() => {
       const rgb = e => getComputedStyle(e).color.match(/[\d.]+/g).slice(0, 3).map(Number);
-      const bg = getComputedStyle(document.body).backgroundColor.match(/[\d.]+/g).slice(0, 3).map(Number);
+      const bg = (getComputedStyle(document.body).backgroundColor === 'rgba(0, 0, 0, 0)' ? getComputedStyle(document.documentElement).backgroundColor : getComputedStyle(document.body).backgroundColor).match(/[\d.]+/g).slice(0, 3).map(Number);
       const card = getComputedStyle(document.querySelector('#famCard')).backgroundColor.match(/[\d.]+/g).slice(0, 3).map(Number);
       const gold = getComputedStyle(document.querySelector('button.gold')).backgroundColor.match(/[\d.]+/g).slice(0, 3).map(Number);
       return { bg, card, gold, text: rgb(document.body), dim: rgb(document.querySelector('#t-settings p')), h2: rgb(document.querySelector('#t-settings h2')), ink: rgb(document.querySelector('button.gold')), famDim: rgb(document.querySelector('#famPin')) };
@@ -464,10 +464,10 @@ await T('themes', async () => {
     const lights = [];
     for (const name of ['remote', 'apps', 'now', 'settings']) {
       await tab(S, name);
-      lights.push(await S.p.evaluate(() => getComputedStyle(document.body).backgroundColor));
+      lights.push(await S.p.evaluate(() => (getComputedStyle(document.body).backgroundColor === 'rgba(0, 0, 0, 0)' ? getComputedStyle(document.documentElement).backgroundColor : getComputedStyle(document.body).backgroundColor)));
     }
     check(`phone set to ${scheme}: after the toggle all four screens are light together`, new Set(lights).size === 1 && lum(lights[0].match(/[\d.]+/g).slice(0, 3).map(Number)) > 0.5, lights.join(' / '));
-    const lc = await S.p.evaluate(() => { const rgb = e => getComputedStyle(e).color.match(/[\d.]+/g).slice(0, 3).map(Number); const bg = getComputedStyle(document.body).backgroundColor.match(/[\d.]+/g).slice(0, 3).map(Number); return { bg, text: rgb(document.body), dim: rgb(document.querySelector('#t-settings p')), h2: rgb(document.querySelector('#t-settings h2')) }; });
+    const lc = await S.p.evaluate(() => { const rgb = e => getComputedStyle(e).color.match(/[\d.]+/g).slice(0, 3).map(Number); const bg = (getComputedStyle(document.body).backgroundColor === 'rgba(0, 0, 0, 0)' ? getComputedStyle(document.documentElement).backgroundColor : getComputedStyle(document.body).backgroundColor).match(/[\d.]+/g).slice(0, 3).map(Number); return { bg, text: rgb(document.body), dim: rgb(document.querySelector('#t-settings p')), h2: rgb(document.querySelector('#t-settings h2')) }; });
     check(`light after the toggle: text, secondary text and headings >= 4.5`, ratio(lc.text, lc.bg) >= 4.5 && ratio(lc.dim, lc.bg) >= 4.5 && ratio(lc.h2, lc.bg) >= 4.5, [ratio(lc.text, lc.bg), ratio(lc.dim, lc.bg), ratio(lc.h2, lc.bg)].join());
     await S.p.reload(); await sleep(300);
     await S.ctx.close();

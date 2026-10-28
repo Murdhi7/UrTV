@@ -62,6 +62,27 @@ public final class GlassSource {
         return l;
     }
 
+    /** The backdrop's PNG for the phone page (/api/backdrop), or null while there is none; read bounded: it is small. */
+    public static byte[] png(Context c) {
+        File f = file(c);
+        if (!f.isFile() || f.length() > 512 * 1024) return null;   // the small PNG update() makes; anything bigger is not it
+        try (java.io.InputStream in = new java.io.FileInputStream(f)) {
+            return Bounded.readAll(in, 512 * 1024);
+        } catch (java.io.IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** For the phone page (/api/state): the backdrop's stamp (0: none) and the two veils, in thousandths (the JSON has whole numbers only). */
+    public static java.util.Map<String, Object> phoneState(Context c) {
+        java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+        File f = file(c);
+        m.put("glass_stamp", f.isFile() ? f.lastModified() : 0L);
+        m.put("glass_dark", (long) Math.round(scrim(c, false) * 1000));
+        m.put("glass_light", (long) Math.round(scrim(c, true) * 1000));
+        return m;
+    }
+
     /** The home tells the other screens which look it shows («تلقائي» follows it). */
     static void setHomeLight(Context c, boolean light) {
         if (prefs(c).contains("glass_home_light") && prefs(c).getBoolean("glass_home_light", false) == light) return;
