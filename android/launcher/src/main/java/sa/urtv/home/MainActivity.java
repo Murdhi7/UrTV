@@ -155,7 +155,7 @@ public class MainActivity extends Activity {
         @Override public void onReceive(Context c, Intent i) { updateSleepPill(); }
     };
     private final BroadcastReceiver packages = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { PhoneApps.invalidate(); buildApps(); }   // buildApps ends «تعديل المفضلة» without saving: the row it edits is stale
+        @Override public void onReceive(Context c, Intent i) { PhoneApps.invalidate(); buildApps(); }   // buildApps ends «تعديل المفضلة» and «تعديل التطبيقات» without saving: what they edit is stale
     };
     // favourites changed in «ترتيب المفضلة» or from ADB while the home screen is up
     private final BroadcastReceiver dockChanged = new BroadcastReceiver() {
@@ -184,6 +184,7 @@ public class MainActivity extends Activity {
             phoneRequested(getIntent());   // the phone remote's «افتح»
         }
         wantEdit = getIntent() != null && getIntent().getBooleanExtra(EXTRA_EDIT, false);   // the settings' «تعديل المفضلة»
+        if (b == null) appsRequested(getIntent());   // the settings' «ترتيب كل التطبيقات» (not again after a restore)
         buildApps();
 
         IntentFilter pf = new IntentFilter();
@@ -239,6 +240,7 @@ public class MainActivity extends Activity {
         remoteKeys.reset();   // a shortcut key opened an app: its release went there, not here
         PinPrompt.dismiss(this);
         if (edit != null) leaveEdit();   // another screen came up: what was arranged is saved
+        if (appsEdit != null) leaveAppsEdit();   // the same for «تعديل التطبيقات»
         handler.removeCallbacks(rotateWallpaper);
         unregisterReceiver(tick);
         if (inputsPopup != null) inputsPopup.dismiss();
@@ -264,11 +266,13 @@ public class MainActivity extends Activity {
         setIntent(intent);
         Parental.SESSION.clear();
         if (edit != null) leaveEdit();   // Home while editing: the order so far is kept
+        if (appsEdit != null) leaveAppsEdit();
         if (intent != null && intent.getBooleanExtra(EXTRA_EDIT, false)) {   // the settings' «تعديل المفضلة»
             wantEdit = true;
             if (appsShown) beginPendingEdit();
             return;
         }
+        if (appsRequested(intent)) return;   // the settings' «ترتيب كل التطبيقات»
         openRequested(intent);   // the screensaver's «الأذان» row (open=adhan)
         phoneRequested(intent);   // the phone remote opened an app that asks for the PIN, or one of the pills
         // Home pressed while already home: jump back to the first dock app.
@@ -704,6 +708,8 @@ public class MainActivity extends Activity {
 
     private void buildApps() {
         if (edit != null) abandonEdit();
+        if (appsEdit != null) abandonAppsEdit();   // the grid it edits is stale: nothing saved, as «تعديل المفضلة»
+        gridDone = false;
         PackageManager pm = getPackageManager();
         android.content.pm.ChangedPackages changed = pm.getChangedPackages(packageSeq);
         if (changed != null) { packageSeq = changed.getSequenceNumber(); artCache.evictAll(); }   // an app may have a new icon
@@ -725,27 +731,33 @@ public class MainActivity extends Activity {
         for (ResolveInfo ri : Dock.catalogue(this)) {
             ActivityInfo ai = ri.activityInfo;
             if (!ParentalPolicy.visible(family, ai.packageName)) continue;
-            App a = new App();
-            a.pkg = ai.packageName;
-            a.label = AppNames.label(this, ri, given);
-            a.component = new ComponentName(ai.packageName, ai.name);
-            a.category = Dock.isTv(ri) ? Intent.CATEGORY_LEANBACK_LAUNCHER : Intent.CATEGORY_LAUNCHER;
-            Drawable banner = artCache.get("b:" + a.pkg);
-            if (banner == null) {
-                banner = ai.loadBanner(pm);
-                if (banner == null) banner = ai.applicationInfo.loadBanner(pm);
-                if (banner != null) artCache.put("b:" + a.pkg, banner = fitted(banner, true));
-            }
-            a.isBanner = banner != null;
-            if (banner != null) a.art = banner;
-            else {
-                a.art = artCache.get("i:" + a.pkg);
-                if (a.art == null) artCache.put("i:" + a.pkg, a.art = fitted(ri.loadIcon(pm), false));
-            }
-            a.color = sampleColor(a.pkg, a.art);
-            out.add(a);
+            out.add(appOf(ri, pm, given));   // its art only for an app that shows
         }
         return out;
+    }
+
+    /** One app's name, art and colour (off the main thread for the whole list; on it for the one app «المخفية» brings back). */
+    private App appOf(ResolveInfo ri, PackageManager pm, Map<String, String> given) {
+        ActivityInfo ai = ri.activityInfo;
+        App a = new App();
+        a.pkg = ai.packageName;
+        a.label = AppNames.label(this, ri, given);
+        a.component = new ComponentName(ai.packageName, ai.name);
+        a.category = Dock.isTv(ri) ? Intent.CATEGORY_LEANBACK_LAUNCHER : Intent.CATEGORY_LAUNCHER;
+        Drawable banner = artCache.get("b:" + a.pkg);
+        if (banner == null) {
+            banner = ai.loadBanner(pm);
+            if (banner == null) banner = ai.applicationInfo.loadBanner(pm);
+            if (banner != null) artCache.put("b:" + a.pkg, banner = fitted(banner, true));
+        }
+        a.isBanner = banner != null;
+        if (banner != null) a.art = banner;
+        else {
+            a.art = artCache.get("i:" + a.pkg);
+            if (a.art == null) artCache.put("i:" + a.pkg, a.art = fitted(ri.loadIcon(pm), false));
+        }
+        a.color = sampleColor(a.pkg, a.art);
+        return a;
     }
 
     /** On the main thread: the dock first, then the grid a few rows at a time, so a long list never holds up a frame. */
@@ -755,10 +767,11 @@ public class MainActivity extends Activity {
         List<App> dock = new ArrayList<>();
         for (String p : wanted) if (byPkg.containsKey(p)) dock.add(byPkg.remove(p));
         cardByPkg.clear();
-        List<App> rest = new ArrayList<>(byPkg.values());
+        List<App> rest = new ArrayList<>(byPkg.values());   // by name, then in the owner's order (inSavedOrder)
         Collections.sort(rest, (x, y) -> x.label.compareToIgnoreCase(y.label));
         // Fewer than MIN_DOCK of the chosen apps installed: top the dock up from the rest.
         while (dock.size() < MIN_DOCK && !rest.isEmpty()) dock.add(rest.remove(0));
+        rest = inSavedOrder(rest);   // «تعديل التطبيقات»: the owner's order, new apps at the end; nothing saved, by name as always
 
         dockRow.removeAllViews();
         grid.removeAllViews();
@@ -809,6 +822,18 @@ public class MainActivity extends Activity {
         wireFocus();
         applyPendingFocus();
         focusPkgAfter = null;   // not found (the app is gone): never take the focus later
+        gridDone = true;
+        beginPendingAppsEdit();
+    }
+
+    /** «كل التطبيقات» (given by name) in the order «تعديل التطبيقات» saved (AppsEdit.arrange). */
+    private List<App> inSavedOrder(List<App> byName) {
+        Map<String, App> by = new HashMap<>();
+        List<String> names = new ArrayList<>();
+        for (App a : byName) { by.put(a.pkg, a); names.add(a.pkg); }
+        List<App> out = new ArrayList<>();
+        for (String p : AppsEdit.arrange(names, Dock.appsOrder(this))) out.add(by.get(p));
+        return out;
     }
 
     /**
@@ -874,7 +899,7 @@ public class MainActivity extends Activity {
         shine.setBackground(ring);
         shine.setAlpha(0f);
         card.addView(shine, new FrameLayout.LayoutParams(-1, -1));
-        if (inDock) addEditMarks(card, ring, shine);
+        addEditMarks(card, ring, shine);   // the × of «تعديل المفضلة» and «تعديل التطبيقات», shown only in the mode
 
         box.addView(card, new LinearLayout.LayoutParams(-1, -2));
 
@@ -983,6 +1008,7 @@ public class MainActivity extends Activity {
             c.setNextFocusRightId(col == cols - 1 || j == g - 1 ? c.getId() : gridCards.get(j + 1).getId());
         }
         if (edit != null) wireEditFocus();   // a rewiring while «تعديل المفضلة» is on (the row, the pills) keeps the mode's own
+        if (appsEdit != null) wireAppsEditFocus();
     }
 
     /**
@@ -1334,25 +1360,35 @@ public class MainActivity extends Activity {
         editHint.setVisibility(View.GONE);
         root.addView(editHint, lp(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, dp(30), 0, 0));
 
-        undoChip = text(14, "sans-serif-medium", 0xFFFFFFFF);
-        undoChip.setText("تراجع");
-        undoChip.setGravity(Gravity.CENTER);
-        undoChip.setPadding(dp(22), dp(8), dp(22), dp(8));
-        undoChip.setFocusable(true);
-        undoChip.setClickable(true);
-        undoChip.setId(View.generateViewId());
+        undoChip = undoChipView();
+        undoChip.setOnClickListener(v -> { if (edit != null) applyEdit(edit.undo(SystemClock.uptimeMillis())); });
+        root.addView(undoChip, lp(-2, -2, Gravity.BOTTOM | Gravity.LEFT, dp(68), 0, 0, dp(150)));
+
+        appsUndoChip = undoChipView();   // «تعديل التطبيقات»: under the hint line, UP from the grid's first row
+        appsUndoChip.setOnClickListener(v -> { if (appsEdit != null) applyAppsEdit(appsEdit.undo(SystemClock.uptimeMillis())); });
+        root.addView(appsUndoChip, lp(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, dp(78), 0, 0));
+    }
+
+    /** «تراجع»: a gold chip, filled while it has the focus. */
+    private TextView undoChipView() {
+        TextView chip = text(14, "sans-serif-medium", 0xFFFFFFFF);
+        chip.setText("تراجع");
+        chip.setGravity(Gravity.CENTER);
+        chip.setPadding(dp(22), dp(8), dp(22), dp(8));
+        chip.setFocusable(true);
+        chip.setClickable(true);
+        chip.setId(View.generateViewId());
         GradientDrawable cb = new GradientDrawable();
         cb.setCornerRadius(dp(20));
-        undoChip.setBackground(cb);
-        undoChip.setOnFocusChangeListener((v, has) -> {
+        chip.setBackground(cb);
+        chip.setOnFocusChangeListener((v, has) -> {
             cb.setColor(has ? GOLD : 0xCC000000);
             cb.setStroke(dp(2), GOLD);
-            undoChip.setTextColor(has ? 0xFF04120C : 0xFFFFFFFF);
+            chip.setTextColor(has ? 0xFF04120C : 0xFFFFFFFF);
         });
-        undoChip.getOnFocusChangeListener().onFocusChange(undoChip, false);
-        undoChip.setOnClickListener(v -> { if (edit != null) applyEdit(edit.undo(SystemClock.uptimeMillis())); });
-        undoChip.setVisibility(View.GONE);
-        root.addView(undoChip, lp(-2, -2, Gravity.BOTTOM | Gravity.LEFT, dp(68), 0, 0, dp(150)));
+        chip.getOnFocusChangeListener().onFocusChange(chip, false);
+        chip.setVisibility(View.GONE);
+        return chip;
     }
 
     /** A small × in the corner of a favourite's card; it shows, and takes the focus, only while the row is being edited. */
@@ -1388,7 +1424,18 @@ public class MainActivity extends Activity {
 
     /** «تعديل المفضلة» from the long-press menu (on the app that was pressed) or from the settings (pkg null). The family lock asks first. */
     private void beginEdit(String pkg) {
+        if (kidsNoEdit()) return;
         guarded(ParentalPolicy.MENU_ARRANGE, null, "تعديل المفضلة", () -> startEdit(pkg));
+    }
+
+    /**
+     * Kids mode edits nothing (AppsEdit.allowed): it shows only the allowed apps, so a row or an order saved from it would lose the
+     * others. True, with a word on the screen, when that is so.
+     */
+    private boolean kidsNoEdit() {
+        if (AppsEdit.allowed(Parental.state(this).kids)) return false;
+        Toast.makeText(this, "ما فيه تعديل في وضع الأطفال", Toast.LENGTH_SHORT).show();
+        return true;
     }
 
     /** From the settings: once the favourites are on screen. */
@@ -1399,7 +1446,7 @@ public class MainActivity extends Activity {
     }
 
     private void startEdit(String pkg) {
-        if (edit != null || dockCards.isEmpty()) return;
+        if (edit != null || appsEdit != null || dockCards.isEmpty()) return;
         List<String> row = dockPackages();
         int focus = pkg != null ? row.indexOf(pkg) : -1;
         if (focus < 0) {
@@ -1408,6 +1455,7 @@ public class MainActivity extends Activity {
         }
         edit = new FavEdit(row, MIN_DOCK, Math.max(0, focus));
         glideTo(0);
+        editHint.setText(FavEdit.HINT);
         editHint.setVisibility(View.VISIBLE);
         paintEdit();
     }
@@ -1541,7 +1589,9 @@ public class MainActivity extends Activity {
     }
 
     /** Picked up: bigger, a gold outline and a little off the row. Dropped: as any tile. */
-    private void liftCard(View card, boolean lifted) {
+    private void liftCard(View card, boolean lifted) { liftCard(card, lifted, 1.12f); }
+
+    private void liftCard(View card, boolean lifted, float focusScale) {
         GradientDrawable ring = ringByCard.get(card);
         View shine = shineByCard.get(card);
         if (ring != null) ring.setStroke(dp(lifted ? 4 : 2), lifted ? GOLD : 0xE6FFFFFF);
@@ -1551,11 +1601,360 @@ public class MainActivity extends Activity {
             card.animate().translationY(-dp(10)).translationZ(dp(GlowLook.LIFT_DP)).setDuration(160).start();
         } else {
             boolean has = card.isFocused();
-            float s = has ? 1.12f : 1f;
+            float s = has ? focusScale : 1f;
             scaleTo(card, s);
             card.animate().translationY(0).translationZ(has ? dp(GlowLook.LIFT_DP) : 0).setDuration(160).start();
             if (shine != null) shine.setAlpha(has ? 1f : 0f);
         }
+    }
+
+    // ---------------------------------------------------------------- «تعديل التطبيقات»
+
+    /** The settings' «ترتيب كل التطبيقات» asks the home screen for the mode, or for the order by name again, with these extras. */
+    static final String EXTRA_EDIT_APPS = "edit_apps", EXTRA_RESET_APPS = "reset_apps_order";
+
+    private AppsEdit appsEdit;            // null: the mode is off
+    private boolean wantAppsEdit;         // asked for from the settings, waiting for the whole grid to be on screen
+    private boolean gridDone;             // every row of the grid is built (addGridRows ran to the end)
+    private TextView appsUndoChip;
+    private LinearLayout hiddenBox;       // «المخفية»: the grid's last place while the mode is on and something is hidden
+    private FrameLayout hiddenCard;
+    private TextView hiddenCount;
+    private final Map<String, ResolveInfo> hiddenFound = new HashMap<>();   // the apps hidden before the mode began
+    private long lastAppsStep;
+    private View appsLifted;              // the carried tile, drawn lifted
+    private final Runnable appsUndoExpiry = () -> { if (appsEdit != null) { appsEdit.expire(SystemClock.uptimeMillis()); paintAppsEdit(); } };
+
+    /** From the settings: the mode (edit_apps) or «رجوع للترتيب الأصلي» (reset_apps_order). True when the intent asked for one. */
+    private boolean appsRequested(Intent i) {
+        if (i == null) return false;
+        if (i.getBooleanExtra(EXTRA_RESET_APPS, false)) {
+            if (kidsNoEdit()) return true;
+            guarded(ParentalPolicy.MENU_ARRANGE, null, "ترتيب كل التطبيقات", () -> {
+                Dock.resetAppsOrder(this);   // its broadcast builds the grid again, by name
+                Toast.makeText(this, "رجع ترتيب «كل التطبيقات» للأصل (حسب الاسم)", Toast.LENGTH_SHORT).show();
+            });
+            return true;
+        }
+        if (!i.getBooleanExtra(EXTRA_EDIT_APPS, false)) return false;
+        wantAppsEdit = true;
+        beginPendingAppsEdit();
+        return true;
+    }
+
+    /** «تعديل التطبيقات» from the long-press menu (on the app that was pressed) or from the settings (pkg null). The family lock asks first. */
+    private void beginAppsEdit(String pkg) {
+        if (kidsNoEdit()) return;
+        guarded(ParentalPolicy.MENU_ARRANGE, null, "تعديل التطبيقات", () -> startAppsEdit(pkg));
+    }
+
+    /** From the settings: once the whole grid is on screen. */
+    private void beginPendingAppsEdit() {
+        if (!wantAppsEdit || !gridDone) return;
+        wantAppsEdit = false;
+        beginAppsEdit(null);
+    }
+
+    /** The grid as it shows now, by package. */
+    private List<String> gridPackages() {
+        List<String> out = new ArrayList<>();
+        for (View c : gridCards) out.add(((App) c.getTag()).pkg);
+        return out;
+    }
+
+    private void startAppsEdit(String pkg) {
+        if (appsEdit != null || edit != null) return;
+        if (!gridDone) { wantAppsEdit = true; return; }   // the grid's last rows are still being built: once they are
+        List<String> order = gridPackages();
+        hiddenFound.clear();
+        for (ResolveInfo ri : Dock.hiddenApps(this)) hiddenFound.put(ri.activityInfo.packageName, ri);
+        if (order.isEmpty() && hiddenFound.isEmpty()) {
+            Toast.makeText(this, "كل تطبيقاتك في المفضلة", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        int focus = pkg != null ? order.indexOf(pkg) : -1;
+        if (focus < 0) {
+            View f = getCurrentFocus();
+            for (int i = 0; i < gridCards.size(); i++) if (gridCards.get(i) == f) focus = i;
+        }
+        appsEdit = new AppsEdit(order, new ArrayList<>(hiddenFound.keySet()), cols, dockCards.size(), MAX_DOCK, Math.max(0, focus));
+        editHint.setText(AppsEdit.HINT);
+        editHint.setVisibility(View.VISIBLE);
+        paintAppsEdit();
+    }
+
+    /** Back: the order, what was hidden or shown and the favourites are kept (Dock.saveApps, one broadcast that builds the screen again). */
+    private void leaveAppsEdit() {
+        AppsEdit e = appsEdit;
+        if (e.carrying()) e.back(SystemClock.uptimeMillis());   // an app still in the hand goes back where it was
+        List<String> order = e.order();
+        appsEdit = null;
+        syncGrid(order, false);
+        String at = order.isEmpty() ? null : order.get(Math.min(e.at(), order.size() - 1));
+        endAppsEditUi(at);
+        if (!e.changed()) return;
+        List<String> row = null;
+        if (!e.toFavourites().isEmpty()) {   // at the end of the favourites, as many as they have room for
+            row = dockPackages();
+            for (String p : e.toFavourites()) if (!row.contains(p) && row.size() < MAX_DOCK) row.add(p);
+        }
+        focusPkgAfter = at;
+        Dock.saveApps(this, e.moved() ? order : null, e.hiddenNow(), e.shownNow(), row);
+    }
+
+    /** The grid changed under the mode (an app came or went): nothing is saved, the new grid is built. */
+    private void abandonAppsEdit() {
+        appsEdit = null;
+        endAppsEditUi(null);
+    }
+
+    private void endAppsEditUi(String focusPkg) {
+        handler.removeCallbacks(appsUndoExpiry);
+        editHint.setVisibility(View.GONE);
+        appsUndoChip.setVisibility(View.GONE);
+        if (hiddenBox != null && hiddenBox.getParent() instanceof ViewGroup) ((ViewGroup) hiddenBox.getParent()).removeView(hiddenBox);
+        for (View c : gridCards) {
+            TextView x = xByCard.get(c);
+            if (x != null) { x.setVisibility(View.GONE); x.setFocusable(false); }
+        }
+        if (appsLifted != null) liftCard(appsLifted, false, 1.1f);
+        appsLifted = null;
+        wireFocus();   // the grid's own ways again
+        View f = focusPkg == null ? null : cardByPkg.get(focusPkg);
+        if (f != null && gridCards.contains(f)) f.requestFocus();
+        else if (!dockCards.isEmpty()) dockCards.get(0).requestFocus();
+    }
+
+    /** One key while the mode is on. True: it is ours (every key but the volume and power ones), as in «تعديل المفضلة». */
+    private boolean appsEditKey(KeyEvent e) {
+        int k = e.getKeyCode();
+        if (AdhanKeys.reserved(k)) return false;
+        if (e.getAction() != KeyEvent.ACTION_DOWN) return true;   // a release does nothing; it must not click the tile under the focus
+        long now = SystemClock.uptimeMillis();
+        int rep = e.getRepeatCount();
+        int d = FavEdit.step(k, grid.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL);
+        boolean arrow = d != 0 || k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN;
+        if (arrow) {
+            if (!FavEdit.stepAllowed(rep, lastAppsStep, e.getEventTime(), SIDE_REPEAT_MS)) return true;
+            lastAppsStep = e.getEventTime();
+            applyAppsEdit(d != 0 ? appsEdit.move(d, now) : k == KeyEvent.KEYCODE_DPAD_UP ? appsEdit.up(now) : appsEdit.down(now));
+        } else if (AdhanKeys.isOk(k)) {
+            if (FavEdit.oncePerPress(rep)) applyAppsEdit(appsEdit.ok(now));
+        } else if (k == KeyEvent.KEYCODE_BACK) {
+            if (FavEdit.oncePerPress(rep)) applyAppsEdit(appsEdit.back(now));
+        }
+        return true;
+    }
+
+    private void applyAppsEdit(int result) {
+        AppsEdit e = appsEdit;
+        if (e == null) return;
+        switch (result) {
+            case AppsEdit.EXIT:
+                leaveAppsEdit();
+                return;
+            case AppsEdit.HIDDEN:
+                handler.removeCallbacks(appsUndoExpiry);
+                handler.postDelayed(appsUndoExpiry, FavEdit.UNDO_MS + 50);
+                break;
+            case AppsEdit.FAVOURITES_FULL:
+                Toast.makeText(this, "المفضلة ممتلئة (" + arabicDigits(String.valueOf(MAX_DOCK)) + " تطبيقات): احذف واحدًا منها بـ«تعديل المفضلة» أولاً", Toast.LENGTH_LONG).show();
+                break;
+            case AppsEdit.TO_FAVOURITES: {
+                List<String> to = e.toFavourites();
+                View card = cardByPkg.get(to.get(to.size() - 1));
+                if (card != null) toFavouritesRow((App) card.getTag());
+                break;
+            }
+            case AppsEdit.LIST:
+                showHiddenList();
+                return;
+            default:
+                break;
+        }
+        paintAppsEdit();
+    }
+
+    /** UP from the first row: the app's tile leaves the grid and a favourite's tile for it comes at the end of the row (kept on Back). */
+    private void toFavouritesRow(App app) {
+        View card = cardByPkg.get(app.pkg);
+        View oldBox = card == null ? null : (View) card.getParent();
+        if (oldBox != null && oldBox.getParent() instanceof ViewGroup) ((ViewGroup) oldBox.getParent()).removeView(oldBox);
+        gridCards.remove(card);
+        dockRow.addView(tile(app, true));   // tile() puts it in dockCards and cardByPkg
+        for (int i = 0; i < dockRow.getChildCount(); i++) dockRow.getChildAt(i).setLayoutParams(rowCell(i, dockRow.getChildCount(), -2));
+        Toast.makeText(this, "أُضيف إلى المفضلة: " + app.label, Toast.LENGTH_SHORT).show();
+    }
+
+    /** «المخفية»: the hidden apps by name; one chosen comes back where the saved grid will show it. */
+    private void showHiddenList() {
+        AppsEdit e = appsEdit;
+        Map<String, String> given = AppNames.given(this);
+        List<String> labels = new ArrayList<>();
+        List<Runnable> actions = new ArrayList<>();
+        for (String p : e.hidden()) {
+            labels.add(appLabel(p, given));
+            actions.add(() -> {
+                if (appsEdit == null) return;
+                if (!ensureTile(p)) return;
+                applyAppsEdit(appsEdit.show(p, placeFor(p), SystemClock.uptimeMillis()));
+            });
+        }
+        showMenu(hiddenCard, labels, actions);
+    }
+
+    private String appLabel(String pkg, Map<String, String> given) {
+        View c = cardByPkg.get(pkg);
+        if (c != null && c.getTag() instanceof App) return ((App) c.getTag()).label;
+        ResolveInfo ri = hiddenFound.get(pkg);
+        return ri != null ? AppNames.label(this, ri, given) : pkg;
+    }
+
+    /** An app hidden before the mode has no tile yet: it gets one, the same as the grid's. */
+    private boolean ensureTile(String pkg) {
+        if (cardByPkg.containsKey(pkg)) return true;
+        ResolveInfo ri = hiddenFound.get(pkg);
+        if (ri == null) return false;
+        tile(appOf(ri, getPackageManager(), AppNames.given(this)), false);   // not in a row yet: syncGrid places it
+        return true;
+    }
+
+    /** Where the grid will show an app brought back once saved: by name while no order is kept, else at the end (AppsEdit.arrange). */
+    private int placeFor(String pkg) {
+        if (Dock.appsOrder(this) != null || appsEdit.moved()) return -1;
+        String label = ((App) cardByPkg.get(pkg).getTag()).label;
+        int at = 0;
+        for (View c : gridCards) if (((App) c.getTag()).label.compareToIgnoreCase(label) < 0) at++;
+        return at;
+    }
+
+    /** Draws the model: the grid in its order, the × on each tile, «المخفية», the lifted one, the chip, and the focus where the model has it. */
+    private void paintAppsEdit() {
+        AppsEdit e = appsEdit;
+        if (e == null) return;
+        long now = SystemClock.uptimeMillis();
+        e.expire(now);
+        syncGrid(e.order(), e.hiddenListShown());
+        if (gridCards.isEmpty() && !e.hiddenListShown()) { leaveAppsEdit(); return; }   // the last app went to the favourites
+        boolean chip = e.undoAvailable(now);
+        appsUndoChip.setVisibility(chip ? View.VISIBLE : View.GONE);
+        for (View c : gridCards) {
+            TextView x = xByCard.get(c);
+            if (x != null) { x.setVisibility(View.VISIBLE); x.setFocusable(true); }
+        }
+        if (hiddenCount != null) hiddenCount.setText(arabicDigits(String.valueOf(e.hidden().size())));
+        wireAppsEditFocus();
+        View tile = e.onHiddenList() ? hiddenCard : gridCards.get(Math.min(e.at(), gridCards.size() - 1));
+        View target = e.onUndo() && chip ? appsUndoChip : e.onX() && !e.onHiddenList() ? xByCard.get(tile) : tile;
+        if (target != null && !target.isFocused() && !target.requestFocus() && target == appsUndoChip)
+            appsUndoChip.post(() -> { if (appsEdit != null && appsEdit.onUndo() && appsUndoChip.getVisibility() == View.VISIBLE) appsUndoChip.requestFocus(); });   // once laid out
+        // only the carried tile and the one dropped are drawn again; the carried one each time, after the focus (a tile moved to
+        // another row loses the focus and takes it again, and its focus size must not undo the lift)
+        View lifted = e.carrying() && !e.onHiddenList() ? tile : null;
+        if (appsLifted != null && appsLifted != lifted) liftCard(appsLifted, false, 1.1f);
+        if (lifted != null) liftCard(lifted, true, 1.1f);
+        appsLifted = lifted;
+        View box = (View) tile.getParent();
+        grid.post(() -> { if (appsEdit != null && box.getParent() != null) scrollToRow(box); });   // the carried tile may have changed rows
+    }
+
+    /** While the mode is on, Android's own focus search stays put: appsEditKey moves the focus itself; this is the net under it. */
+    private void wireAppsEditFocus() {
+        AppsEdit e = appsEdit;
+        if (e == null) return;
+        for (View c : gridCards) {
+            TextView x = xByCard.get(c);
+            stay(c);
+            if (x != null) { stay(x); x.setNextFocusUpId(c.getId()); c.setNextFocusDownId(x.getId()); }
+        }
+        if (hiddenCard != null) stay(hiddenCard);
+        stay(appsUndoChip);
+    }
+
+    private static void stay(View v) {
+        v.setNextFocusUpId(v.getId());
+        v.setNextFocusDownId(v.getId());
+        v.setNextFocusLeftId(v.getId());
+        v.setNextFocusRightId(v.getId());
+    }
+
+    /**
+     * The grid in this order of packages, «المخفية» last when asked (tiles already built; a hidden one stays out of the grid but keeps its
+     * tile for «تراجع»). Only the rows that differ are built again, so a step of the carried app redraws one or two rows.
+     */
+    private void syncGrid(List<String> order, boolean withHidden) {
+        List<View> boxes = new ArrayList<>();
+        gridCards.clear();
+        for (String p : order) {
+            View c = cardByPkg.get(p);
+            if (c == null) continue;
+            boxes.add((View) c.getParent());
+            gridCards.add(c);
+        }
+        if (withHidden) boxes.add(hiddenBox());
+        int rows = (boxes.size() + cols - 1) / cols;
+        for (int r = 0; r < rows; r++) {
+            LinearLayout row;
+            if (r < grid.getChildCount()) row = (LinearLayout) grid.getChildAt(r);
+            else {
+                row = new LinearLayout(this);
+                row.setClipChildren(false);
+                row.setClipToPadding(false);
+                grid.addView(row, llp(-1, -2, 0, 0, 0, dp(26)));
+            }
+            boolean same = row.getChildCount() == cols;
+            for (int i = 0; same && i < cols; i++) {
+                int j = r * cols + i;
+                View has = row.getChildAt(i);
+                same = j < boxes.size() ? has == boxes.get(j) : !(has instanceof LinearLayout);   // the end of the last row: padding
+            }
+            if (same) continue;
+            row.removeAllViews();
+            for (int i = 0; i < cols; i++) {
+                int j = r * cols + i;
+                if (j >= boxes.size()) { row.addView(new View(this), rowCell(i, cols, 1)); continue; }
+                View b = boxes.get(j);
+                if (b.getParent() instanceof ViewGroup) ((ViewGroup) b.getParent()).removeView(b);
+                row.addView(b, rowCell(i, cols, -2));
+            }
+        }
+        while (grid.getChildCount() > Math.max(rows, 0)) grid.removeViewAt(grid.getChildCount() - 1);
+        appsLabel.setVisibility(boxes.isEmpty() ? View.GONE : View.VISIBLE);
+        wireFocus();
+    }
+
+    /** «المخفية»: a tile like the apps', with the count of the hidden apps on it. */
+    private LinearLayout hiddenBox() {
+        if (hiddenBox != null) return hiddenBox;
+        hiddenBox = new LinearLayout(this);
+        hiddenBox.setOrientation(LinearLayout.VERTICAL);
+        hiddenBox.setClipChildren(false);
+        hiddenBox.setClipToPadding(false);
+        hiddenCard = new AspectFrame(this);
+        hiddenCard.setId(View.generateViewId());
+        hiddenCard.setFocusable(true);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(10));
+        bg.setColor(0xCC1C1C1E);
+        bg.setStroke(dp(2), 0x66FFFFFF);
+        hiddenCard.setBackground(bg);
+        LinearLayout in = new LinearLayout(this);
+        in.setOrientation(LinearLayout.VERTICAL);
+        in.setGravity(Gravity.CENTER);
+        hiddenCount = text(26, "sans-serif-medium", Color.WHITE);
+        hiddenCount.setGravity(Gravity.CENTER);
+        TextView name = text(13, "sans-serif-medium", 0xCCFFFFFF);
+        name.setText(AppsEdit.HIDDEN_TITLE);
+        name.setGravity(Gravity.CENTER);
+        in.addView(hiddenCount);
+        in.addView(name);
+        hiddenCard.addView(in, new FrameLayout.LayoutParams(-1, -1));
+        hiddenCard.setOnFocusChangeListener((v, has) -> {
+            bg.setStroke(dp(2), has ? GOLD : 0x66FFFFFF);
+            scaleTo(v, has ? 1.1f : 1f);
+        });
+        hiddenBox.addView(hiddenCard, new LinearLayout.LayoutParams(-1, -2));
+        return hiddenBox;
     }
 
     /** Only installed apps are kept, so the dock never holds a removed app's slot. */
@@ -1579,9 +1978,14 @@ public class MainActivity extends Activity {
         int i = dock.indexOf(pkg);
         List<String> labels = new ArrayList<>();
         List<Runnable> actions = new ArrayList<>();
-        if (inDock) {
+        boolean kids = Parental.state(this).kids;   // kids mode edits nothing (kidsNoEdit)
+        if (inDock && !kids) {
             labels.add("تعديل المفضلة");
             actions.add(() -> beginEdit(pkg));
+        }
+        if (!inDock && !kids) {
+            labels.add("تعديل التطبيقات");
+            actions.add(() -> beginAppsEdit(pkg));
         }
         labels.add("تحديث تلفزيوني…");
         actions.add(() -> launchGuarded(ParentalPolicy.MENU_UPDATE, new Intent(this, UpdateActivity.class), "تحديث تلفزيوني"));
@@ -2339,11 +2743,13 @@ public class MainActivity extends Activity {
         if (key.kind != RemoteKeys.PASS) {
             if (key.kind != RemoteKeys.EAT) {
                 if (edit != null) leaveEdit();   // a shortcut key in «تعديل المفضلة»: what was arranged is saved, as with Home, then the key acts
+                if (appsEdit != null) leaveAppsEdit();   // and in «تعديل التطبيقات»
                 openRemoteKey(key);
             }
             return true;
         }
         if (edit != null && editKey(e)) return true;   // «تعديل المفضلة»: every key but the volume and power ones is ours
+        if (appsEdit != null && appsEditKey(e)) return true;   // «تعديل التطبيقات»: the same
         // Menu key on the remote opens the Inputs dropdown.
         if (e.getKeyCode() == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP && !pills.isEmpty()) {
             showInputs(pills.get(0), ParentalPolicy.MENU_KEY);

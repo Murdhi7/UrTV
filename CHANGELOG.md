@@ -16,6 +16,7 @@ Newest first. `next` is where changes land first; a release is what was tested t
 - The «المصادر» list shows the name an HDMI-CEC device gives itself (console, box) instead of «HDMI 2», and « · وضع الاستعداد» when the input is in standby; your own name still wins; `dock.sh input-names` shows both.
 - «جرس التحديثات»: a bell in the home screen's top row that shows only on evidence of waiting Play Store updates (none can be read with normal permissions yet, so it stays out of sight), a setting and `saver.sh updatebell`.
 - «تعديل المفضلة»: press a favourite to pick it up and move it along the row, × to remove it with «تراجع»; «ترتيب التطبيقات المفضلة» is now in the settings only.
+- «تعديل التطبيقات»: «كل التطبيقات» in your own order (pick up and move across the grid), × to hide an app with «تراجع», «المخفية» to bring one back, ▲ from the first row into the favourites; «ترتيب كل التطبيقات» in the settings, with «رجوع للترتيب الأصلي». Not in kids mode, and neither is «تعديل المفضلة» now.
 - Prayer times as boxes, new pills (icons only, the name shows on focus), glass panels, softer glow on the focused app.
 - «يُتلى الآن» card while تلاوة plays; the screen is now «تلاوة وأذان».
 - A year strip under the clock, the date beside the clubs, club crests when fetch is refused, fixes to the league card.

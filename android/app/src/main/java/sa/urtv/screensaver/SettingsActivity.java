@@ -307,6 +307,9 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { openInputNames(); } });
         row("تعديل المفضلة", "تحريك التطبيقات على الشاشة الرئيسية وحذفها", R.drawable.ic_star,
             new Runnable() { public void run() { openDockEdit(); } });
+        // «كل التطبيقات»: the home screen's «تعديل التطبيقات», or the order by name again (what is hidden stays hidden)
+        row("ترتيب كل التطبيقات", "تحريكها وإخفاؤها على الشاشة الرئيسية، أو الرجوع للترتيب الأصلي", R.drawable.ic_star,
+            new Runnable() { public void run() { pickAppsOrder(); } });
         row("تحديث تلفزيوني", "يعرض الإصدار ويتحقق من التحديث", R.drawable.ic_sync,
             new Runnable() { public void run() { openUpdate(); } });
         row("تحكم من الجوال", "متوقف حتى تشغّله أنت", R.drawable.ic_settings,
@@ -871,6 +874,22 @@ public class SettingsActivity extends Activity {
         try {
             startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setClassName("sa.urtv.home", "sa.urtv.home.MainActivity")
                 .putExtra("edit_favourites", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (RuntimeException e) {
+            toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
+        }
+    }
+
+    /** «ترتيب كل التطبيقات»: the mode on the home screen, or «رجوع للترتيب الأصلي»; both are the launcher's (it owns the grid). */
+    private void pickAppsOrder() {
+        new Dlg(this).setTitle("ترتيب كل التطبيقات")
+            .setItems(new String[] {"تعديل التطبيقات", "رجوع للترتيب الأصلي"}, (d, i) -> openAppsOrder(i == 1))
+            .show();
+    }
+
+    private void openAppsOrder(boolean reset) {
+        try {
+            startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setClassName("sa.urtv.home", "sa.urtv.home.MainActivity")
+                .putExtra(reset ? "reset_apps_order" : "edit_apps", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         } catch (RuntimeException e) {
             toast("ثبّت الواجهة الرئيسية «تلفزيونك» أولاً");
         }
