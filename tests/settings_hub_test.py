@@ -129,6 +129,29 @@ check("the tiles and the rows are found again by their tag after a rebuild (the 
       'card.setTag("hub:" + cat);' in st and "if (all.contains(v)) return v;" in st)
 for fn_ in ("openAdhanSettings()", "openDockSettings()", "openInputNames()", "openDockEdit()", "openUpdate()", "openPhoneControl()", "openFamilyDns()", "pickCity()", "updateNow()"):
     check(f"the row's own action is kept: {fn_}", fn_ in render)
+
+# ---- TV6 row 21: «تحكم من الجوال» must be findable (a tester on 3.145 did not find it and phone control stayed on)
+cat_keys = {x[0].split(" ")[1] for x in cats}
+check("every row of SettingsActivity is in a category that has a tile (nothing hides a row, whatever is installed)",
+      all(c in cat_keys for c in got.values()), {k: c for k, c in got.items() if c not in cat_keys})
+# every tile is reachable from the first one with the D-pad alone (SettingsHub.next), so the «الجوال والتحديث» tile is
+seen, todo = {0}, [0]
+while todo:
+    i = todo.pop()
+    for d in range(4):
+        j = nxt.get((i, n, d), i)
+        if j not in seen: seen.add(j); todo.append(j)
+check("every category tile, «الجوال والتحديث» included, is reachable from the first tile with the D-pad", seen == set(range(n)), sorted(set(range(n)) - seen))
+phone_idx = [i for i, c in enumerate(cats) if c[0].split(" ")[1] == "phone"]
+check("the «الجوال والتحديث» tile exists once and holds «تحكم من الجوال»", len(phone_idx) == 1 and got.get("تحكم من الجوال") == "phone")
+first_phone = [c[1] for c in calls if c[0] == "row" and got.get(c[1]) == "phone"]
+check("«تحكم من الجوال» is the FIRST row of its category screen", first_phone and first_phone[0] == "تحكم من الجوال", first_phone)
+check("its line does not claim it is off (this app cannot see the home's switch): the screen it opens shows the state",
+      'row("تحكم من الجوال", "متوقف' not in st and 'row("تحكم من الجوال", "تشغيله وإيقافه' in st)
+check("its tile's line names it, so the tile is the place people look", '"التحكم من الجوال · "' in summ)
+check("opening it never fails silently: no home installed says so, and the target is exported in the home's manifest",
+      "ثبّت الواجهة الرئيسية" in st[st.index("private void openPhoneControl()"):].split("\n    }\n")[0]
+      and re.search(r'<activity\s+android:name="\.PhoneActivity"\s+android:exported="true"', (ROOT / "android/launcher/src/main/AndroidManifest.xml").read_text(encoding="utf-8")) is not None)
 # ---- the TV test of 3.145: after going down and up again the header stayed hidden; once, two screens were drawn over each other
 top = st[st.index("private void topWhenFirst(View v)"):].split("\n    }\n")[0]
 check("the first row (on the categories, the first line of tiles) brings the page back to its very top, after the scroll view's own move",

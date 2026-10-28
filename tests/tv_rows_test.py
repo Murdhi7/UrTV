@@ -134,3 +134,30 @@ check("the rows' signature tells the same rows from changed ones", r["sig_same"]
 check("how far in: a fraction up to 1, unknown without a position or a length",
       r["progress_half"] == "0.5" and r["progress_over"] == "1.0" and r["progress_unknown"] == "-1.0 -1.0", (r["progress_half"], r["progress_over"], r["progress_unknown"]))
 sys.exit(1 if failed else 0)
+with tempfile.TemporaryDirectory() as tmp:
+    subprocess.run(["javac", "-encoding", "UTF-8", "-d", tmp, str(HOME / "TvRowsPick.java"), str(HOME / "DigitsText.java"), str(ROOT / "tests/TvRowsRun.java")], check=True)
+    out = subprocess.run(["java", "-Dfile.encoding=UTF-8", "-cp", tmp, "sa.urtv.home.TvRowsRun"], check=True, capture_output=True).stdout.decode("utf-8")
+r = dict(l.split(" = ", 1) for l in out.split("\n") if " = " in l)
+check("«أكمل المشاهدة» is called so", r["watchnext_title"] == "أكمل المشاهدة", r["watchnext_title"])
+check("«أكمل المشاهدة»: what one is in the middle of, and the next episode; not a new season or a watchlist; not hidden, not of an app that is gone",
+      (r["wn_continue"], r["wn_next"], r["wn_new"], r["wn_watchlist"], r["wn_hidden"], r["wn_no_app"]) == ("true", "true", "false", "false", "false", "false"))
+check("the line under a card: «الموسم ٢ · الحلقة ١ · Netflix», digits as the setting says", r["meta_episode"] == "الموسم ٢ · الحلقة ١ · Netflix" and r["meta_latin"] == "الموسم 2 · الحلقة 10 · Netflix",
+      (r["meta_episode"], r["meta_latin"]))
+check("…else the episode's name, else the description; «null» from an app is nothing",
+      r["meta_eptitle"] == "The Long Night" and r["meta_same_title"] == "desc here" and r["meta_nulls"] == "", (r["meta_eptitle"], r["meta_same_title"], r["meta_nulls"]))
+check("a link opens only into its own app: by package or component, or naming none (pinned to the app by the caller); never another app",
+      (r["link_package"], r["link_component"], r["link_other_component"], r["link_other_package"], r["link_mixed"], r["link_none"], r["link_no_row"])
+      == ("true", "true", "false", "false", "false", "true", "false"))
+check("a huge picture (8000×6000, 190 MB at full size) is decoded at 1/16 (500×375, under 1 MB) and fitted to 400×300",
+      r["sample_huge"] == "16 500x375 732KB" and r["fit_huge"] == "400x300", (r["sample_huge"], r["fit_huge"]))
+check("a very tall picture is bounded by its height too (1000×30000: 1/64, then 9×400)", r["sample_tall"] == "64 15x468" and r["fit_tall"] == "13x400", (r["sample_tall"], r["fit_tall"]))
+check("a small picture is taken as it is; a picture with no size is none", r["sample_small"] == "1 320" and r["sample_none"] == "0 0", (r["sample_small"], r["sample_none"]))
+check("a content:// picture only from the publishing app's own provider", (r["provider_own"], r["provider_other"], r["provider_none"]) == ("true", "false", "false"))
+check("the rows' signature tells the same rows from changed ones", r["sig_same"] == "true" and r["sig_diff"] == "false", (r["sig_same"], r["sig_diff"]))
+check("how far in: a fraction up to 1, unknown without a position or a length",
+      r["progress_half"] == "0.5" and r["progress_over"] == "1.0" and r["progress_unknown"] == "-1.0 -1.0", (r["progress_half"], r["progress_over"], r["progress_unknown"]))
+check("the apps' channels are asked only while a row of one is shown (every return to the home screen loads the rows): not with only «أكمل المشاهدة» or nothing shown",
+      (r["needs_unchosen"], r["needs_only_wn"], r["needs_nothing"], r["needs_other"]) == ("true", "false", "false", "true"), (r["needs_unchosen"], r["needs_only_wn"], r["needs_nothing"], r["needs_other"]))
+check("TvRows.load uses it (the channel queries are the cost), and the settings' list (arrange) still asks every channel",
+      "TvRowsPick.needsChannels(p.getString(\"shown\", null)) ? found(c)" in (HOME / "TvRows.java").read_text() and "TvRowsPick.arrange(found(c)" in (HOME / "TvRows.java").read_text())
+sys.exit(1 if failed else 0)

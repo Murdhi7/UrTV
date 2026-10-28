@@ -34,7 +34,24 @@ final class ConfigSnapshot {
 
     String appearance() { return appearance; }
 
-    static ConfigSnapshot read(Context c) {
+    /**
+     * One home-screen return reads this four times (the clock, the row of pills, the cards, the digits), each a cross-process query that starts
+     * the screensaver's process again when the TV's memory manager has killed it. Reads within this many ms share the one answer; a setting
+     * saved a moment ago reaches the screen at the next tick or return, as before.
+     */
+    static final long SHARE_MS = 3000;
+    private static ConfigSnapshot last;
+    private static long lastAt;
+
+    static synchronized ConfigSnapshot read(Context c) {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (last != null && now - lastAt >= 0 && now - lastAt < SHARE_MS) return last;
+        ConfigSnapshot s = query(c);
+        if (s.fragment != null) { last = s; lastAt = now; }   // an answer only: a missing screensaver is asked again
+        return s;
+    }
+
+    private static ConfigSnapshot query(Context c) {
         String fragment = null;
         boolean greeting = true, bar = true, listenPill = true, updateBell = true, watchNext = true;
         String appearance = null;

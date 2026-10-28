@@ -4,6 +4,13 @@ Newest first. `next` is where changes land first; a release is what was tested t
 
 ## On `next` (not released yet)
 
+**Phone**
+- Typing from the phone into other apps: the typing service now declares `typeWindowStateChanged` (read by nobody) so Android tracks the window in front and the field can be found; it also takes the input-focused field first and fields that accept set-text. A fixed-words log (tag `UrTVType`) shows each step.
+- «تحكم من الجوال» is the first row of «الجوال والتحديث», and that tile names it.
+**Fixes from the TV test**
+- «حماية العائلة (DNS)»: the first check waits for Private DNS and retries a fresh name (up to 40 s), so a working TV is no longer turned down.
+- The adhkar card shows a dhikr at night too (the evening ones when there is no night verse), never only a start time.
+
 **Prayer times and adhan**
 - Gulf cities, each country's own prayer method, and Ja'fari. Oman uses its Ministry of Awqaf's method (Fajr and Isha 18°, Dhuhr, Asr and Maghrib +5 minutes, from egyjs/afnon-android-tv-launcher, MIT); the Gulf method stays as «طريقة الحساب» ← الخليج.
 - «تعديل وقت الصلاة»: move each prayer by its own minutes.
@@ -22,7 +29,8 @@ Newest first. `next` is where changes land first; a release is what was tested t
 - «يُتلى الآن» card while تلاوة plays; the screen is now «تلاوة وأذان».
 - A year strip under the clock, the date beside the clubs, club crests when fetch is refused, fixes to the league card.
 - The screensaver starts from its pill; the page survives a WebView renderer that dies.
-- «مركز التحكم»: one round pill opens a panel of tiles (sleep timer, turn off now, free memory, network, speed test, sound output, screensaver, settings); the sleep, screensaver, Wi-Fi and settings pills moved into it, locked by the same names, plus a new lock `@center`.
+- «مركز التحكم»: one round pill opens a panel of tiles (sleep timer, turn off now, network, speed test, sound output, screensaver, our settings, the TV's settings); the sleep, screensaver, Wi-Fi and settings pills moved into it, locked by the same names, plus a new lock `@center`.
+- «مركز التحكم»: all tiles fit on 1080p and 720p, it opens on the tile used last, the sound output tile names the real output, «أطفئ الآن» says first when the sleep service is off, a new «إعدادات تلفزيونك» tile (locked by `@urtv`); «حرّر الذاكرة» is gone (no use on Android 14). The remote's Settings key now opens our settings.
 - The weather and the dust are told apart; forecast and weather show only as old as they are; the last price is kept and marked.
 - The medium and small clocks lay the screen out again (the large one is unchanged); «بطاقة ثانية»: a second card beside the small clock.
 

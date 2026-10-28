@@ -28,7 +28,7 @@ Verdicts: **ok** = already held the rule · **fixed** = changed by this audit ·
 | City, team, show search and the Arabic name (`SettingsActivity.fetch`, `Arabic.lookup`) | geocoding-api.open-meteo.com, www.thesportsdb.com, api.tvmaze.com, www.wikidata.org | the owner typed in the settings | while the settings screen is open | the text typed | ok |
 | Settings previews (`ScreenView.createPreview`) | the card's data hosts | the settings' pickers | while the settings screen is open | as the card | ok |
 | Phone remote update (`PhoneUpdater`, `UpdateFlow`) | github.com release files (`version.txt`, the APKs) | the owner pressed «افحص التحديث» / «ثبّت» on the phone | by request, with the screen on (a confirm on the TV) | nothing | exempt (the owner started it) |
-| Family DNS check (`FamilyDnsAndroid`) | connectivitycheck.gstatic.com | the owner turned it on | by request, up to about 20 s | nothing (the 204 check of Android) | ok |
+| Family DNS check (`FamilyDnsAndroid`) | connectivitycheck.gstatic.com | the owner turned it on | by request, up to about 40 s | nothing (the 204 check of Android) | ok |
 | Sleep timer (`SleepTimer`, AlarmManager) | none | the owner set it | an alarm; no request | none | ok |
 | Adhan alarm (`AdhanScheduler`, AlarmManager) | none | computed times | rings with the display on, network or not; scheduling never waits for a request | none | ok |
 

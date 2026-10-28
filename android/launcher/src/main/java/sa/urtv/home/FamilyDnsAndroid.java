@@ -29,7 +29,7 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
     private final Context c;
     FamilyDnsAndroid(Context c) { this.c = c.getApplicationContext(); }
 
-    /** Once per process (and at boot, SleepBootReceiver): a 20 s check cut short by a crash or a reboot puts the originals back. */
+    /** Once per process (and at boot, SleepBootReceiver): a check cut short by a crash or a reboot puts the originals back. */
     static synchronized void recover(Context c) {
         recovered = true;
         if (busy()) return;
@@ -110,9 +110,9 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
         try {
             ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
             while (System.currentTimeMillis() < end) {
-                Network n = cm.getActiveNetwork();
-                LinkProperties lp = n == null ? null : cm.getLinkProperties(n);
-                if (lp != null && lp.isPrivateDnsActive() && host.equals(lp.getPrivateDnsServerName()) && FamilyDns.validatedServersOk(validatedServers(lp))) return true;
+                Network n = cm.getActiveNetwork();   // asked again every poll: the network can change while the setting is taken
+                LinkProperties lp = n == null ? null : cm.getLinkProperties(n);   // a fresh copy each time, never a kept one
+                if (lp != null && lp.isPrivateDnsActive() && sameHost(host, lp.getPrivateDnsServerName()) && FamilyDns.validatedServersOk(validatedServers(lp))) return true;
                 Thread.sleep(500);
             }
         } catch (InterruptedException e) {
@@ -121,6 +121,12 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
             // no connectivity service: not validated
         }
         return false;
+    }
+
+    private static boolean sameHost(String want, String got) {
+        if (got == null) return false;
+        String g = got.endsWith(".") ? got.substring(0, got.length() - 1) : got;
+        return want.equalsIgnoreCase(g);
     }
 
     /** How many Private DNS servers the TV says it validated, or null when this Android cannot say. */
@@ -158,8 +164,12 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
                 if (gai) {
                     try { code = c.getClass().getField("error").getInt(c); } catch (Exception ignored) { gai = false; }
                 }
-                kind.set(FamilyDns.unknownHostKind(gai, code,
-                        android.system.OsConstants.EAI_NODATA, android.system.OsConstants.EAI_NONAME));
+                FamilyDns.Lookup.Kind k = FamilyDns.unknownHostKind(gai, code,
+                        android.system.OsConstants.EAI_NODATA, android.system.OsConstants.EAI_NONAME);
+                // Android 14 may hide the `error` field from apps: then the resolver's own text says «no such name»
+                if (k == FamilyDns.Lookup.Kind.FAILED && !gai && c != null && "android.system.GaiException".equals(c.getClass().getName())
+                        && (FamilyDns.messageIsNoSuchName(c.getMessage()) || FamilyDns.messageIsNoSuchName(e.getMessage()))) k = FamilyDns.Lookup.Kind.NOT_FOUND;
+                kind.set(k);
             } catch (Exception e) {
                 kind.set(FamilyDns.Lookup.Kind.FAILED);
             }
@@ -174,6 +184,10 @@ final class FamilyDnsAndroid implements FamilyDns.Ports {
             return new FamilyDns.Lookup(FamilyDns.Lookup.Kind.FAILED, System.currentTimeMillis() - start);
         }
         return new FamilyDns.Lookup(kind.get(), System.currentTimeMillis() - start);
+    }
+
+    @Override public void sleep(int ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }
 
     @Override public boolean internetWorks(int totalMs) {

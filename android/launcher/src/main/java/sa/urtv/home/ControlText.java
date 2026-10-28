@@ -12,23 +12,6 @@ final class ControlText {
     /** The panel's name: on the pill, over the panel, and in the family lock's list. */
     static final String NAME = "مركز التحكم";
 
-    /** whole megabytes, rounded to the nearest; never below 0 (the system may take memory back while we look) */
-    static long megabytes(long bytes) { return bytes <= 0 ? 0 : (bytes + 524_288L) / 1_048_576L; }
-
-    /**
-     * What «حرّر الذاكرة» says: how much the available memory grew, as the system reports it (MemoryInfo before and after), plainly
-     * when nothing was freed. tried = how many apps were asked to stop.
-     */
-    static String freed(long beforeBytes, long afterBytes, int tried) {
-        long mb = megabytes(afterBytes - beforeBytes);
-        if (tried == 0) return "لا تطبيقات في الخلفية لإغلاقها";
-        if (mb == 0) return "لم يتحرر شيء: الذاكرة مرتاحة";
-        return "تحرر " + mb + " ميجابايت";
-    }
-
-    /** the memory the system has free now, for the tile's second line */
-    static String available(long bytes) { return "المتاح " + megabytes(bytes) + " ميجابايت"; }
-
     /** Mbps for the person: one decimal below 100, whole above; «٫» is the decimal mark (Digits.of turns it into «.» for latin digits) */
     static String mbps(double v) {
         if (Double.isNaN(v) || Double.isInfinite(v) || v < 0) v = 0;
@@ -87,27 +70,60 @@ final class ControlText {
         }
     }
 
-    /** several outputs may be reported: the ones that have a name, once each, joined; none = the TV did not say */
-    static String outputs(int[] types) {
-        StringBuilder b = new StringBuilder();
-        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
-        for (int t : types) {
-            String n = outputName(t);
-            if (n != null && seen.add(n)) b.append(b.length() == 0 ? "" : "، ").append(n);
+    /** an output that is a device the person connected: when one is there the TV's own speakers are not what the sound goes to */
+    private static boolean external(int type) {
+        switch (type) {
+            case WIRED_HEADSET: case WIRED_HEADPHONES: case LINE_ANALOG: case LINE_DIGITAL: case BLUETOOTH_SCO: case BLUETOOTH_A2DP:
+            case HDMI_ARC: case HDMI_EARC: case USB_DEVICE: case USB_ACCESSORY: case USB_HEADSET:
+                return true;
+            default:
+                return false;
         }
-        return b.length() == 0 ? "لا يُعرف" : b.toString();
     }
-
-    // ---- «حرّر الذاكرة»: which apps may be asked to stop
 
     /**
-     * An app «حرّر الذاكرة» may ask the system to stop: not ours (the home, the screensaver, the adhan live there), not a system app, not
-     * a keyboard. The system itself only stops what is in the background; this decides who is asked at all.
+     * One output as the tile says it: its kind, then the product name the device reports («بلوتوث: JBL Flip») when it has a real one.
+     * A blank name, or one that only repeats the kind («HDMI», «USB») or is the TV's own model (the speakers report it), is left out.
      */
-    static boolean killable(String pkg, boolean system, boolean keyboard) {
-        if (pkg == null || pkg.isEmpty() || system || keyboard) return false;
-        if (pkg.equals("android") || pkg.startsWith("sa.urtv.") || pkg.startsWith("com.android.") || pkg.startsWith("android.")) return false;
-        String p = pkg.toLowerCase(Locale.ROOT);
-        return !(p.contains("inputmethod") || p.contains("keyboard") || p.contains("setupwraith") || p.contains("tvlauncher") || p.contains("leanbacklauncher"));
+    static String outputLabel(int type, String product) {
+        String kind = outputName(type);
+        if (kind == null) return null;
+        if (type == BUILTIN_SPEAKER || product == null) return kind;
+        String p = product.trim();
+        String lower = p.toLowerCase(Locale.ROOT);
+        if (p.isEmpty() || lower.equals("hdmi") || lower.equals("usb") || lower.equals("bluetooth") || lower.equals("hdmi arc")
+                || lower.equals("hdmi earc") || lower.equals("unknown") || kind.startsWith(p)) return kind;
+        if (p.length() > 24) p = p.substring(0, 24).trim() + "…";
+        return kind + ": " + p;
     }
+
+    /**
+     * What the tile shows: the outputs the TV reports that have a name, each once, with its product name; the TV's own speakers only
+     * when nothing was connected, and a plain HDMI output only when it is all there is. products[i] is the name of types[i] (null, or
+     * shorter, when the TV gave none). None = the TV did not say.
+     */
+    static String outputs(int[] types, String[] products) {
+        boolean ext = false;
+        for (int t : types) if (external(t)) ext = true;
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        for (int i = 0; i < types.length; i++) {
+            int t = types[i];
+            if (ext && !external(t)) continue;
+            if (!ext && t == HDMI && hasSpeaker(types)) continue;
+            String n = outputLabel(t, products != null && i < products.length ? products[i] : null);
+            if (n != null) seen.add(n);
+        }
+        return seen.isEmpty() ? "لا يُعرف" : String.join("، ", seen);
+    }
+
+    private static boolean hasSpeaker(int[] types) {
+        for (int t : types) if (t == BUILTIN_SPEAKER) return true;
+        return false;
+    }
+
+    // ---- «أطفئ الآن»
+
+    /** What the panel says before it does the fallback, when the sleep service is off (shown for {@link #NOTICE_MS}). */
+    static final String SLEEP_OFF_NOTICE = "خدمة الإطفاء مو شغّالة: نوقف الصوت ونشغّل شاشة التوقف. لإطفاء الشاشة فعّلها: اضغط مطوّلًا على «أطفئ الآن»";
+    static final long NOTICE_MS = 2200;
 }

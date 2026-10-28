@@ -60,6 +60,10 @@ check("fresh name: fast NXDOMAIN or an address continues; timeout, slow NXDOMAIN
 check("UnknownHostException: only a GaiException EAI_NODATA/EAI_NONAME cause is «no such name»; any other cause is a failure",
       out[21] == "NOT_FOUND NOT_FOUND FAILED FAILED", out[21])
 check("validated Private DNS servers: none validated is not working; a TV that cannot say is not refused", out[22] == "false true true", out[22])
+check("fresh name retries: two fast failures then a slow (4.5 s) answer is ENABLED after waiting out the slots; never answering = 3 tries then REVERTED; an answer at once = 1 lookup",
+      out[27] == "ENABLED 3 11800 | REVERTED 3 opportunistic/x.example true 0 | ENABLED 1 0", out[27])
+check("budget: INTERNET_MS 40 s = 12 s Private DNS + 3 x 6 s fresh names + 10 s internet; the resolver's own «no such name» text counts, a temporary failure does not",
+      out[28] == "40000 40000 10000 | true true false false", out[28])
 android = (ROOT / "android/launcher/src/main/java/sa/urtv/home/FamilyDnsAndroid.java").read_text(encoding="utf-8")
 check("last=RUNNING is written before the worker thread starts",
       0 <= android.find('putString(K_LAST, "RUNNING")') < android.find('worker.start()'))

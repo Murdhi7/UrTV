@@ -113,6 +113,21 @@ public class SettingsActivity extends Activity {
         render();
     }
 
+    /** A picker's live preview (a WebView running the page) is let go while another app is in front, and drawn again on return; null when no picker is open. */
+    private Runnable previewOff, previewOn;
+
+    @Override
+    protected void onStop() {
+        if (previewOff != null) previewOff.run();
+        super.onStop();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (previewOn != null) previewOn.run();
+    }
+
     @Override
     protected void onResume() {   // back in front (from the TV's settings, or opened again over itself): show what is set now
         super.onResume();
@@ -304,13 +319,15 @@ public class SettingsActivity extends Activity {
             new Runnable() { public void run() { openInputNames(); } });
         row("تعديل المفضلة", "تحريك التطبيقات على الشاشة الرئيسية وحذفها", R.drawable.ic_star,
             new Runnable() { public void run() { openDockEdit(); } });
+        // first in «الجوال والتحديث» (TV6 row 21: a tester did not find it, and phone control stayed on). This app cannot see the home's
+        // switch, so the line never says «متوقف»: the screen it opens shows the real state, with «إيقاف التحكم من الجوال» on it
+        row("تحكم من الجوال", "تشغيله وإيقافه وربط جوال، وفي الشاشة حالته الآن", R.drawable.ic_settings,
+            new Runnable() { public void run() { openPhoneControl(); } });
         // «كل التطبيقات»: the home screen's «تعديل التطبيقات», or the order by name again (what is hidden stays hidden)
         row("ترتيب كل التطبيقات", "تحريكها وإخفاؤها على الشاشة الرئيسية، أو الرجوع للترتيب الأصلي", R.drawable.ic_star,
             new Runnable() { public void run() { pickAppsOrder(); } });
         row("تحديث تلفزيوني", "يعرض الإصدار ويتحقق من التحديث", R.drawable.ic_sync,
             new Runnable() { public void run() { openUpdate(); } });
-        row("تحكم من الجوال", "متوقف حتى تشغّله أنت", R.drawable.ic_settings,
-            new Runnable() { public void run() { openPhoneControl(); } });
 
         row("حماية العائلة", "تفعيل أو إيقاف، ويرجع الإعداد القديم تلقائياً", R.drawable.ic_eye,
             new Runnable() { public void run() { openFamilyDns(); } });
@@ -431,7 +448,7 @@ public class SettingsActivity extends Activity {
             case SettingsHub.CONTENT: return "الفرق " + arabicNum(prefs.teams().size()) + " · الأسواق " + (prefs.marketsOn() ? arabicNum(prefs.markets().size()) : "مخفية");
             case SettingsHub.APPS: return "ترتيب المفضلة وتعديلها، وأسماء المصادر";
             case SettingsHub.FAMILY: return "حماية العائلة: تفعيل أو إيقاف";
-            case SettingsHub.PHONE: return Updater.versionLines(this)[0] + " · تحديث تلفزيوني";
+            case SettingsHub.PHONE: return "التحكم من الجوال · " + Updater.versionLines(this)[0];
             default: return "";
         }
     }
@@ -1068,6 +1085,13 @@ public class SettingsActivity extends Activity {
         final AlertDialog dialog = new Dlg(this).setTitle(title).setView(box)
             .setNegativeButton("إلغاء", null).create();
         lv.setOnItemClickListener((p, v, pos, id) -> { onPick.on(values[pos]); dialog.dismiss(); render(); });
+        previewOff = () -> {
+            handler.removeCallbacks(update);
+            handler.removeCallbacks(measure);
+            if (web[0] != null) { ScreenView.release(web[0]); web[0] = null; }
+            shown[0] = -1;
+        };
+        previewOn = () -> handler.postDelayed(update, 50);
         dialog.setOnShowListener(d -> {
             dress(dialog);
             dialog.getWindow().setLayout(Math.min(getResources().getDisplayMetrics().widthPixels - dp(48), dp(940)), android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -1079,6 +1103,7 @@ public class SettingsActivity extends Activity {
             handler.removeCallbacks(update);
             handler.removeCallbacks(measure);
             if (web[0] != null) { ScreenView.release(web[0]); web[0] = null; }
+            previewOff = previewOn = null;
         });
         dialog.show();
     }

@@ -203,6 +203,7 @@ public class MainActivity extends Activity {
         super.onResume();
         resumed = true;
         Parental.SESSION.clear();   // the home screen is in front again: an app opened with the PIN asks again next time
+        if (control != null) control.forgetLast();   // «مركز التحكم» opens on its first tile again
         bellForce = true;   // [updates bell]
         IntentFilter tf = new IntentFilter(Intent.ACTION_TIME_TICK);
         tf.addAction(Intent.ACTION_TIME_CHANGED);
@@ -277,7 +278,7 @@ public class MainActivity extends Activity {
         phoneRequested(intent);   // the phone remote opened an app that asks for the PIN, or one of the pills
         // Home pressed while already home: jump back to the first dock app.
         if (inputsPopup != null) inputsPopup.dismiss();
-        if (control != null) control.dismiss();
+        if (control != null) { control.dismiss(); control.forgetLast(); }
         if (!dockCards.isEmpty()) dockCards.get(0).requestFocus();
         glideTo(0);
     }
@@ -664,6 +665,7 @@ public class MainActivity extends Activity {
             @Override public void launchGuarded(int path, Intent i, String name) { MainActivity.this.launchGuarded(path, i, name); }
             @Override public void openSaver() { guarded(ParentalPolicy.PILL_SAVER, SAVER_PKG, "شاشة التوقف", MainActivity.this::startSaver); }   // OK starts it, as optimize/start-saver.sh --preview does
             @Override public void openSaverSettings() { guarded(ParentalPolicy.PILL_SAVER_SETTINGS, SAVER_PKG, "شاشة التوقف", () -> openPackage(SAVER_PKG)); }   // a long OK: its settings
+            @Override public void openOurSettings() { MainActivity.this.openOurSettings(false); }
             @Override public void openSleep(View anchor) { guarded(ParentalPolicy.PILL_SLEEP, null, "مؤقت النوم", () -> showSleep(anchor)); }
             @Override public boolean saverInstalled() { return isInstalled(SAVER_PKG); }
             @Override public Typeface font(String family) { return MainActivity.this.font(family); }
@@ -2673,6 +2675,19 @@ public class MainActivity extends Activity {
         if (i != null) launch(i);
     }
 
+    /**
+     * Our settings: the screensaver app's settings screen, behind «قفل الإعدادات» (@urtv), as the control center's tile and the remote's
+     * Settings key ask for it. Without that app (or an old one without the screen) the key falls back to the TV's own settings.
+     */
+    private void openOurSettings(boolean orTvSettings) {
+        Intent i = new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(SAVER_PKG, SAVER_PKG + ".SettingsActivity"));
+        if (getPackageManager().resolveActivity(i, 0) != null) {
+            guarded(ParentalPolicy.OUR_SETTINGS, null, "إعدادات تلفزيونك", () -> launch(i));
+        } else if (orTvSettings) {
+            launchGuarded(ParentalPolicy.REMOTE_SETTINGS, new Intent(Settings.ACTION_SETTINGS), "إعدادات التلفزيون");
+        }
+    }
+
     /** The screensaver now: its full-screen preview (the same page; Home or Back leaves it). An older app without it opens its settings. */
     private void startSaver() {
         Intent i = new Intent().setComponent(new ComponentName(SAVER_PKG, SAVER_PKG + ".MainActivity"))
@@ -2813,6 +2828,9 @@ public class MainActivity extends Activity {
         switch (key.kind) {
             case RemoteKeys.OPEN_APP:
                 guarded(ParentalPolicy.REMOTE_APP, key.pkg, labelOf(key.pkg), () -> openPackage(key.pkg));
+                break;
+            case RemoteKeys.OPEN_OUR_SETTINGS:   // the Settings key opens OUR settings; the TV's own stay on the «الإعدادات» pill and tile
+                openOurSettings(true);
                 break;
             case RemoteKeys.OPEN_SETTINGS:
                 launchGuarded(ParentalPolicy.REMOTE_SETTINGS, new Intent(Settings.ACTION_SETTINGS), "إعدادات التلفزيون");
