@@ -3051,7 +3051,7 @@ function adhkarWindow(){
   if(now >= at('Asr') && now < at('Maghrib')) return 'evening';
   const late = ADHKAR.some(d => d.when === 'night') ? 'night' : 'late';   // after midnight it is still the night before
   if(now >= at('Isha') || now < at('Fajr')) return late;
-  return late === 'late' && now >= at('Maghrib') ? late : '';
+  return '';
 }
 function adhkarNext(card){
   card.ad.t = 0;

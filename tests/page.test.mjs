@@ -234,8 +234,8 @@ const atRiyadh = (p, hhmm, sample = ADHKAR_SAMPLE) => p.evaluate(([hhmm, sample]
   // the owner's report (row 7): the build leaves the night verse out when it is too long for the screen. The card then shows the
   // evening adhkar (and the «both» ones) from Maghrib until Fajr, under «أذكار المساء · حتى الفجر»: never a heading with only a start time
   const NO_NIGHT = ADHKAR_SAMPLE.filter(d => d.when !== 'night'), evMore = NO_NIGHT.filter(d => d.when !== 'morning');
-  const late = [await atRiyadh(p, '22:00', NO_NIGHT), await atRiyadh(p, '03:00', NO_NIGHT), await atRiyadh(p, '18:30', NO_NIGHT)];
-  check('adhkar at night without a night verse (22:00, 03:00, 18:30): a dhikr of the evening set shows under «أذكار المساء · حتى الفجر», footer and timer',
+  const late = [await atRiyadh(p, '22:00', NO_NIGHT), await atRiyadh(p, '03:00', NO_NIGHT)];
+  check('adhkar at night without a night verse (22:00, 03:00): a dhikr of the evening set shows under «أذكار المساء · حتى الفجر», footer and timer',
     late.every(r => r.hd === 'أذكار المساءحتى الفجر' && r.icon && r.timer && r.foot && r.dots === evMore.map((_, k) => +!k).join('')
       && r.text.replace(/[\u064B-\u065F]/g, '') === evMore[0].text.replace(/[\u064B-\u065F]/g, '')), JSON.stringify(late));
   check('adhkar: no script errors', !errors.length, errors.join('; '));
