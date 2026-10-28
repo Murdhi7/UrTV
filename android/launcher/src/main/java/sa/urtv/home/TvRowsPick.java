@@ -89,6 +89,13 @@ final class TvRowsPick {
         return out;
     }
 
+    /** Does the choice (the keys of savedShown, as {@link #save} writes them; null = not chosen yet) include a row of an app's channel? Only «أكمل المشاهدة» (or nothing) needs no channel query. */
+    static boolean needsChannels(String savedShown) {
+        if (savedShown == null) return true;
+        for (String k : lines(savedShown)) if (!WATCH_NEXT.equals(k)) return true;
+        return false;
+    }
+
     /** {order, shown}: what {@link #arrange} reads back. */
     static String[] save(List<Row> rows) {
         StringBuilder order = new StringBuilder(), shown = new StringBuilder();

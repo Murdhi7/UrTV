@@ -115,6 +115,21 @@ public class SettingsActivity extends Activity {
         render();
     }
 
+    /** A picker's live preview (a WebView running the page) is let go while another app is in front, and drawn again on return; null when no picker is open. */
+    private Runnable previewOff, previewOn;
+
+    @Override
+    protected void onStop() {
+        if (previewOff != null) previewOff.run();
+        super.onStop();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (previewOn != null) previewOn.run();
+    }
+
     @Override
     protected void onResume() {   // back in front (from the TV's settings, or opened again over itself): show what is set now
         super.onResume();
@@ -1016,6 +1031,13 @@ public class SettingsActivity extends Activity {
         final AlertDialog dialog = new Dlg(this).setTitle(title).setView(box)
             .setNegativeButton("إلغاء", null).create();
         lv.setOnItemClickListener((p, v, pos, id) -> { onPick.on(values[pos]); dialog.dismiss(); render(); });
+        previewOff = () -> {
+            handler.removeCallbacks(update);
+            handler.removeCallbacks(measure);
+            if (web[0] != null) { ScreenView.release(web[0]); web[0] = null; }
+            shown[0] = -1;
+        };
+        previewOn = () -> handler.postDelayed(update, 50);
         dialog.setOnShowListener(d -> {
             dress(dialog);
             dialog.getWindow().setLayout(Math.min(getResources().getDisplayMetrics().widthPixels - dp(48), dp(940)), android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -1027,6 +1049,7 @@ public class SettingsActivity extends Activity {
             handler.removeCallbacks(update);
             handler.removeCallbacks(measure);
             if (web[0] != null) { ScreenView.release(web[0]); web[0] = null; }
+            previewOff = previewOn = null;
         });
         dialog.show();
     }

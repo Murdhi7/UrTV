@@ -81,7 +81,8 @@ final class TvRows {
         if (!allowed(c)) return out;
         List<Item> next = watchNext(c);
         SharedPreferences p = prefs(c);
-        List<TvRowsPick.Found> found = found(c);
+        // every return to the home screen comes here: the apps' channels (one query each) are only asked while the owner shows one of them
+        List<TvRowsPick.Found> found = TvRowsPick.needsChannels(p.getString("shown", null)) ? found(c) : new ArrayList<TvRowsPick.Found>();
         for (TvRowsPick.Row r : TvRowsPick.arrange(found, next.size(), p.getString("order", null), p.getString("shown", null))) {
             if (!r.shown) continue;
             Row row = new Row();

@@ -131,4 +131,8 @@ check("a content:// picture only from the publishing app's own provider", (r["pr
 check("the rows' signature tells the same rows from changed ones", r["sig_same"] == "true" and r["sig_diff"] == "false", (r["sig_same"], r["sig_diff"]))
 check("how far in: a fraction up to 1, unknown without a position or a length",
       r["progress_half"] == "0.5" and r["progress_over"] == "1.0" and r["progress_unknown"] == "-1.0 -1.0", (r["progress_half"], r["progress_over"], r["progress_unknown"]))
+check("the apps' channels are asked only while a row of one is shown (every return to the home screen loads the rows): not with only «أكمل المشاهدة» or nothing shown",
+      (r["needs_unchosen"], r["needs_only_wn"], r["needs_nothing"], r["needs_other"]) == ("true", "false", "false", "true"), (r["needs_unchosen"], r["needs_only_wn"], r["needs_nothing"], r["needs_other"]))
+check("TvRows.load uses it (the channel queries are the cost), and the settings' list (arrange) still asks every channel",
+      "TvRowsPick.needsChannels(p.getString(\"shown\", null)) ? found(c)" in (HOME / "TvRows.java").read_text() and "TvRowsPick.arrange(found(c)" in (HOME / "TvRows.java").read_text())
 sys.exit(1 if failed else 0)

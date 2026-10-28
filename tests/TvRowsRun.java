@@ -88,6 +88,10 @@ public final class TvRowsRun {
         put("progress_half", TvRowsPick.progress(30, 60));
         put("progress_over", TvRowsPick.progress(90, 60));
         put("progress_unknown", TvRowsPick.progress(0, 60) + " " + TvRowsPick.progress(10, 0));
+        put("needs_unchosen", TvRowsPick.needsChannels(null));
+        put("needs_only_wn", TvRowsPick.needsChannels("watchnext\n"));
+        put("needs_nothing", TvRowsPick.needsChannels(""));
+        put("needs_other", TvRowsPick.needsChannels("watchnext\ncom.netflix.ninja|Netflix\n"));
         System.out.print(out);
     }
 }
