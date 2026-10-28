@@ -1352,12 +1352,7 @@ public class MainActivity extends Activity {
         editHint.setSingleLine(true);
         editHint.setGravity(Gravity.CENTER);
         editHint.setPadding(dp(18), dp(6), dp(18), dp(6));
-        GradientDrawable hb = new GradientDrawable();
-        hb.setCornerRadius(dp(18));
-        hb.setColor(0xCC000000);
-        hb.setStroke(dp(1), GOLD);
-        editHint.setBackground(hb);
-        editHint.setVisibility(View.GONE);
+        editHint.setVisibility(View.GONE);   // its glass: paintEditChrome, as each mode starts
         root.addView(editHint, lp(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, dp(30), 0, 0));
 
         undoChip = undoChipView();
@@ -1378,17 +1373,39 @@ public class MainActivity extends Activity {
         chip.setFocusable(true);
         chip.setClickable(true);
         chip.setId(View.generateViewId());
-        GradientDrawable cb = new GradientDrawable();
-        cb.setCornerRadius(dp(20));
-        chip.setBackground(cb);
-        chip.setOnFocusChangeListener((v, has) -> {
-            cb.setColor(has ? GOLD : 0xCC000000);
-            cb.setStroke(dp(2), GOLD);
-            chip.setTextColor(has ? 0xFF04120C : 0xFFFFFFFF);
-        });
-        chip.getOnFocusChangeListener().onFocusChange(chip, false);
-        chip.setVisibility(View.GONE);
+        chip.setVisibility(View.GONE);   // its glass: paintEditChrome
         return chip;
+    }
+
+    // ---------------------------------------------------------------- the glass of the home's own small pieces
+
+    /**
+     * The glass look of the home's hint line, «تراجع», «المخفية» and its menus, in the look the home shows. They sit over the home's
+     * photo as it is (not the blurred backdrop), so their fills are made opaque over the look's solid colour: GlassStyle checks exactly that.
+     */
+    private GlassStyle.Look homeGlass() { return GlassStyle.of(lightNow); }
+
+    private int opaque(int fill) { return GlassStyle.over(fill, homeGlass().base); }
+
+    /** a piece's background: the opaque dialog glass at rest, the solid focus fill while focused */
+    private android.graphics.drawable.StateListDrawable opaqueTile(float radiusDp) {
+        GlassStyle.Look l = homeGlass();
+        android.graphics.drawable.StateListDrawable s = new android.graphics.drawable.StateListDrawable();
+        s.addState(new int[] {android.R.attr.state_focused}, GlassPaint.fill(this, GlassStyle.over(l.focus, opaque(l.dialog)), radiusDp, 0));
+        s.addState(new int[] {}, GlassPaint.fill(this, opaque(l.dialog), radiusDp, l.line));
+        return s;
+    }
+
+    /** As a mode starts: the hint line, the two «تراجع» and «المخفية» in the look of now. */
+    private void paintEditChrome() {
+        GlassStyle.Look l = homeGlass();
+        editHint.setBackground(GlassPaint.fill(this, opaque(l.hint), 18, l.line));
+        editHint.setTextColor(l.text);
+        for (TextView chip : new TextView[] {undoChip, appsUndoChip}) {
+            chip.setBackground(opaqueTile(20));
+            chip.setTextColor(GlassPaint.focusColors(l.text, l.onFocus));
+        }
+        if (hiddenCard != null) dressHiddenCard();
     }
 
     /** A small × in the corner of a favourite's card; it shows, and takes the focus, only while the row is being edited. */
@@ -1456,6 +1473,7 @@ public class MainActivity extends Activity {
         edit = new FavEdit(row, MIN_DOCK, Math.max(0, focus));
         glideTo(0);
         editHint.setText(FavEdit.HINT);
+        paintEditChrome();
         editHint.setVisibility(View.VISIBLE);
         paintEdit();
     }
@@ -1679,6 +1697,7 @@ public class MainActivity extends Activity {
         }
         appsEdit = new AppsEdit(order, new ArrayList<>(hiddenFound.keySet()), cols, dockCards.size(), MAX_DOCK, Math.max(0, focus));
         editHint.setText(AppsEdit.HINT);
+        paintEditChrome();
         editHint.setVisibility(View.VISIBLE);
         paintAppsEdit();
     }
@@ -1933,11 +1952,6 @@ public class MainActivity extends Activity {
         hiddenCard = new AspectFrame(this);
         hiddenCard.setId(View.generateViewId());
         hiddenCard.setFocusable(true);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(10));
-        bg.setColor(0xCC1C1C1E);
-        bg.setStroke(dp(2), 0x66FFFFFF);
-        hiddenCard.setBackground(bg);
         LinearLayout in = new LinearLayout(this);
         in.setOrientation(LinearLayout.VERTICAL);
         in.setGravity(Gravity.CENTER);
@@ -1949,12 +1963,20 @@ public class MainActivity extends Activity {
         in.addView(hiddenCount);
         in.addView(name);
         hiddenCard.addView(in, new FrameLayout.LayoutParams(-1, -1));
-        hiddenCard.setOnFocusChangeListener((v, has) -> {
-            bg.setStroke(dp(2), has ? GOLD : 0x66FFFFFF);
-            scaleTo(v, has ? 1.1f : 1f);
-        });
+        hiddenCard.setOnFocusChangeListener((v, has) -> scaleTo(v, has ? 1.1f : 1f));
+        dressHiddenCard();
         hiddenBox.addView(hiddenCard, new LinearLayout.LayoutParams(-1, -2));
         return hiddenBox;
+    }
+
+    /** «المخفية» in the glass of now: the opaque glass, the solid focus fill and its ink while focused. */
+    private void dressHiddenCard() {
+        GlassStyle.Look l = homeGlass();
+        hiddenCard.setBackground(opaqueTile(10));
+        ViewGroup in = (ViewGroup) hiddenCard.getChildAt(0);
+        ((TextView) in.getChildAt(0)).setTextColor(l.text);
+        ((TextView) in.getChildAt(1)).setTextColor(l.sub);
+        GlassPaint.follow(hiddenCard, l);
     }
 
     /** Only installed apps are kept, so the dock never holds a removed app's slot. */
@@ -2026,11 +2048,7 @@ public class MainActivity extends Activity {
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         list.setPadding(dp(8), dp(8), dp(8), dp(8));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(16));
-        bg.setColor(0xF02A2A2E);
-        bg.setStroke(dp(1), 0x26FFFFFF);
-        list.setBackground(bg);
+        list.setBackground(GlassPaint.fill(this, opaque(homeGlass().dialog), 16, homeGlass().line));   // the glass of a dialog
         PopupWindow pw = new PopupWindow(list, dp(230), -2, true);
         List<TextView> rows = new ArrayList<>();
         for (int k = 0; k < labels.size(); k++) rows.add(inputRow(labels.get(k), actions.get(k)));
@@ -2060,11 +2078,7 @@ public class MainActivity extends Activity {
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         list.setPadding(dp(8), dp(8), dp(8), dp(8));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(16));
-        bg.setColor(0xF02A2A2E);
-        bg.setStroke(dp(1), 0x26FFFFFF);
-        list.setBackground(bg);
+        list.setBackground(GlassPaint.fill(this, opaque(homeGlass().dialog), 16, homeGlass().line));   // the glass of a dialog
 
         PopupWindow pw = new PopupWindow(list, dp(200), -2, true);
         List<TextView> rows = new ArrayList<>();
@@ -2102,11 +2116,7 @@ public class MainActivity extends Activity {
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         list.setPadding(dp(8), dp(8), dp(8), dp(8));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(16));
-        bg.setColor(0xF02A2A2E);
-        bg.setStroke(dp(1), 0x26FFFFFF);
-        list.setBackground(bg);
+        list.setBackground(GlassPaint.fill(this, opaque(homeGlass().dialog), 16, homeGlass().line));   // the glass of a dialog
         PopupWindow pw = new PopupWindow(list, dp(220), -2, true);
         List<TextView> rows = new ArrayList<>();
         for (int m : SleepTimer.MINUTES) rows.add(inputRow(arabicDigits(String.valueOf(m)) + " دقيقة", () -> SleepTimer.start(this, m)));
@@ -2141,6 +2151,7 @@ public class MainActivity extends Activity {
     private TextView inputRow(String label, Runnable action) {
         TextView r = text(13, "sans-serif", Color.WHITE);
         r.setText(label);
+        r.setTextColor(GlassPaint.focusColors(homeGlass().text, homeGlass().onFocus));   // the glass look's ink, the focus ink on the fill
         r.setSingleLine(true);   // a name the owner gave may be long: one line, cut at the end
         r.setEllipsize(android.text.TextUtils.TruncateAt.END);
         r.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
@@ -2149,14 +2160,7 @@ public class MainActivity extends Activity {
         r.setGravity(Gravity.CENTER_VERTICAL);
         r.setPadding(dp(14), 0, dp(14), 0);
         r.setFocusable(true);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(10));
-        bg.setColor(Color.TRANSPARENT);
-        r.setBackground(bg);
-        r.setOnFocusChangeListener((v, has) -> {
-            bg.setColor(has ? 0xF2FFFFFF : Color.TRANSPARENT);
-            r.setTextColor(has ? 0xFF111111 : Color.WHITE);
-        });
+        r.setBackground(GlassPaint.row(this, homeGlass(), 10));   // nothing at rest, the solid focus fill while focused
         return r;
     }
 
@@ -2179,6 +2183,7 @@ public class MainActivity extends Activity {
 
     /** The home in the light or the dark look; nothing is touched while the look stays the same. */
     private void applyLook(boolean light) {
+        GlassSource.setHomeLight(this, light);   // «تلقائي» on the other screens follows the home (kept only when it changes)
         if (light == lightNow) return;
         lightNow = light;
         Look.Palette p = Look.of(light);
@@ -2453,11 +2458,13 @@ public class MainActivity extends Activity {
                 }
             }
             final boolean needsDownload = f != null && bm == null;
+            String key = bm == null ? null : idx >= base ? "own:" + (idx - base + 1) + ":" + own[2] : f != null ? "photo:" + f.getName() : null;
             if (bm == null) {
-                try { bm = decode(() -> getAssets().open(fallback)); }
+                try { bm = decode(() -> getAssets().open(fallback)); key = "bundled:" + fallback; }
                 catch (java.io.IOException ignored) { }
             }
             showWallpaperIfCurrent(bm, gen);
+            if (gen == wallGen) GlassSource.update(this, bm, key);   // the glass look's backdrop: made again only for another photo
             if (only) return;   // no network while only the owner's photos show
             if (!NetGate.allowed(resumed, NetGateAndroid.displayOn(this))) return;   // another app came up, or standby: no network; the next rotation on return asks
             // 2. then the network: the photo list (once a day), the cache pruned, and the hosted photo if it was missing
@@ -2478,6 +2485,7 @@ public class MainActivity extends Activity {
                 final java.io.File got = f;
                 Bitmap fresh = got.isFile() ? decode(() -> new java.io.FileInputStream(got)) : null;
                 showWallpaperIfCurrent(fresh, gen);
+                if (gen == wallGen) GlassSource.update(this, fresh, "photo:" + got.getName());
             } catch (java.io.IOException | RuntimeException ignored) { }
         }).start();
         scheduleWallpaper(WALLPAPER_INTERVAL_MS);

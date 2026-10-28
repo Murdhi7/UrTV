@@ -21,7 +21,7 @@ check("two columns, right to left: the address and the code first (the right), t
 check("the address stands out: large (28), gold, in its own framed box", 'boxed(ltr(control.address() + "/p"), 28, GOLD, 0f)' in offer)
 check("the code stands out: very large (48), in its own framed box, its six digits read as two threes", "boxed(ltr(spaced(o.code)), 48, TEXT, 0.08f)" in offer
       and 'code.substring(0, 3) + " " + code.substring(3)' in act)
-check("a value's box: a framed glass with a gold edge, one line", "bg.setStroke(dp(2), 0x80D6AF6B);" in act and "t.setSingleLine(true);" in act)
+check("a value's box: a glass panel of its own (GlassPaint.panel, the glass look), one line", "t.setBackground(GlassPaint.panel(this, look, 16));" in act and "t.setSingleLine(true);" in act)
 check("the QR code a little smaller (240 dp), beside the values, not over them", "new LinearLayout.LayoutParams(dp(240), dp(240))" in offer and "dp(300), dp(300)" not in act)
 check("the screen is wide enough for both on one TV screen (up to 1000 dp, the screen less 96 dp), with less room above and below",
       "Math.min(Math.round(getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density) - 96, 1000)" in act

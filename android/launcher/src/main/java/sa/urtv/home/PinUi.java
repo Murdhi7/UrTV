@@ -12,8 +12,17 @@ import android.widget.TextView;
 
 /** The PIN keypad's TV colours, dp sizing and a visible remote-focus state (from AbdullahCg's PR #40). */
 final class PinUi {
-    static final int BG=0xF2091912,SURFACE=0x16FFFFFF,GOLD=0xFFD6AF6B,TEXT=0xFFF6EFE0,MUTED=0xFFB9C3B8;
-    static final int FOCUS=0xFFF6EFE0,INK=0xFF04120C;
+    // the glass look of now (look(), before the keypad is built): the panel opaque (the dialog's glass over the look's solid colour), so
+    // it reads the same over any screen it comes up on; the keys glass tiles, the focused one the solid focus fill
+    static int BG, LINE, SURFACE, GOLD, TEXT, MUTED, FOCUS, INK;
+    static { look(GlassStyle.DARK); }
+
+    static void look(Context c) { look(GlassSource.look(c)); }
+
+    private static void look(GlassStyle.Look l) {
+        BG = GlassStyle.over(l.dialog, l.base); LINE = l.line; SURFACE = l.panel; GOLD = l.accent; TEXT = l.text; MUTED = l.sub;
+        FOCUS = l.focus; INK = l.onFocus;
+    }
     static int dp(Context c,float n){return Math.round(n*c.getResources().getDisplayMetrics().density);}
     static GradientDrawable panel(Context c,int color,int border){
         GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(c,14));g.setStroke(dp(c,1),border);return g;
@@ -34,7 +43,7 @@ final class PinUi {
         b.setTextColor(new ColorStateList(states,new int[]{INK,INK,TEXT}));
         StateListDrawable bg=new StateListDrawable();
         bg.addState(states[0],panel(c,FOCUS,FOCUS));bg.addState(states[1],panel(c,FOCUS,FOCUS));
-        bg.addState(states[2],panel(c,SURFACE,0x26FFFFFF));b.setBackground(bg);
+        bg.addState(states[2],panel(c,SURFACE,LINE));b.setBackground(bg);
         b.setOnFocusChangeListener((v,on)->v.animate().scaleX(on?1.035f:1f).scaleY(on?1.035f:1f).setDuration(130).start());return b;
     }
 }

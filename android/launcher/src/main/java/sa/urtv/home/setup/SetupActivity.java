@@ -2,7 +2,6 @@ package sa.urtv.home.setup;
 
 import android.app.Activity;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -24,7 +23,8 @@ import java.util.List;
  * the TV's Downloader app. Nothing here logs a network name, a serial or an address.
  */
 public class SetupActivity extends Activity {
-    private static final int GOLD = 0xFFD6AF6B, INK = 0xFF04120C, TEXT = 0xFFF6EFE0, DIM = 0xFFC6BBA4, RED = 0xFFE59A8F;
+    private int GOLD, INK, TEXT, DIM, RED;   // from the glass look (glass(), before anything is drawn)
+    private sa.urtv.home.GlassStyle.Look look;
 
     private TextView log, status, start, undo;
     private volatile boolean running;
@@ -34,7 +34,7 @@ public class SetupActivity extends Activity {
         super.onCreate(b);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFF0A2016, 0xFF04120C, 0xFF020806}));
+        glass(scroll);   // the glass look: the home's photo, small and blurred once, under its veil
         scroll.setVerticalScrollBarEnabled(false);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -48,11 +48,11 @@ public class SetupActivity extends Activity {
         col.addView(text("قبل البدء: فعّل «تصحيح USB» (الإعدادات ← تفضيلات الجهاز ← حول ← اضغط «Build» سبع مرات ← خيارات المطوّر ← تصحيح USB). "
             + "عند الضغط على «ابدأ» سيسألك التلفزيون «السماح بتصحيح USB؟»: اختر «السماح دائماً».", 13, "Regular", GOLD), right(dp(14)));
 
-        start = button("ابدأ", GOLD, INK);
+        start = button("ابدأ", TEXT);
         start.setFilterTouchesWhenObscured(true);   // another window over this screen cannot press the buttons
         start.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { go(false); } });
         col.addView(start, right(dp(10)));
-        undo = button("تراجع (يرجّع التلفزيون كما كان)", 0x33FFFFFF, TEXT);
+        undo = button("تراجع (يرجّع التلفزيون كما كان)", TEXT);
         undo.setFilterTouchesWhenObscured(true);
         undo.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { go(true); } });
         col.addView(undo, right(dp(14)));
@@ -154,16 +154,14 @@ public class SetupActivity extends Activity {
         runOnUiThread(new Runnable() { @Override public void run() { log.append("• " + t + "\n"); } });
     }
 
-    private TextView button(String label, int bgColor, int fg) {
+    /** a button in the glass look: the panel, the solid focus fill and its ink while focused */
+    private TextView button(String label, int fg) {
         TextView t = text(label, 18, "Medium", fg);
         t.setGravity(Gravity.CENTER);
         t.setPadding(dp(16), dp(14), dp(16), dp(14));
         t.setFocusable(true);
         t.setClickable(true);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        bg.setColor(bgColor);
-        t.setBackground(bg);
+        sa.urtv.home.GlassPaint.card(t, look, 14);
         return t;
     }
 
@@ -185,4 +183,10 @@ public class SetupActivity extends Activity {
     }
 
     private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
+
+    /** The glass look on this page (GlassSource: the home's photo under its veil, or the look's solid colour), and this screen's colours from it. */
+    private void glass(View page) {
+        look = sa.urtv.home.GlassSource.page(this, page);
+        GOLD = look.accent; INK = look.onFocus; TEXT = look.text; DIM = look.sub; RED = look.warn;
+    }
 }

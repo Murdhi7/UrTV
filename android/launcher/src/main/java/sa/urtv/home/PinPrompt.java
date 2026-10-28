@@ -47,7 +47,8 @@ final class PinPrompt {
         root.setOrientation(LinearLayout.HORIZONTAL);
         root.setGravity(Gravity.CENTER_VERTICAL);
         root.setPadding(dp(a, 28), dp(a, 28), dp(a, 28), dp(a, 28));
-        root.setBackground(PinUi.panel(a, PinUi.BG, 0x3DD6AF6B));
+        PinUi.look(a);   // the glass look of now
+        root.setBackground(PinUi.panel(a, PinUi.BG, PinUi.LINE));
         LinearLayout keypad = new LinearLayout(a);
         keypad.setOrientation(LinearLayout.VERTICAL);
         keypad.setClipChildren(false);

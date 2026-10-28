@@ -2,7 +2,6 @@ package sa.urtv.home;
 
 import android.app.Activity;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -17,7 +16,8 @@ import android.widget.TextView;
  * allowed already, or once it is. Behind «قفل الإعدادات» like «ترتيب المفضلة». `am start -n sa.urtv.home/.WatchNextActivity`.
  */
 public class WatchNextActivity extends Activity {
-    private static final int GOLD = 0xFFD6AF6B, TEXT = 0xFFF6EFE0, DIM = 0xFFC6BBA4;
+    private int GOLD, TEXT, DIM;   // from the glass look (glass(), before anything is drawn)
+    private GlassStyle.Look look;
     private static final int ASK = 7;
 
     private View screen, allow;
@@ -28,7 +28,7 @@ public class WatchNextActivity extends Activity {
         super.onCreate(b);
         Digits.init(this);
         FrameLayout root = new FrameLayout(this);
-        root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFF0A2016, 0xFF04120C, 0xFF020806}));
+        glass(root);   // the glass look: the home's photo, small and blurred once, under its veil
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.addView(text("أكمل المشاهدة", 28, "Medium", TEXT), right(dp(10)));
@@ -79,15 +79,7 @@ public class WatchNextActivity extends Activity {
         c.setPadding(dp(16), dp(12), dp(16), dp(12));
         c.setFocusable(true);
         c.setClickable(true);
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        c.setBackground(bg);
-        View.OnFocusChangeListener paint = (v, has) -> {
-            bg.setColor(has ? 0x33D6AF6B : 0x14FFFFFF);
-            bg.setStroke(dp(2), has ? GOLD : 0x1FD6AF6B);
-        };
-        c.setOnFocusChangeListener(paint);
-        paint.onFocusChange(c, false);
+        GlassPaint.card(c, look, 14);   // the panel, the solid focus fill and its ink while focused
         c.setOnClickListener(click);
         return c;
     }
@@ -110,4 +102,10 @@ public class WatchNextActivity extends Activity {
     }
 
     private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
+
+    /** The glass look on this page (GlassSource: the home's photo under its veil, or the look's solid colour), and this screen's colours from it. */
+    private void glass(View page) {
+        look = GlassSource.page(this, page);
+        GOLD = look.accent; TEXT = look.text; DIM = look.sub;
+    }
 }

@@ -60,6 +60,9 @@ public class SettingsActivity extends Activity {
         super.attachBaseContext(base.createConfigurationContext(c));
     }
 
+    private FrameLayout root;
+    GlassStyle.Look look = GlassStyle.DARK;   // the glass look of now (GlassSource.page), set before each render
+
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -68,18 +71,10 @@ public class SettingsActivity extends Activity {
         overridePendingTransition(0, 0);
         prefs = new Prefs(this);
         UpdateJob.schedule(this);
-        // the same design as the «تلاوة وأذان» screens: the dark green, a dimmed photo of ours behind, glass rows, the hint at the bottom
-        FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(0xFF040E09);
+        // the glass look of all our screens: the home's photo, small and blurred once (GlassSource), under its veil; glass tiles and rows
+        root = new FrameLayout(this);
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        Bitmap photo = photo(2);
-        if (photo != null) {
-            ImageView bg = new ImageView(this);
-            bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            bg.setImageBitmap(photo);
-            bg.setAlpha(0.42f);
-            root.addView(bg, new FrameLayout.LayoutParams(-1, -1));
-        }
+        look = GlassSource.page(this, root);
         scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
         FrameLayout frame = new FrameLayout(this);
@@ -107,7 +102,7 @@ public class SettingsActivity extends Activity {
         panesLp.gravity = Gravity.CENTER_HORIZONTAL;
         column.addView(panes, panesLp);
         hint = new TextView(this);
-        hint.setTextColor(0xFFC6BBA4);
+        hint.setTextColor(look.sub);
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         hint.setTypeface(font("Thmanyah-Regular"));
         hint.setGravity(Gravity.CENTER);
@@ -121,6 +116,8 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onResume() {   // back in front (from the TV's settings, or opened again over itself): show what is set now
         super.onResume();
+        look = GlassSource.page(this, root);   // the home's photo or «المظهر» may have changed meanwhile
+        hint.setTextColor(look.sub);
         render();
     }
 
@@ -184,13 +181,13 @@ public class SettingsActivity extends Activity {
         head.setPadding(0, 0, 0, dp(14));
         TextView title = new TextView(this);
         title.setText("تلفزيونك");
-        title.setTextColor(0xFFF6EFE0);
+        title.setTextColor(look.text);
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 44);
         title.setTypeface(font("ThmanyahDisplay-Bold"));
         head.addView(title);
         TextView sub = new TextView(this);
         sub.setText(screen == null ? "الإعدادات" : SettingsHub.name(screen));
-        sub.setTextColor(0xFFC6BBA4);
+        sub.setTextColor(look.sub);
         sub.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
         sub.setTypeface(font("Thmanyah-Regular"));
         LinearLayout.LayoutParams sp0 = new LinearLayout.LayoutParams(-2, -2);
@@ -198,7 +195,7 @@ public class SettingsActivity extends Activity {
         head.addView(sub, sp0);
         if (screen == null) list.addView(head);   // a category's screen has its title on the side instead
         if (screen == null || on(SettingsHub.PLACE))   // on the categories and on «الموقع والصلاة»
-            if (prefs.cityNoteDue()) line(Location.note(prefs.city()[0]), 0xFFD6AF6B, dp(14));   // still the install's Riyadh: say where to change it
+            if (prefs.cityNoteDue()) line(Location.note(prefs.city()[0]), look.accent, dp(14));   // still the install's Riyadh: say where to change it
         if (screen == null) { hub(want, wasIndex); return; }
 
         row("معاينة الشاشة", "شاهد الشاشة الآن", R.drawable.ic_play, new Runnable() { public void run() {
@@ -214,7 +211,7 @@ public class SettingsActivity extends Activity {
         row("تعديل وقت الصلاة", prefs.prayerAdjOn() ? "يعمل · لكل صلاة دقائقها، من −٢٠ إلى +٢٠ (الشروق لا يتغيّر)" : "متوقف · الأوقات كما تُحسب", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setPrayerAdjOn(!prefs.prayerAdjOn()); render(); } });
         if (prefs.prayerAdjOn()) for (int k = 0; k < PrayerAdj.COUNT; k++) adjRow(k);
-        if (on(SettingsHub.PLACE)) line(Location.HELP, 0xFFC6BBA4, 0);
+        if (on(SettingsHub.PLACE)) line(Location.HELP, look.sub, 0);
 
         header("المباريات");
         row("الفرق المتابعة (" + arabicNum(prefs.teams().size()) + "/" + arabicNum(Prefs.MAX_TEAMS) + ")", teamsLabel(),
@@ -359,19 +356,19 @@ public class SettingsActivity extends Activity {
         int at = SettingsHub.index(screen);
         final ImageView ic = new ImageView(this);
         final android.graphics.drawable.Drawable d = getDrawable(at >= 0 && at < HUB_ICONS.length ? HUB_ICONS[at] : R.drawable.ic_settings).mutate();
-        d.setTint(0xFFD6AF6B);
+        d.setTint(look.accent);
         ic.setImageDrawable(d);
         side.addView(ic, new LinearLayout.LayoutParams(dp(52), dp(52)));
         TextView t = new TextView(this);
         t.setText(conv(SettingsHub.name(screen)));
-        t.setTextColor(0xFFF6EFE0);
+        t.setTextColor(look.text);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 38);
         t.setTypeface(font("ThmanyahDisplay-Bold"));
         t.setPadding(0, dp(16), 0, dp(10));
         side.addView(t);
         TextView a = new TextView(this);
         a.setText(conv(SettingsHub.about(screen)));
-        a.setTextColor(0xFFC6BBA4);
+        a.setTextColor(look.sub);
         a.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
         a.setTypeface(font("Thmanyah-Regular"));
         a.setLineSpacing(dp(4), 1f);
@@ -379,7 +376,7 @@ public class SettingsActivity extends Activity {
         side.addView(a);
         TextView up = new TextView(this);
         up.setText("رجوع إلى الأقسام");   // words, not «‹›» (mirrored or not by the renderer)
-        up.setTextColor(0x99C6BBA4);
+        up.setTextColor(look.sub);
         up.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         up.setTypeface(font("Thmanyah-Regular"));
         up.setPadding(0, dp(22), 0, 0);
@@ -449,16 +446,16 @@ public class SettingsActivity extends Activity {
         card.setFocusable(true);
         card.setClickable(true);
         card.setId(View.generateViewId());
-        card.setBackgroundResource(R.drawable.glass_row);
         card.setTag("hub:" + cat);
         final ImageView ic = new ImageView(this);
         final android.graphics.drawable.Drawable d = getDrawable(icon).mutate();
-        d.setTint(0xFFD6AF6B);
+        d.setTint(look.accent);
         ic.setImageDrawable(d);
+        ic.setTag(GlassPaint.ICON);
         card.addView(ic, new LinearLayout.LayoutParams(dp(40), dp(40)));
         TextView n = new TextView(this);
         n.setText(conv(name));
-        n.setTextColor(0xFFF6EFE0);
+        n.setTextColor(look.text);
         n.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
         n.setTypeface(font("Thmanyah-Medium"));
         n.setSingleLine(true);
@@ -466,7 +463,7 @@ public class SettingsActivity extends Activity {
         card.addView(n);
         TextView v = new TextView(this);
         v.setText(conv(summary));
-        v.setTextColor(0xFFC6BBA4);
+        v.setTextColor(look.sub);
         v.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         v.setTypeface(font("Thmanyah-Regular"));
         v.setSingleLine(true);
@@ -475,6 +472,7 @@ public class SettingsActivity extends Activity {
         card.addView(v);
         card.setOnClickListener(x -> open(cat));
         card.setOnFocusChangeListener((x, has) -> { if (has) topWhenFirst(x); });
+        glassCard(card);
         return card;
     }
 
@@ -975,7 +973,7 @@ public class SettingsActivity extends Activity {
         box.setPadding(dp(12), dp(4), dp(12), dp(4));
         final android.widget.ListView lv = new android.widget.ListView(this);
         lv.setDividerHeight(0);
-        lv.setSelector(getDrawable(R.drawable.glass_focus));
+        lv.setSelector(GlassPaint.fill(this, look.focus, 12, 0));
         lv.setAdapter(new android.widget.BaseAdapter() {
             @Override public int getCount() { return values.length; }
             @Override public Object getItem(int i) { return values[i]; }
@@ -986,13 +984,13 @@ public class SettingsActivity extends Activity {
                 r.setPadding(dp(16), dp(10), dp(16), dp(10));
                 TextView n = new TextView(SettingsActivity.this);
                 n.setText(conv(labels[i]));
-                n.setTextColor(0xFFF6EFE0);
+                n.setTextColor(focusColors(look.text, look.onFocus));   // the selected row is the solid focus fill
                 n.setTextSize(TypedValue.COMPLEX_UNIT_SP, 19);
                 n.setTypeface(font("Thmanyah-Medium"));
                 r.addView(n);
                 TextView a = new TextView(SettingsActivity.this);
                 a.setText(conv(about[i]));
-                a.setTextColor(0xFFC6BBA4);
+                a.setTextColor(focusColors(look.sub, look.onFocusSub));
                 a.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
                 a.setTypeface(font("Thmanyah-Regular"));
                 r.addView(a);
@@ -1421,12 +1419,17 @@ public class SettingsActivity extends Activity {
         return tf;
     }
 
+    /** A tile or a row in the glass look: GlassPaint.card (the focus fill, and its words and icons in the focus colours then). */
+    private void glassCard(LinearLayout card) { GlassPaint.card(card, look, 14); }
+
+    static android.content.res.ColorStateList focusColors(int rest, int focused) { return GlassPaint.focusColors(rest, focused); }
+
     /** the dialogs of this screen: the glass theme (styles.xml), and Thmanyah on every word of them once they show */
     private static final class Dlg extends AlertDialog.Builder {
         private final SettingsActivity owner;
         private boolean raw;   // its words keep their own digits (the «الأرقام» picker shows both kinds)
 
-        Dlg(SettingsActivity a) { super(a, R.style.UrDialog); owner = a; }
+        Dlg(SettingsActivity a) { super(a, a.look.light ? R.style.UrDialogLight : R.style.UrDialog); owner = a; }   // the glass of now
 
         Dlg raw() { raw = true; return this; }
 
@@ -1488,7 +1491,7 @@ public class SettingsActivity extends Activity {
     private void drawHeader(String text) {
         TextView t = new TextView(this);
         t.setText(conv(text));
-        t.setTextColor(0xFFD6AF6B);
+        t.setTextColor(look.accent);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         t.setTypeface(font("Thmanyah-Medium"));
         t.setPadding(dp(10), dp(18), dp(10), dp(6));
@@ -1512,7 +1515,7 @@ public class SettingsActivity extends Activity {
     private void note(View last, String... lines) {
         TextView t = new TextView(this);
         t.setText(conv(android.text.TextUtils.join("\n", lines)));
-        t.setTextColor(0xFFC6BBA4);
+        t.setTextColor(look.sub);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         t.setTypeface(font("Thmanyah-Regular"));   // a version line has digits and Latin letters: Thmanyah has them
         t.setLineSpacing(dp(4), 1f);
@@ -1560,21 +1563,21 @@ public class SettingsActivity extends Activity {
         card.setPadding(dp(24), dp(14), dp(20), dp(14));
         card.setFocusable(true);
         card.setClickable(true);
-        card.setBackgroundResource(R.drawable.glass_row);   // glass; the gold-tinted one while it has the focus
         card.setTag(FocusKey.key(label));   // which row it is when the list is built again (render keeps the focus on it)
         final String cat = SettingsHub.of(FocusKey.key(label), groupCat);   // made on every screen, added only on its own
 
         final android.widget.ImageView ic = new android.widget.ImageView(this);
         final android.graphics.drawable.Drawable d = getDrawable(icon).mutate();
-        d.setTint(0xFFD6AF6B);
+        d.setTint(look.accent);
         ic.setImageDrawable(d);
+        ic.setTag(GlassPaint.ICON);
         card.addView(ic, new LinearLayout.LayoutParams(dp(28), dp(28)));
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         final TextView name = new TextView(this);
         name.setText(noConv ? label : conv(label));
-        name.setTextColor(0xFFF6EFE0);
+        name.setTextColor(look.text);
         name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 21);
         name.setTypeface(font("Thmanyah-Medium"));
         name.setSingleLine(true);
@@ -1582,7 +1585,7 @@ public class SettingsActivity extends Activity {
         final TextView val = new TextView(this);
         if (value != null) {
             val.setText(noConv ? value : conv(value));
-            val.setTextColor(0xFFC6BBA4);
+            val.setTextColor(look.sub);
             val.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
             val.setTypeface(font("Thmanyah-Regular"));
             val.setSingleLine(true);
@@ -1595,16 +1598,16 @@ public class SettingsActivity extends Activity {
 
         final TextView chevron = new TextView(this);
         chevron.setText("›");   // shown mirrored (‹) in the RTL row
-        chevron.setTextColor(0x99C6BBA4);
+        chevron.setTextColor(look.sub);
         chevron.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
         card.addView(chevron);
 
         if (onClick != null) card.setOnClickListener(v -> onClick.run());
         card.setOnFocusChangeListener((v, has) -> {
-            // No scaling: a scaled rounded card overlapped its neighbours and blurred the text. The glass changes by itself (glass_row).
-            chevron.setTextColor(has ? 0xFFD6AF6B : 0x99C6BBA4);
+            // No scaling: a scaled rounded card overlapped its neighbours and blurred the text. The glass changes by itself (glassCard).
             if (has) topWhenFirst(v);
         });
+        glassCard(card);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.bottomMargin = dp(9);
         if (!on(cat)) return card;

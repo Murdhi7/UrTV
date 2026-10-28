@@ -2,7 +2,6 @@ package sa.urtv.home;
 
 import android.app.Activity;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -29,7 +28,8 @@ import sa.urtv.home.phone.UpdateText;
  * sa.urtv.home.OPEN_UPDATE, so `am start` from a shell is refused).
  */
 public class UpdateActivity extends Activity {
-    private static final int GOLD = 0xFFD6AF6B, INK = 0xFF04120C, TEXT = 0xFFF6EFE0, DIM = 0xFFC6BBA4, RED = 0xFFEE8B70;
+    private int GOLD, INK, TEXT, DIM, RED;   // from the glass look (glass(), before anything is drawn)
+    private GlassStyle.Look look;
 
     private LinearLayout col;
     private UpdateRecords.Outcome result;   // what the record of an earlier update says, until the owner checks again
@@ -40,7 +40,7 @@ public class UpdateActivity extends Activity {
         super.onCreate(b);
         Digits.init(this);
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFF0A2016, 0xFF04120C, 0xFF020806}));
+        glass(scroll);   // the glass look: the home's photo, small and blurred once, under its veil
         scroll.setVerticalScrollBarEnabled(false);
         FrameLayout frame = new FrameLayout(this);
         scroll.addView(frame);
@@ -205,21 +205,10 @@ public class UpdateActivity extends Activity {
     // ---------------------------------------------------------------- helpers
 
     private View button(String label, final int accent, View.OnClickListener click, int heightDp) {
-        final TextView p = text(label, 18, "Medium", TEXT, Gravity.CENTER);
+        final TextView p = text(label, 18, "Medium", accent == RED ? RED : TEXT, Gravity.CENTER);   // the warning colour for RED
         p.setFocusable(true);
         p.setClickable(true);
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        p.setBackground(bg);
-        View.OnFocusChangeListener paint = new View.OnFocusChangeListener() {
-            @Override public void onFocusChange(View v, boolean has) {
-                bg.setColor(has ? accent : 0x14FFFFFF);
-                bg.setStroke(dp(2), has ? accent : 0x1FD6AF6B);
-                p.setTextColor(has ? INK : TEXT);
-            }
-        };
-        p.setOnFocusChangeListener(paint);
-        paint.onFocusChange(p, false);
+        GlassPaint.card(p, look, 14);   // the panel, the solid focus fill and its ink while focused
         p.setOnClickListener(click);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(heightDp));
         lp.bottomMargin = dp(8);
@@ -245,4 +234,10 @@ public class UpdateActivity extends Activity {
     }
 
     private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
+
+    /** The glass look on this page (GlassSource: the home's photo under its veil, or the look's solid colour), and this screen's colours from it. */
+    private void glass(View page) {
+        look = GlassSource.page(this, page);
+        GOLD = look.accent; INK = look.onFocus; TEXT = look.text; DIM = look.sub; RED = look.warn;
+    }
 }

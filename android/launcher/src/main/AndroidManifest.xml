@@ -45,6 +45,11 @@
         android:name="sa.urtv.home.FAMILY_DNS"
         android:protectionLevel="signature" />
 
+    <!-- the glass look's small blurred backdrop of the home's photo: only our two apps (same signing key) may read it (GlassProvider) -->
+    <permission
+        android:name="sa.urtv.home.READ_GLASS"
+        android:protectionLevel="signature" />
+
     <!-- «تحديث تلفزيوني»: only our two apps (same signing key) may open the update screen -->
     <permission
         android:name="sa.urtv.home.OPEN_UPDATE"
@@ -339,6 +344,13 @@
             android:authorities="sa.urtv.home.nowplaying"
             android:exported="true"
             android:readPermission="sa.urtv.home.READ_NOW_PLAYING" />
+
+        <!-- the glass backdrop for the screensaver app's settings: read only, signature permission -->
+        <provider
+            android:name=".GlassProvider"
+            android:authorities="sa.urtv.home.glass"
+            android:exported="true"
+            android:permission="sa.urtv.home.READ_GLASS" />
 
         <provider
             android:name=".tilawah.OwnAdhanProvider"

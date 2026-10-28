@@ -3,7 +3,6 @@ package sa.urtv.home;
 import android.app.Activity;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -28,7 +27,8 @@ import java.util.Map;
  * screen's own way is «تعديل المفضلة», see FavEdit), or `am start -n sa.urtv.home/.DockActivity`.
  */
 public class DockActivity extends Activity {
-    private static final int GOLD = 0xFFD6AF6B, INK = 0xFF04120C, TEXT = 0xFFF6EFE0, DIM = 0xFFC6BBA4;
+    private int GOLD, INK, TEXT, DIM;   // from the glass look (glass(), before anything is drawn)
+    private GlassStyle.Look look;
 
     private Map<String, String> apps;
     private final List<String> row = new ArrayList<>();
@@ -49,8 +49,7 @@ public class DockActivity extends Activity {
         row.addAll(Dock.shown(this, apps));
 
         scroll = new ScrollView(this);
-        scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0xFF0A2016, 0xFF04120C, 0xFF020806}));
+        glass(scroll);   // the glass look: the home's photo, small and blurred once, under its veil
         scroll.setVerticalScrollBarEnabled(false);
         FrameLayout frame = new FrameLayout(this);
         scroll.addView(frame);
@@ -180,9 +179,6 @@ public class DockActivity extends Activity {
         c.setFocusable(true);
         c.setClickable(true);
         c.setId(View.generateViewId());
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        c.setBackground(bg);
 
         final TextView arrows = text(lifted ? "▲▼" : "", 14, "Medium", INK);
         c.addView(arrows, new LinearLayout.LayoutParams(-2, -2));
@@ -205,14 +201,13 @@ public class DockActivity extends Activity {
             n.setGravity(Gravity.CENTER);
             c.addView(n, new LinearLayout.LayoutParams(-2, -2));
         }
-        final boolean isLifted = lifted;
-        View.OnFocusChangeListener paint = (v, has) -> {
-            bg.setColor(isLifted ? GOLD : has ? 0x33D6AF6B : 0x14FFFFFF);
-            bg.setStroke(dp(2), isLifted || has ? GOLD : 0x1FD6AF6B);
-            name.setTextColor(isLifted ? INK : TEXT);
-        };
-        c.setOnFocusChangeListener(paint);
-        paint.onFocusChange(c, false);
+        if (lifted) {   // picked up: the solid focus fill all the time, its words in the focus ink
+            c.setBackground(GlassPaint.fill(this, look.focus, 14, 0));
+            name.setTextColor(INK);
+            if (pkg != null) ((TextView) c.getChildAt(c.getChildCount() - 1)).setTextColor(INK);
+        } else {
+            GlassPaint.card(c, look, 14);
+        }
         c.setOnClickListener(click);
         return c;
     }
@@ -223,16 +218,8 @@ public class DockActivity extends Activity {
         p.setFocusable(true);
         p.setClickable(true);
         p.setId(View.generateViewId());
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        p.setBackground(bg);
-        View.OnFocusChangeListener paint = (v, has) -> {
-            bg.setColor(has ? 0x33EE8B70 : 0x0DFFFFFF);
-            bg.setStroke(dp(2), has ? 0xFFEE8B70 : 0x14FFFFFF);
-            p.setTextColor(has ? 0xFFFFD9CF : DIM);
-        };
-        p.setOnFocusChangeListener(paint);
-        paint.onFocusChange(p, false);
+        p.setTextColor(look.warn);   // «إزالة»: the warning colour, the solid focus fill while focused
+        GlassPaint.card(p, look, 14);
         p.setOnClickListener(click);
         return p;
     }
@@ -313,5 +300,11 @@ public class DockActivity extends Activity {
 
     private static String ar(int n) {
         return Digits.of(String.valueOf(n));
+    }
+
+    /** The glass look on this page (GlassSource: the home's photo under its veil, or the look's solid colour), and this screen's colours from it. */
+    private void glass(View page) {
+        look = GlassSource.page(this, page);
+        GOLD = look.accent; INK = look.onFocus; TEXT = look.text; DIM = look.sub;
     }
 }

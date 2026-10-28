@@ -3,7 +3,6 @@ package sa.urtv.home;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.media.tv.TvInputInfo;
 import android.os.Bundle;
 import android.text.InputType;
@@ -29,7 +28,8 @@ import java.util.Map;
  * «قفل الإعدادات» as «ترتيب المفضلة» is.
  */
 public class InputNamesActivity extends Activity {
-    private static final int GOLD = 0xFFD6AF6B, INK = 0xFF04120C, TEXT = 0xFFF6EFE0, DIM = 0xFFC6BBA4;
+    private int GOLD, INK, TEXT, DIM;   // from the glass look (glass(), before anything is drawn)
+    private GlassStyle.Look look;
 
     private LinearLayout list;
     private View screen;
@@ -41,8 +41,7 @@ public class InputNamesActivity extends Activity {
         super.onCreate(b);
         Digits.init(this);
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0xFF0A2016, 0xFF04120C, 0xFF020806}));
+        glass(scroll);   // the glass look: the home's photo, small and blurred once, under its veil
         scroll.setVerticalScrollBarEnabled(false);
         FrameLayout frame = new FrameLayout(this);
         scroll.addView(frame);
@@ -122,9 +121,6 @@ public class InputNamesActivity extends Activity {
         c.setFocusable(true);
         c.setClickable(true);
         c.setId(View.generateViewId());
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        c.setBackground(bg);
         boolean named = saved != null && !saved.isEmpty();
         final TextView tv = text(named ? own : "", 13, "Regular", DIM, true);
         tv.setSingleLine(true);
@@ -133,12 +129,7 @@ public class InputNamesActivity extends Activity {
         final TextView shown = text(InputNames.label(saved, own), 17, "Medium", named ? GOLD : TEXT, true);
         shown.setSingleLine(true);
         c.addView(shown, new LinearLayout.LayoutParams(-2, -2));
-        View.OnFocusChangeListener paint = (v, has) -> {
-            bg.setColor(has ? 0x33D6AF6B : 0x14FFFFFF);
-            bg.setStroke(dp(2), has ? GOLD : 0x1FD6AF6B);
-        };
-        c.setOnFocusChangeListener(paint);
-        paint.onFocusChange(c, false);
+        GlassPaint.card(c, look, 14);   // the panel, the solid focus fill and its ink while focused
         c.setOnClickListener(click);
         return c;
     }
@@ -209,4 +200,10 @@ public class InputNamesActivity extends Activity {
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
 
     private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
+
+    /** The glass look on this page (GlassSource: the home's photo under its veil, or the look's solid colour), and this screen's colours from it. */
+    private void glass(View page) {
+        look = GlassSource.page(this, page);
+        GOLD = look.accent; INK = look.onFocus; TEXT = look.text; DIM = look.sub;
+    }
 }

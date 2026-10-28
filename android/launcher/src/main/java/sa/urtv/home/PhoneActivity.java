@@ -2,7 +2,6 @@ package sa.urtv.home;
 
 import android.app.Activity;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -33,7 +32,8 @@ import sa.urtv.home.phone.Sessions;
  * It is a PrivateScreen: keys sent from a phone never reach it, so a phone can't press سماح for another one.
  */
 public class PhoneActivity extends Activity implements PrivateScreen {
-    private static final int GOLD = 0xFFD6AF6B, INK = 0xFF04120C, TEXT = 0xFFF6EFE0, DIM = 0xFFC6BBA4, RED = 0xFFEE8B70;
+    private int GOLD, INK, TEXT, DIM, RED;   // from the glass look (glass(), before anything is drawn)
+    private GlassStyle.Look look;
 
     private PhoneControl control;
     private LinearLayout col;
@@ -54,7 +54,7 @@ public class PhoneActivity extends Activity implements PrivateScreen {
         control = PhoneHost.get(this);
         control.setPinGate(new sa.urtv.home.phone.PinStoreGate(Parental.pin(this), System::currentTimeMillis));   // with a family PIN, the phone's changes ask for it (same lockout as the TV's keypad)
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFF0A2016, 0xFF04120C, 0xFF020806}));
+        glass(scroll);   // the glass look: the home's photo, small and blurred once, under its veil
         scroll.setVerticalScrollBarEnabled(false);
         FrameLayout frame = new FrameLayout(this);
         scroll.addView(frame);
@@ -249,11 +249,7 @@ public class PhoneActivity extends Activity implements PrivateScreen {
         t.setLetterSpacing(spacing);
         t.setPadding(dp(16), dp(10), dp(16), dp(12));
         t.setSingleLine(true);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(16));
-        bg.setColor(0x1AD6AF6B);
-        bg.setStroke(dp(2), 0x80D6AF6B);
-        t.setBackground(bg);
+        t.setBackground(GlassPaint.panel(this, look, 16));   // a glass panel of its own
         return t;
     }
 
@@ -271,23 +267,13 @@ public class PhoneActivity extends Activity implements PrivateScreen {
         return p;
     }
 
+    /** a button: its word in the warning colour when {@code accent} is RED (stop, deny, cancel), the solid focus fill while focused */
     private View button(String label, final int accent, View.OnClickListener click) {
-        final TextView p = text(label, 17, "Medium", TEXT, Gravity.CENTER);
+        final TextView p = text(label, 17, "Medium", accent == RED ? RED : TEXT, Gravity.CENTER);
         p.setFocusable(true);
         p.setClickable(true);
         p.setId(View.generateViewId());
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        p.setBackground(bg);
-        View.OnFocusChangeListener paint = new View.OnFocusChangeListener() {
-            @Override public void onFocusChange(View v, boolean has) {
-                bg.setColor(has ? accent : 0x14FFFFFF);
-                bg.setStroke(dp(2), has ? accent : 0x1FD6AF6B);
-                p.setTextColor(has ? INK : TEXT);
-            }
-        };
-        p.setOnFocusChangeListener(paint);
-        paint.onFocusChange(p, false);
+        GlassPaint.card(p, look, 14);
         p.setOnClickListener(click);
         return p;
     }
@@ -318,4 +304,10 @@ public class PhoneActivity extends Activity implements PrivateScreen {
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
 
     private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
+
+    /** The glass look on this page (GlassSource: the home's photo under its veil, or the look's solid colour), and this screen's colours from it. */
+    private void glass(View page) {
+        look = GlassSource.page(this, page);
+        GOLD = look.accent; INK = look.onFocus; TEXT = look.text; DIM = look.sub; RED = look.warn;
+    }
 }
