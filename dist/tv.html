@@ -528,14 +528,32 @@ function shortRemaining(ms){
 }
 
 function alignFooterPanels(){
-  const cityEl=document.getElementById('clock-sub'),panel=document.querySelector('.bottom .p-work'),node=cityEl&&cityEl.firstChild;if(node&&panel&&node.nodeType===Node.TEXT_NODE){const text=node.textContent||'',city=String(CONFIG.city||'').trim().split(/\s+/).pop(),start=city?text.lastIndexOf(city):-1;if(start>=0){const range=document.createRange();range.setStart(node,start);range.setEnd(node,start+city.length);panel.style.transform='none';const wordRect=range.getBoundingClientRect(),panelRect=panel.getBoundingClientRect(),shift=(wordRect.left+wordRect.right-panelRect.left-panelRect.right)/2;panel.style.transform=`translateX(${Math.round(shift)}px)`;}}
+  const narrow = window.matchMedia('(max-aspect-ratio:5/4)').matches;
+  const nudge = narrow ? 0 : Math.round(window.innerWidth * .08);
+  const cityEl = document.getElementById('clock-sub');
   const work = document.querySelector('.bottom .p-work');
+  const node = cityEl && cityEl.firstChild;
+  if(node && work && node.nodeType === Node.TEXT_NODE){
+    const text = node.textContent || '';
+    const city = String(CONFIG.city || '').trim().split(/\s+/).pop();
+    const start = city ? text.lastIndexOf(city) : -1;
+    if(start >= 0){
+      const range = document.createRange();
+      range.setStart(node, start);
+      range.setEnd(node, start + city.length);
+      work.style.transform = 'none';
+      const wordRect = range.getBoundingClientRect();
+      const panelRect = work.getBoundingClientRect();
+      const shift = (wordRect.left + wordRect.right - panelRect.left - panelRect.right) / 2;
+      work.style.transform = `translateX(${Math.round(shift - nudge)}px)`;
+    }
+  }
   const ramadan = document.querySelector('.bottom .p-mid');
   const matches = document.querySelector('.bottom .p-match');
   if(!work || !ramadan || !matches) return;
   ramadan.style.transform = 'none';
   matches.style.transform = 'none';
-  if(window.matchMedia('(max-aspect-ratio:5/4)').matches) return;
+  if(narrow) return;
   const gap = Math.round(window.innerWidth * .025);
   const workRect = work.getBoundingClientRect();
   const ramadanRect = ramadan.getBoundingClientRect();
