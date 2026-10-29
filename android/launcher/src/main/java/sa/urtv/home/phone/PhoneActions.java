@@ -187,7 +187,7 @@ final class PhoneActions implements Actions {
             for (int minutes : Schema.SAVER_IDLE) options.add(String.valueOf(minutes));
             m.put("saver_idle_options", options);
         }
-        m.put("version", UpdateText.versionOf(BuildConfig.MARKETING, BuildConfig.VERSION_CODE));   // «4.0 (بناء 151)»: the name and the build
+        m.put("version", UpdateText.versionOf(BuildConfig.MARKETING, BuildConfig.VERSION_CODE));   // «4.0»: the name a person reads
         m.put("keys_everywhere", PhoneApps.keysEverywhere());
         m.put("dpad_everywhere", PhoneApps.dpadEverywhere());
         m.put("typing_service", PhoneApps.typingEnabled());

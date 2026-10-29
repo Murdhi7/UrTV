@@ -4,7 +4,7 @@ Newest first. `next` is where changes land first; a release is what was tested t
 
 ## 4.0 (on `next`, not released yet)
 
-**Version 4.0:** the release has a name now, the `VERSION` file at the root («4.0»). The apps' `versionName` is exactly `4.0` (what Android's app info shows), the `versionCode` is still the GitHub run number, so every build installs over the last; the screens show «4.0 (بناء 151)»
+**Version 4.0:** the release has a name now, the `VERSION` file at the root («4.0»). The apps' `versionName` is exactly `4.0` (what Android's app info shows), the `versionCode` is still the GitHub run number, so every build installs over the last; the screens show «4.0» (the build only in the reports)
 (settings «الإصدار», «تحديث تلفزيوني», the phone page, `saver.sh show`). Updates are untouched: `version.txt` is still exactly `3.<build>` (an app installed
 before 4.0 (build 142 and later) reads it as before and still sees the update), and the apps compare by build, never by name. Master builds publish `apk-latest` as before and a
 numbered release tagged `v4.0.<build>` (only the URL shows it; the title is «UrTV 4.0», the build is in the body); the older `v3.N` ones stay.

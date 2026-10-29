@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The release's name («4.0», the VERSION file) without breaking updates: the versionName is exactly "4.0", the versionCode is still the
 run number, version.txt is still exactly "3.<run>" (an installed 3.142 reads it as before), nothing takes our own versionName apart, the
-release is published under its name with the build in the body, and the screens show «4.0 (بناء N)».
+release is published under its name with the build in the body, and the screens show «4.0» alone.
 (The comparison itself, an installed 3.142 fed the new version.txt, is in tests/versions_test.py.)  Run: python3 tests/version_name_test.py"""
 import os
 import re

@@ -419,7 +419,7 @@ public final class PhoneUpdater {
         }
     }
 
-    /** The version of this app as the screen and the phone page name it: «4.0 (بناء 151)» (the build is the versionCode, the name the VERSION file's). */
+    /** The version of this app as the screen and the phone page name it: «4.0» (the VERSION file's name; the build, the versionCode, is in the status). */
     public static String installedName(Context c) { return UpdateText.versionOf(BuildConfig.MARKETING, BuildConfig.VERSION_CODE); }
 
     /** The lowest build among our apps that are installed: the TV is up to date only when all of them are. */

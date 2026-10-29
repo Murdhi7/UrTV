@@ -25,7 +25,7 @@ public final class UpdateRun {
         @Override public void clear() { text = null; }
     }
 
-    static String bare(String s) { return s.replace("⁦", "").replace("⁩", ""); }
+    static String bare(String s) { return s.replace("⁦", "").replace("⁧", "").replace("⁩", ""); }
 
     static Map<String, String> verdicts(String saver, String launcher) {
         Map<String, String> m = new LinkedHashMap<>();
@@ -151,9 +151,10 @@ public final class UpdateRun {
         check("the record exists for the launcher's step and not before it", log.equals(Arrays.asList("no-record sa.urtv.screensaver", "record sa.urtv.home")), log.toString());
 
         // ---- what the owner reads
-        check("up to date: «تلفزيونك محدّث (3.N)»", "تلفزيونك محدّث (3.52)".equals(bare(UpdateText.upToDate("3.52"))), bare(UpdateText.upToDate("3.52")));
+        check("up to date: «تلفزيونك محدّث: 4.0»", "تلفزيونك محدّث: 4.0".equals(bare(UpdateText.upToDate(UpdateText.versionOf("4.0", 52)))), bare(UpdateText.upToDate(UpdateText.versionOf("4.0", 52))));
+        check("the version is isolated inside the Arabic line", UpdateText.installed("4.0").contains("⁧" + "4.0" + "⁩"), "");
         check("no network: «ما فيه اتصال بالإنترنت»", "ما فيه اتصال بالإنترنت".equals(UpdateText.OFFLINE), "");
-        check("available: «تحديث جديد 4.0 (بناء N) · اضغط للتحديث»", "تحديث جديد 4.0 (بناء 52) · اضغط للتحديث".equals(bare(UpdateText.available(UpdateText.versionOf("4.0", 52)))), "");
+        check("available: «تحديث جديد 4.0 · اضغط للتحديث»", "تحديث جديد 4.0 · اضغط للتحديث".equals(bare(UpdateText.available(UpdateText.versionOf("4.0", 52)))), "");
         check("done: «تم التحديث ✓ 3.N»", "تم التحديث ✓ 3.52".equals(bare(UpdateText.done("3.52"))), "");
         check("not completed: «ما اكتمل التحديث», and the step", "ما اكتمل التحديث".equals(UpdateText.NOT_DONE) && UpdateText.failedStep(UpdateOrder.label(UpdateOrder.LAUNCHER)).contains("الواجهة")
             && !UpdateOrder.label(UpdateOrder.SAVER).equals(UpdateOrder.label(UpdateOrder.LAUNCHER)), "");
@@ -162,7 +163,7 @@ public final class UpdateRun {
         check("and the repository address under it", "github.com/tshi-dev/UrTV".equals(UpdateText.REPO), "");
         check("the screen's name and button", "تحديث تلفزيوني".equals(UpdateText.TITLE) && "تحقق من التحديث".equals(UpdateText.CHECK), "");
         check("the installed version line carries the version", bare(UpdateText.installed("3.51")).endsWith("3.51"), "");
-        check("the build number gives the version the screens show: the name and the build, «4.0 (بناء 51)»", "4.0 (بناء 51)".equals(UpdateText.versionOf("4.0", 51)), "");
+        check("the screens show the release's name alone, «4.0», whatever the build", "4.0".equals(UpdateText.versionOf("4.0", 51)), "");
 
         // ---- failures after version.txt are never «no connection»
         check("version.txt: no network is «OFFLINE», and only that", UpdateFlow.versionRead(false, 0, -1).result == UpdateFlow.Result.OFFLINE

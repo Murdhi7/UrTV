@@ -467,7 +467,7 @@ header.top .sub { display:block; font-weight:400; font-size:14px; color:var(--di
     }
     $('saverCard').classList.toggle('hidden', !s.saver_idle_options);
     if (s.family) famDraw(s.family); else if (!famSeen) $('famCard').classList.add('hidden');
-    $('ver').textContent = s.version ? 'إصدار تلفزيونك: ' + s.version : '';   // «4.0 (بناء 151)», as the TV words it; an older TV app does not say
+    $('ver').textContent = s.version ? 'إصدار تلفزيونك: ' + s.version : '';   // «4.0», as the TV words it; an older TV app does not say
     $('phones').textContent = typeof s.phones === 'number' ? 'الجوالات المتصلة: ' + s.phones : '';
     upText(s.update);
     if (!full) return;

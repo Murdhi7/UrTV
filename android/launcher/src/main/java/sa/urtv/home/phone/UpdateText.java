@@ -19,19 +19,19 @@ public final class UpdateText {
 
     private UpdateText() { }
 
-    /** A Latin version inside an Arabic line keeps its own direction. */
-    private static String ltr(String s) { return "⁦" + s + "⁩"; }
+    /** The version inside an Arabic line, isolated so its digits and dot keep together. */
+    private static String isolate(String s) { return "⁧" + s + "⁩"; }
 
-    public static String installed(String version) { return "الإصدار المثبّت " + ltr(version); }
+    public static String installed(String version) { return "الإصدار المثبّت " + isolate(version); }
 
-    public static String upToDate(String version) { return "تلفزيونك محدّث (" + ltr(version) + ")"; }
+    public static String upToDate(String version) { return "تلفزيونك محدّث: " + isolate(version); }
 
-    public static String available(String version) { return "تحديث جديد " + ltr(version) + " · اضغط للتحديث"; }
+    public static String available(String version) { return "تحديث جديد " + isolate(version) + " · اضغط للتحديث"; }
 
-    public static String done(String version) { return "تم التحديث ✓ " + ltr(version); }
+    public static String done(String version) { return "تم التحديث ✓ " + isolate(version); }
 
     public static String failedStep(String stepLabel) { return "الخطوة: " + stepLabel; }
 
-    /** «4.0 (بناء 151)»: the marketing name (the VERSION file) and the build number, the way the apps name their versions. */
-    public static String versionOf(String marketing, int build) { return marketing + " (بناء " + build + ")"; }
+    /** What a person reads: the release's name alone, «4.0» (the owner: «4.0, nothing else»). The build stays in the update status and the reports. */
+    public static String versionOf(String marketing, int build) { return marketing; }
 }

@@ -38,11 +38,17 @@ final class Versions {
         try { return Integer.parseInt(t.substring(t.indexOf('.') + 1)); } catch (NumberFormatException e) { return -1; }
     }
 
-    /** What the person reads, in Arabic: «4.0 (بناء 151)». */
-    static String display(String marketing, int build) { return marketing + " (بناء " + build + ")"; }
+    /** What the person reads: the release's name alone, «4.0» (the owner: «4.0, nothing else»); the build is for the agent (displayEn). */
+    static String display(String marketing, int build) { return marketing; }
 
     /** What the agent reads (saver.sh show): "4.0 (build 151)". */
     static String displayEn(String marketing, int build) { return marketing + " (build " + build + ")"; }
+
+    /** The first build named by the VERSION file (154 was the first «4.0»); every older build was released as "3.<build>". */
+    static final int FIRST_NAMED = 154;
+
+    /** Another build than ours, for the agent: "4.0 (build 155)", or "3.142" for one from before the names (the latest channel can still be one). */
+    static String otherEn(String marketing, int build) { return build < FIRST_NAMED ? "3." + build : displayEn(marketing, build); }
 
     /** "3.51" from the text of the version.txt asset ("3.51\n"); null when it is anything else (a page, an error). */
     static String fromText(String body) {
