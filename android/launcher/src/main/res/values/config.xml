@@ -38,7 +38,7 @@
 
     <!-- The «تلاوة» button in the top bar: the Quran recitations and the radio, inside the home app.
          Set it to false to leave the button out. -->
-    <bool name="show_listening">true</bool>
+    <bool name="show_listening">false</bool>
 
     <!-- Where the TV is, for the adhan times (Umm al-Qura). The city picked in the screensaver wins;
          these are the fallback when the screensaver is not installed. -->

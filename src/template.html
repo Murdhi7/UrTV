@@ -438,7 +438,7 @@
   .subline .dot{width:5px;height:5px;border-radius:50%;background:var(--gold);opacity:.9}
 
   .bottom{
-    display:grid;grid-template-columns:1fr .9fr 1.3fr;
+    display:grid;grid-template-columns:1fr .9fr .9fr 1.3fr;
     gap:2.4vw;align-items:start;
     border-top:1px solid rgba(var(--gold-rgb),.30);
     padding-top:2.1vh;
@@ -468,6 +468,9 @@
   .pbar i{display:block;width:0;height:100%;border-radius:inherit;background:var(--gold);transition:width .5s linear}
   .p-prayer .big{justify-content:flex-start}
   #prayer-name[hidden]{display:none}
+  .p-work{text-align:center}
+  .p-work .big{display:block;text-align:center;line-height:1.06}
+  .p-work .sub{text-align:center}
   .p-mid{text-align:center}
   .p-mid .big{display:block;text-align:center;line-height:1.06}
   .p-mid .num{font-size:1.3em;line-height:1}
@@ -548,7 +551,7 @@
   /* #slot=none: the left panel is gone and the other two mirror each other: the prayer at the right edge, the occasion at the left edge,
      the same width, each text on its outer edge and the same lines (label, big line, small line) at the same heights */
   html.slot-none .p-match{display:none}
-  html.slot-none .bottom{grid-template-columns:1fr 1fr}
+  html.slot-none .bottom{grid-template-columns:1fr 1fr 1fr}
   html.slot-none .p-mid,html.slot-none .p-mid .big{text-align:left}
   html.slot-none .p-mid .big{line-height:1.1}
   html.slot-none .p-mid .num{font-size:1.12em;line-height:inherit}
@@ -616,6 +619,12 @@
       <div class="label" id="prayer-label">الصلاة القادمة</div>
       <div class="big"><span id="prayer-name">—</span><span class="num" id="prayer-time"></span></div>
       <div class="sub" id="prayer-count">—</div>
+    </div>
+
+    <div class="panel p-work">
+      <div class="label">باقي</div>
+      <div class="big"><span class="num" id="work-count">—</span></div>
+      <div class="sub" id="work-sub">—</div>
     </div>
 
     <div class="panel p-mid">
@@ -734,7 +743,7 @@ const CONFIG = {
   // the Gregorian month's name: #months=levant «تشرين الأول» (the Levant's, as many people read them), anything else «أكتوبر» as always
   months: _Q.get('months') === 'levant' ? 'levant' : 'default',
   // the slim bar before the adhan: #adhanbar=0 turns it off (anything else = on)
-  adhanBar: _Q.get('adhanbar') !== '0',
+  adhanBar: false,   // the personal build omits the adhan feature
   // «تعديل وقت الصلاة»: #adj=0,2,0,0,-1 = minutes added to الفجر الظهر العصر المغرب العشاء (each -20..20, whole minutes; anything that is not five
   // such numbers = none). The sunrise is not a prayer and is never moved. The screensaver sends it only while the setting is on.
   prayerAdj: (a => a.length === 5 && a.every(x => /^-?\d{1,2}$/.test(x.trim())) ? a.map(x => Math.max(-20, Math.min(20, parseInt(x, 10)))) : [0,0,0,0,0])(
@@ -1068,6 +1077,56 @@ function shortRemaining(ms){
   if(h && out.length < 2) out.push(qty(h,UNIT.hour));
   if(!out.length) out.push(qty(Math.max(1, Math.ceil(ms/60000)), UNIT.min));
   return out.join(' و ');
+}
+
+// «باقي»: the daily countdown to 10 pm in the configured city, with the next Thursday below it.
+function tickWork(){
+  const el = document.getElementById('work-count'), sub = document.getElementById('work-sub');
+  if(!el || !sub) return;
+  const p = riyadhParts();
+  const secondsUntilTen = (22*3600 - (p.h*3600 + p.mi*60 + p.s) + 24*3600) % (24*3600);
+  el.textContent = humanRemaining(Math.ceil(secondsUntilTen || 24*3600));
+  const weekday = new Intl.DateTimeFormat('en-US',{timeZone:CONFIG.timezone,weekday:'short'}).format(new Date());
+  const day = ({Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6})[weekday];
+  const days = ((4-day+7)%7) || 7;
+  sub.textContent = 'الخميس • باقي ' + qty(days, UNIT.day);
+}
+
+function alignFooterPanels(){
+  const narrow = window.matchMedia('(max-aspect-ratio:5/4)').matches;
+  // «الإزاحة المميزة»: keep the countdown/Ramadan/matches group 8% left of its clock-aligned position.
+  const nudge = narrow ? 0 : Math.round(window.innerWidth * .08);
+  const cityEl = document.getElementById('clock-sub');
+  const work = document.querySelector('.bottom .p-work');
+  const node = cityEl && cityEl.firstChild;
+  if(node && work && node.nodeType === Node.TEXT_NODE){
+    const text = node.textContent || '';
+    const city = String(CONFIG.city || '').trim().split(/\s+/).pop();
+    const start = city ? text.lastIndexOf(city) : -1;
+    if(start >= 0){
+      const range = document.createRange();
+      range.setStart(node, start);
+      range.setEnd(node, start + city.length);
+      work.style.transform = 'none';
+      const wordRect = range.getBoundingClientRect();
+      const panelRect = work.getBoundingClientRect();
+      const shift = (wordRect.left + wordRect.right - panelRect.left - panelRect.right) / 2;
+      work.style.transform = `translateX(${Math.round(shift - nudge)}px)`;
+    }
+  }
+  const ramadan = document.querySelector('.bottom .p-mid');
+  const matches = document.querySelector('.bottom .p-match');
+  if(!work || !ramadan) return;
+  ramadan.style.transform = 'none';
+  if(matches) matches.style.transform = 'none';
+  if(narrow || !matches || document.documentElement.classList.contains('slot-none')) return;
+  const gap = Math.round(window.innerWidth * .025);
+  const workRect = work.getBoundingClientRect();
+  const ramadanRect = ramadan.getBoundingClientRect();
+  ramadan.style.transform = `translateX(${Math.round(workRect.left - gap - ramadanRect.right)}px)`;
+  const alignedRamadanRect = ramadan.getBoundingClientRect();
+  const matchesRect = matches.getBoundingClientRect();
+  matches.style.transform = `translateX(${Math.round(alignedRamadanRect.left - gap - matchesRect.right)}px)`;
 }
 
 function isFriday(){
@@ -3531,6 +3590,9 @@ function boot(){
   if(wxCity) wxCity.textContent = CONFIG.city;
   const cs = document.getElementById('clock-sub');
   if(cs) cs.textContent = clockSubText();
+  alignFooterPanels();
+  addEventListener('resize', alignFooterPanels);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(alignFooterPanels);
   const cn = document.getElementById('citynote');
   if(cn && CONFIG.cityNote){   // Location.note in the app says the same in the settings' top row
     cn.textContent = 'المدينة: ' + CONFIG.city + '. لتغييرها: الإعدادات ثم الموقع';   // words, not «←» (not in Thmanyah) nor «‹›» (mirrored or not by the renderer)
@@ -3541,7 +3603,7 @@ function boot(){
   applyBackground(true);
   loadPhotoIndex().then(() => applyBackground(true));
   setInterval(() => applyBackground(false), 60*1000);
-  tickClock(); tickDates(); tickOccasion(); renderSlot();
+  tickClock(); tickDates(); tickWork(); tickOccasion(); renderSlot();
   loadMarkets();
   renderPanel(false, ...CARD_KINDS.filter(k => k !== 'shows'));   // shows: its own data arrives with prayers, weather, matches
   if(NEEDS_MATCHES) loadMatches();
@@ -3550,9 +3612,8 @@ function boot(){
 
   nowPlayingTick();
   setInterval(nowPlayingTick, 60*1000);
-  setInterval(adhanLiveTick, 3000);
   setInterval(tickClock, 1000);
-  setInterval(()=>{ tickDates(); tickPrayer(); tickOccasion(); wxExpire(); wxSource(); if(!SLOT_MATCHES) renderSlot(); }, 15000);
+  setInterval(()=>{ tickDates(); tickPrayer(); tickWork(); tickOccasion(); wxExpire(); wxSource(); if(!SLOT_MATCHES) renderSlot(); }, 15000);
   if(SLOT_MATCHES){   // the matches timers run only while the slot shows matches
     setInterval(() => renderMatches(false), 60000);
     // 15 s a page (two games), 10 s once a league makes more than 3 pages: a round of 9 games passes in 50 s, not 75

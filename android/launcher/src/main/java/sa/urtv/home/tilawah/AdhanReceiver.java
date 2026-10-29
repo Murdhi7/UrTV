@@ -19,6 +19,11 @@ public class AdhanReceiver extends BroadcastReceiver {
 
     @Override public void onReceive(Context context, Intent intent) {
         if (intent == null || intent.getAction() == null) return;
+        if (!context.getResources().getBoolean(sa.urtv.home.R.bool.show_listening)) {
+            new Prefs(context).setAdhanOn(false);
+            AdhanScheduler.schedule(context);   // an alarm from an earlier build must never play
+            return;
+        }
         Prefs prefs = new Prefs(context);
         boolean alarm = AdhanScheduler.ACTION.equals(intent.getAction());
 

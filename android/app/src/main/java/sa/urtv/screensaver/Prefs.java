@@ -385,7 +385,7 @@ final class Prefs {
     }
 
     /** The slim bar before the adhan, on the screensaver and on the home screen (default on); sent to the page as #adhanbar=. */
-    boolean adhanBar() { return sp.getBoolean("adhanBar", true); }
+    boolean adhanBar() { return sp.getBoolean("adhanBar", false); }
     void setAdhanBar(boolean v) { sp.edit().putBoolean("adhanBar", v).apply(); }
 
     /** From PR #28, each off by default and sent to the page only when on: the sunrise after Fajr in the bottom-right panel (#sunrise=1),

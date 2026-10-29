@@ -83,7 +83,7 @@ final class ConfigSnapshot {
     private static ConfigSnapshot query(Context c) {
         long ticket = sa.urtv.home.tilawah.PlaceTicket.next();   // before the provider is asked
         String fragment = null;
-        boolean greeting = true, bar = true, listenPill = true, updateBell = true, watchNext = true;
+        boolean greeting = true, bar = false, listenPill = false, updateBell = true, watchNext = true;
         String appearance = null, look = null;
         try (Cursor cur = c.getContentResolver().query(URI, null, null, null, null)) {
             if (cur != null && cur.moveToFirst()) {
@@ -91,7 +91,7 @@ final class ConfigSnapshot {
                 int g = cur.getColumnIndex("greeting");
                 if (g >= 0 && "0".equals(cur.getString(g))) greeting = false;
                 int b = cur.getColumnIndex("adhan_bar");
-                if (b >= 0 && "0".equals(cur.getString(b))) bar = false;
+                if (!c.getResources().getBoolean(R.bool.show_listening) || (b >= 0 && "0".equals(cur.getString(b)))) bar = false;
                 int l = cur.getColumnIndex("listen_pill");   // an older screensaver does not say: the button is shown, as it always was
                 if (l >= 0 && "0".equals(cur.getString(l))) listenPill = false;
                 int u = cur.getColumnIndex("update_bell");   // an older screensaver does not say: on, the default

@@ -255,8 +255,6 @@ public class SettingsActivity extends Activity {
         row("الأرقام", Prefs.digitsLabel(prefs.digits()), R.drawable.ic_language,
             new Runnable() { public void run() { pickDigits(); } });
         noConv = false;
-        row("تنبيه قبل الأذان", prefs.adhanBar() ? "يعمل · شريط في أعلى الشاشة آخر ١٠ دقائق، ثم حتى الإقامة" : "متوقف", R.drawable.ic_eye,
-            new Runnable() { public void run() { prefs.setAdhanBar(!prefs.adhanBar()); render(); } });
         // from PR #28 and the requests: each off until chosen, OK flips it
         row("الشروق بعد الفجر", prefs.sunrise() ? "يعمل · بعد إقامة الفجر: كم باقي على الشروق، ثم نصف ساعة بعده" : "متوقف", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setSunrise(!prefs.sunrise()); render(); } });
@@ -306,13 +304,6 @@ public class SettingsActivity extends Activity {
         }
         row("التحية والطقس", prefs.greeting() ? "تعمل" : "متوقفة", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setGreeting(!prefs.greeting()); render(); } });
-        // the adhan's settings (on or off, the voice, the Fajr voice, short, any key stops it, the volume): the same screen as the player's adhan tab,
-        // opened through the home (behind its family lock), so they are reachable with the «تلاوة وأذان» button hidden too
-        row("الأذان", "تشغيله وصوته وصوت الفجر والمختصر والإيقاف بأي زر والمستوى", R.drawable.ic_settings,
-            new Runnable() { public void run() { openAdhanSettings(); } });
-        // hiding removes only the button; the help line says where the screen opens from then
-        row("زر تلاوة وأذان", prefs.listenPill() ? "ظاهر" : "مخفي  •  الأذان والتلاوة تعمل، وتفتح الشاشة من قائمة التطبيق (اختيار مطوّلة) أو من بطاقة «يُتلى الآن»", R.drawable.ic_eye,
-            new Runnable() { public void run() { prefs.setListenPill(!prefs.listenPill()); render(); } });
         // the bell shows only while the Play Store has updates waiting (the home screen asks on return, at most every 6 hours)
         row("جرس التحديثات", prefs.updateBell() ? "ظاهر عند وجود تحديثات للتطبيقات" : "مخفي", R.drawable.ic_eye,
             new Runnable() { public void run() { prefs.setUpdateBell(!prefs.updateBell()); render(); } });
