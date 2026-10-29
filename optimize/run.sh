@@ -18,6 +18,15 @@ PY="${PY:-optimize/venv/bin/python}"
 RUN=optimize/run
 mkdir -p "$RUN"
 tv() { "$PY" -I optimize/tv.py "$@"; }
+# an app's version as the report says it: the name (4.0) and, from versionCode, the build: «4.0 (build 151)»
+appver() {
+  local o n b
+  o=$(tv "dumpsys package $1 2> /dev/null | grep -e versionName -e versionCode= | sed -n 1,2p" | tr -d '\r')
+  n=$(sed -n 's/.*versionName=//p' <<< "$o" | sed -n 1p | tr -d ' ')
+  b=$(sed -n 's/.*versionCode=\([0-9][0-9]*\).*/\1/p' <<< "$o" | sed -n 1p)
+  [ -z "$n" ] || n="$n${b:+ (build $b)}"
+  printf '%s' "$n"
+}
 
 # One run at a time: a second one would take the first for another TV and redo everything. The lock is a file with
 # the PID of the run; a PID that is gone means it died, and the lock is taken over.
@@ -121,8 +130,11 @@ report() {
   echo "Features that must stay on:"
   for p in com.tcl.airplay2 com.google.android.apps.mediashell com.tcl.miracast com.google.android.katniss \
            com.tcl.tvinput com.android.vending com.google.android.gms; do
-    if tv "pm list packages -d $p" | grep -qx "package:$p"; then echo "- !! $p is DISABLED"
-    elif tv "pm list packages $p" | grep -qx "package:$p"; then echo "- ok: $p"
+    # one question with end markers: an empty answer without them is «the TV did not say», not «not installed»
+    pk=$(tv "pm list packages -d $p; echo D_END; pm list packages $p; echo I_END" 2> /dev/null | tr -d '\r') || pk=""
+    if awk '/^D_END$/{exit} {print}' <<< "$pk" | grep -qx "package:$p"; then echo "- !! $p is DISABLED"
+    elif awk '/^D_END$/{s=1; next} s' <<< "$pk" | grep -qx "package:$p"; then echo "- ok: $p"
+    elif ! grep -qx 'I_END' <<< "$pk" || ! grep -qx 'D_END' <<< "$pk"; then echo "- ?? $p: the TV did not answer"
     fi
   done
   echo
@@ -132,18 +144,19 @@ report() {
   optimize/autostart.sh check 2> /dev/null || true   # TCL: «Auto-start (TCL): …» or a !! line
   [ ! -f "$RUN/home-skipped.txt" ] || cat "$RUN/home-skipped.txt"   # a TV that won't let its home be switched (Nokia Streaming Box 8000)
   echo "Screensaver: $(tv "settings get secure screensaver_components")"
-  echo "Versions: screensaver $(tv "dumpsys package sa.urtv.screensaver 2> /dev/null | grep versionName | sed -n 1p" | sed 's/.*=//'), home $(tv "dumpsys package sa.urtv.home 2> /dev/null | grep versionName | sed -n 1p" | sed 's/.*=//')"
+  echo "Versions: screensaver $(appver sa.urtv.screensaver), home $(appver sa.urtv.home)"
   echo "Extras: TV Bro $([ -n "$(tv "pm list packages com.phlox.tvwebbrowser")" ] && echo yes || echo no), SmartTube $([ -n "$(tv "pm list packages org.smarttube.stable")" ] && echo yes || echo no)"
   local picks
-  picks=$(grep -cvE '^\s*(#|$)' optimize/lists/mine.txt 2>/dev/null || true)
+  picks=$(grep -cvE '^[[:space:]]*(#|$)' optimize/lists/mine.txt 2>/dev/null || true)
   echo "Optional picks (lists/mine.txt): ${picks:-0}"
   echo
   echo "Packages from our lists (off: disabled, on: still on, absent: not on this TV):"
   local disabled installed l pkg state
+  optimize/settle.sh wait 2> /dev/null || true   # the disabled state is read back after Android has written it
   disabled=$(tv "pm list packages -d" | tr -d '\r')
   installed=$(tv "pm list packages" | tr -d '\r')
   for l in tcl-safe tcl-optional keep home-replaced; do
-    for pkg in $(grep -vE '^\s*(#|$)' "optimize/lists/$l.txt" | awk '{print $1}'); do
+    for pkg in $(grep -vE '^[[:space:]]*(#|$)' "optimize/lists/$l.txt" | awk '{print $1}'); do
       if grep -qx "package:$pkg" <<< "$disabled"; then state=off
       elif grep -qx "package:$pkg" <<< "$installed"; then state=on
       else state=absent; fi
@@ -154,7 +167,7 @@ report() {
   optimize/keep.sh off 2> /dev/null | sed 's/^/- off-name: /' || true
   if [ -s "$RUN/community-applied.txt" ]; then   # the community list (CleanYourTV, MIT) for this model, if one was used
     echo "Community list: $(cat "$RUN/community-name.txt" 2> /dev/null) (CleanYourTV, MIT)"
-    for pkg in $(grep -vE '^\s*(#|$)' "$RUN/community-applied.txt" | awk '{print $1}'); do
+    for pkg in $(grep -vE '^[[:space:]]*(#|$)' "$RUN/community-applied.txt" | awk '{print $1}'); do
       if grep -qx "package:$pkg" <<< "$disabled"; then state=off
       elif grep -qx "package:$pkg" <<< "$installed"; then state=on
       else state=absent; fi
@@ -174,7 +187,16 @@ do_step() {
     backup)      optimize/backup.sh
                  # the TV as it came is the first run's: a run.sh again after the tweaks would record the tweaked TV
                  if [ -f "$RUN/backup.txt" ]; then echo "(the backup from the first run stays: optimize/reset.sh puts back what the TV had then)"
-                 else cp "$(ls -t optimize/backup-*.txt | head -1)" "$RUN/backup.txt"; fi ;;
+                 else
+                   newest=$(ls -t optimize/backup-*.txt | head -1)
+                   # a backup saved while the TV answered nothing would be kept for ever and make reset remove the person's own apps
+                   if [ "$(grep -c '^package:' "$newest" || true)" -lt 20 ] || ! grep -qx 'package:android' "$newest"; then
+                     rm -f "$newest"
+                     echo "!! The TV's package list came back empty (or nearly) while the backup was saved, so it would be useless. Nothing was changed. Run the same command again."
+                     exit 1
+                   fi
+                   cp "$newest" "$RUN/backup.txt"
+                 fi ;;
     keep)        optimize/keep.sh | tee "$RUN/keep.txt" ;;
     before)      optimize/measure.sh before ;;
     before-saver) optimize/measure.sh before-screensaver --screensaver ;;
@@ -200,13 +222,24 @@ do_step() {
 }
 
 # The .done-* marks belong to one TV: a different one (its serial, else its address) starts from the top.
-tv_id=$(tv "getprop ro.serialno" 2> /dev/null | tr -d '\r\n ' || true)
-[ -n "$tv_id" ] || tv_id="${TV_HOST:-$(cat optimize/.tv_host 2> /dev/null || true)}"
-if [ -n "$tv_id" ] && [ "$(cat "$RUN/.tv" 2> /dev/null || true)" != "$tv_id" ]; then
-  [ -f "$RUN/.tv" ] && echo "A different TV than the last run: starting from the first step."
+is_placeholder() { "$PY" -I optimize/tv.py --is-placeholder "$1" 2> /dev/null; }   # one list, in tv.py, shared with its identity check
+# The TV's unique id by one policy (tv.py --id): serial, boot serial, the Android id ("aid:…"), and only then the address
+tv_id=$(tv --id 2> /dev/null | tr -d '\r\n ' || true)
+if [ -z "$tv_id" ]; then tv_id="${TV_HOST:-$(cat optimize/.tv_host 2> /dev/null || true)}"; fi
+saved_id=$(cat "$RUN/.tv" 2> /dev/null || true)
+looks_like_address() { [[ "$1" =~ ^[0-9]+(\.[0-9]+){3}(:[0-9]+)?$ ]] || [[ "$1" =~ ^[A-Za-z0-9.-]+:[0-9]+$ ]]; }
+# an id saved by an older run that was a placeholder says nothing about which TV it was: it is replaced without wiping (as before this check)
+if [ -n "$saved_id" ] && is_placeholder "$saved_id" && [ -n "$tv_id" ]; then echo "$tv_id" > "$RUN/.tv"; saved_id=$tv_id; fi
+if [ -n "$tv_id" ] && [ "$saved_id" != "$tv_id" ]; then
   rm -f "$RUN"/.done-* "$RUN/steps.log"
-  # what the last TV had is not this TV's (its backup, tweaks and home switch journals)
-  rm -f "$RUN/backup.txt" "$RUN/tweaks-journal.txt" "$RUN/tweaks-journal.done" "$RUN/home-switch.json" "$RUN/accessibility-before.txt" "$RUN/.screen-off-timeout"
+  if looks_like_address "$tv_id" || { [ -n "$saved_id" ] && looks_like_address "$saved_id"; }; then
+    # the id is only an address (or was): a new address may be the same TV after a DHCP change, so its backup and journals are kept; only the step marks restart
+    [ -z "$saved_id" ] || echo "Another address than the last run (no serial to tell if it is the same TV): the steps start again, the backup and journals are kept."
+  else
+    [ -z "$saved_id" ] || echo "A different TV than the last run: starting from the first step."
+    # what the last TV had is not this TV's (its backup, tweaks and home switch journals)
+    rm -f "$RUN/backup.txt" "$RUN/tweaks-journal.txt" "$RUN/family-dns-journal.txt" "$RUN/family-dns-journal.done" "$RUN/grants-journal.txt" "$RUN/disabled-by-us.txt" "$RUN/.package-change" "$RUN/community-applied.txt" "$RUN/community-ask.txt" "$RUN/tweaks-journal.done" "$RUN/home-switch.json" "$RUN/accessibility-before.txt" "$RUN/.screen-off-timeout"
+  fi
   echo "$tv_id" > "$RUN/.tv"
 fi
 

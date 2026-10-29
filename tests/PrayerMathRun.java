@@ -26,6 +26,14 @@ public final class PrayerMathRun {
 
     static int minutes(String hhmm) { return Integer.parseInt(hhmm.substring(0, 2)) * 60 + Integer.parseInt(hhmm.substring(3)); }
 
+    /** the clock row moved by that many minutes */
+    static String shifted(String times, int shift) {
+        if (shift == 0) return times;
+        StringBuilder b = new StringBuilder();
+        for (String t : times.split(" ")) { int m = Math.floorMod(minutes(t) + shift, 1440); b.append(b.length() > 0 ? " " : "").append(String.format("%02d:%02d", m / 60, m % 60)); }
+        return b.toString();
+    }
+
     /** the two clock rows differ by at most that many minutes in every field */
     static boolean within(String a, String b, int tolerance) {
         String[] x = a.split(" "), y = b.split(" ");
@@ -91,24 +99,42 @@ public final class PrayerMathRun {
 
         // the other countries' cities (tests/prayer_gold_countries.tsv): times from an independent solar calculation (NOAA/Meeus series, not this
         // code's formula) with each country's published parameters; the method comes from the zone as the TV would pick it. One minute of slack.
-        int countries = 0;
+        int countries = 0, rebased = 0;
         for (String line : Files.readAllLines(Paths.get(args[1]), StandardCharsets.UTF_8)) {
             if (line.isEmpty() || line.startsWith("#")) continue;
             String[] f = line.split("\t");
             String[] ymd = f[1].split("-");
-            long[] g = PrayerMath.compute(Integer.parseInt(ymd[0]), Integer.parseInt(ymd[1]), Integer.parseInt(ymd[2]),
-                    Double.parseDouble(f[2]), Double.parseDouble(f[3]), f[4], false, PrayerMath.methodFor(f[4], null));
+            int y = Integer.parseInt(ymd[0]), mo = Integer.parseInt(ymd[1]), d = Integer.parseInt(ymd[2]);
+            long[] g = PrayerMath.compute(y, mo, d, Double.parseDouble(f[2]), Double.parseDouble(f[3]), f[4], false, PrayerMath.methodFor(f[4], null));
             countries++;
-            check("reference " + f[0] + " " + f[1] + " (" + f[4] + "): every time within a minute of the independent calculation", within(row(g, f[4]), f[5], 1), row(g, f[4]) + " vs " + f[5]);
+            // the row is written at f[6] minutes from UTC; this machine's time-zone data may give the zone another offset that day (Morocco
+            // left UTC+1 in tzdata 2026c): the sun is the same, so the reference is re-based by the difference and counted, not failed
+            int shift = java.util.TimeZone.getTimeZone(f[4]).getOffset(PrayerMath.midnight(y, mo, d, f[4]) + 12 * 3600_000L) / 60000 - Integer.parseInt(f[6].trim());
+            if (shift != 0) rebased++;
+            String want = shifted(f[5], shift);
+            check("reference " + f[0] + " " + f[1] + " (" + f[4] + "): every time within a minute of the independent calculation", within(row(g, f[4]), want, 1), row(g, f[4]) + " vs " + want);
         }
+        System.out.println("NOTE reference: " + (rebased == 0 ? "every row at the offset it was written at" : rebased + " rows re-based for this machine's time-zone data, not formula errors"));
         check("reference: the file was read", countries >= 1, String.valueOf(countries));
 
         // which method a place gets: its country's by the zone, the Ja'fari when asked, Umm al-Qura for anything else
-        check("methods: Riyadh 4, Kuwait 9, Qatar 10, Dubai 16, Bahrain and Muscat 8, Cairo 5, an unknown zone 4",
+        check("methods: Riyadh 4, Kuwait 9, Qatar 10, Dubai 16, Bahrain 8, Muscat 100 (Oman's ministry), Cairo 5, an unknown zone 4",
                 PrayerMath.methodFor("Asia/Riyadh", null) == 4 && PrayerMath.methodFor("Asia/Kuwait", null) == 9 && PrayerMath.methodFor("Asia/Qatar", null) == 10
-                && PrayerMath.methodFor("Asia/Dubai", null) == 16 && PrayerMath.methodFor("Asia/Bahrain", null) == 8 && PrayerMath.methodFor("Asia/Muscat", "auto") == 8
+                && PrayerMath.methodFor("Asia/Dubai", null) == 16 && PrayerMath.methodFor("Asia/Bahrain", null) == 8 && PrayerMath.methodFor("Asia/Muscat", "auto") == 100
                 && PrayerMath.methodFor("Africa/Cairo", null) == 5 && PrayerMath.methodFor("Asia/Amman", null) == 23 && PrayerMath.methodFor("Africa/Tunis", null) == 18 && PrayerMath.methodFor("Africa/Algiers", null) == 19 && PrayerMath.methodFor("Africa/Casablanca", null) == 21 && PrayerMath.methodFor("Asia/Damascus", null) == 5 && PrayerMath.methodFor("Asia/Beirut", null) == 5
                 && PrayerMath.methodFor("Asia/Gaza", null) == 5 && PrayerMath.methodFor("Asia/Hebron", null) == 5 && PrayerMath.methodFor("Nowhere/Land", null) == 4 && PrayerMath.methodFor(null, null) == 4, "");
+        check("methods: pm=gulf is the Gulf method (8) for Oman and anywhere; Aladhan knows 8 but not Oman's own 100",
+                PrayerMath.methodFor("Asia/Muscat", "gulf") == 8 && PrayerMath.methodFor("Asia/Riyadh", "gulf") == 8 && PrayerMath.aladhanKnows(8) && PrayerMath.aladhanKnows(23) && !PrayerMath.aladhanKnows(100), "");
+        // Muscat, 23 October 2026, 23.5880 N 58.3829 E: Oman's ministry (Fajr 18, Isha 18, Dhuhr/Asr/Maghrib +5; the parameters egyjs/afnon-android-tv-launcher fitted to the
+        // ministry's timetable) as that method's own formulas (adhan's, tests/adhan_port.mjs) give it, and the Gulf method it replaces as Oman's default
+        String muscat = row(PrayerMath.compute(2026, 10, 23, 23.5880, 58.3829, "Asia/Muscat", false, PrayerMath.methodFor("Asia/Muscat", null)), "Asia/Muscat");
+        String muscatGulf = row(PrayerMath.compute(2026, 10, 23, 23.5880, 58.3829, "Asia/Muscat", false, PrayerMath.methodFor("Asia/Muscat", "gulf")), "Asia/Muscat");
+        check("Oman: Muscat on 23 October 2026 gets the ministry's times (within a minute of afnon's own method)", within(muscat, "04:51 06:07 11:56 15:12 17:39 18:50", 1), muscat);
+        check("Oman: with pm=gulf Muscat gets the Gulf method's times, as before", within(muscatGulf, "04:45 06:07 11:51 15:07 17:34 19:04", 1), muscatGulf);
+        check("Oman: the ministry's Dhuhr, Asr and Maghrib are 5 minutes after the Gulf method's, sunrise the same, Fajr later, Isha earlier",
+                minutes(muscat.split(" ")[2]) - minutes(muscatGulf.split(" ")[2]) == 5 && minutes(muscat.split(" ")[3]) - minutes(muscatGulf.split(" ")[3]) == 5
+                && minutes(muscat.split(" ")[4]) - minutes(muscatGulf.split(" ")[4]) == 5 && muscat.split(" ")[1].equals(muscatGulf.split(" ")[1])
+                && minutes(muscat.split(" ")[0]) > minutes(muscatGulf.split(" ")[0]) && minutes(muscat.split(" ")[5]) < minutes(muscatGulf.split(" ")[5]), muscat + " / " + muscatGulf);
         check("methods: pm=jafari is the Ja'fari everywhere, 0", PrayerMath.methodFor("Asia/Riyadh", "jafari") == 0 && PrayerMath.methodFor("Asia/Kuwait", "jafari") == 0, "");
         check("methods: the Ramadan half hour of Isha is Umm al-Qura's alone",
                 PrayerMath.ishaDelayMillis(true, 4) == 120 * 60_000L && PrayerMath.ishaDelayMillis(true, 10) == 90 * 60_000L && PrayerMath.ishaDelayMillis(true, 8) == 90 * 60_000L, "");

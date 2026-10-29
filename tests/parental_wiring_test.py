@@ -33,9 +33,9 @@ def guarded_near(lines, i, back=3):
     return any("guarded(" in lines[k] or "launchGuarded(" in lines[k] for k in range(max(0, i - back), i + 1))
 
 # ---- 1. every way in asks
-sites = {"launch": {"launchGuarded", "openPackage", "startSaver", "openPassthroughInput"},   # the helpers a guarded call reaches
+sites = {"launch": {"launchGuarded", "openPackage", "startSaver", "openPassthroughInput", "openUpdates"},   # the helpers a guarded call reaches (openUpdates: the bell, which calls it only from guarded(...))
          "openPackage": {"startSaver", "openPassthroughInput"}, "startSaver": set(), "openPassthroughInput": {"showInputsNow"},
-         "showSleep": set(), "showInputsNow": set(), "showAppMenuNow": set()}
+         "showSleep": set(), "openUpdates": set(), "showInputsNow": set(), "showAppMenuNow": set()}
 for fn, inner in sites.items():
     bad = []
     for i, l in enumerate(main):
@@ -56,6 +56,9 @@ used = "".join(src(f.name) for f in HOME.glob("*.java") if f.name not in ("Paren
 check("every launch path ParentalPolicy knows is used by a screen", all(f"ParentalPolicy.{n}" in used for n in names), [n for n in names if f"ParentalPolicy.{n}" not in used])
 check("the lock list the settings screen shows is the pills ParentalPolicy knows", "for (String pill : ParentalPolicy.PILLS)" in src("ParentalActivity.java"))
 check("«قفل الإعدادات»: the arrange screen asks for itself too (it is opened from the screensaver's settings as well)", "ARRANGE_SCREEN" in src("DockActivity.java"))
+check("«تحديث تلفزيوني»: the menu entry is behind the family lock, and so is the install button of its own screen (the phone's install asks in PhoneApi)",
+      "launchGuarded(ParentalPolicy.MENU_UPDATE, new Intent(this, UpdateActivity.class)" in src("MainActivity.java")
+      and "Parental.guard(UpdateActivity.this" in src("UpdateActivity.java") and "ParentalPolicy.UPDATE_SCREEN" in src("UpdateActivity.java"))
 check("the settings screen asks for the PIN itself, before anything shows", "screen.setVisibility(View.INVISIBLE)" in src("ParentalActivity.java") and "PARENTAL_SCREEN" in src("ParentalActivity.java"))
 check("what was opened with the PIN is forgotten when the home screen comes back (onResume and onNewIntent)",
       "".join(main).count("Parental.SESSION.clear()") == 2)
@@ -69,7 +72,7 @@ check("kids mode counts only with a PIN, and shows every app when off",
       "pinSet && kidsKept" in policy and "return !s.kids || s.allowed.contains(pkg);" in policy)
 load = "\n".join(main).split("private List<App> loadApps(")[1].split("\n    }\n")[0]
 check("the kids-mode filter is in the one place the home screen's apps are loaded, before their art is", "ParentalPolicy.visible(family, ai.packageName)" in load
-      and load.index("ParentalPolicy.visible") < load.index("loadBanner"))
+      and load.index("ParentalPolicy.visible") < load.index("appOf(") and "loadBanner" in "\n".join(main).split("private App appOf(")[1].split("\n    }\n")[0])
 check("nothing is kept in the launcher's own preferences (a separate file, absent until used)", 'getSharedPreferences("Parental"' in parental)
 check("the default for every setting is off", 'getBoolean("kids", false)' in parental and 'getString("locked", "")' in parental and 'getString("allowed", "")' in parental)
 check("no key of the remote is taken by the home screen for this lock", "KEYCODE" not in parental + policy)
@@ -101,7 +104,9 @@ check("the lock never decides about tilawah's pages: the adhan's own screen (Adh
       "AdhanActivity" not in policy + parental and "tilawah" not in policy)
 
 # ---- 4. no accessibility service; the PIN is only a hash
-check("no new accessibility service: the manifest has only the sleep one", MAN.read_text(encoding="utf-8").count("android.accessibilityservice.AccessibilityService") == 1)
+manifest_text = MAN.read_text(encoding="utf-8")
+check("only two accessibility services, both owner-enabled and named: the sleep one (reads nothing) and the phone remote's typing one",
+      manifest_text.count("android.accessibilityservice.AccessibilityService") == 2 and '".SleepService"' in manifest_text and '".TypeService"' in manifest_text)
 check("no file of the family lock reads another app's screen or windows", not re.search(r"AccessibilityService|AccessibilityEvent|getRootInActiveWindow|UsageStats|getRunningTasks|FLAG_SECURE",
       "".join(src(n) for n in ("Parental.java", "PinPrompt.java", "PinUi.java", "ParentalActivity.java", "ParentalPolicy.java"))))
 check("the PIN is only ever passed to PinCrypto (create / verify)", not re.search(r'putString\([^)]*(code|first|second|pin)\b', parental))

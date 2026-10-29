@@ -6,7 +6,6 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.speech.RecognizerIntent;
@@ -28,12 +27,13 @@ import java.util.List;
  * «أضف مهمة …» adds, «خلصت …» finishes, «احذف …» deletes (TaskVoice). Nothing changes until «نعم» is pressed.
  * No dialogs, like DockActivity: rows are built right-aligned by hand. `am start -n sa.urtv.home/.TasksActivity`.
  */
-public class TasksActivity extends Activity {
+public class TasksActivity extends Activity implements sa.urtv.home.phone.TextTarget {
     private static final Uri TASKS = Uri.parse("content://sa.urtv.screensaver.config/tasks");
     private static final int SPEECH = 41;
     /** from the home screen's «المهام» card: the list opens with the focus on «🎤 تكلّم», so one more OK starts the voice adding */
     static final String EXTRA_MIC = "mic";
-    private static final int GOLD = 0xFFD6AF6B, INK = 0xFF04120C, TEXT = 0xFFF6EFE0, DIM = 0xFFC6BBA4;
+    private int GOLD, INK, TEXT, DIM;   // from the glass look (glass(), before anything is drawn)
+    private GlassStyle.Look look;
     private static final int MAX_CHARS = 60;   // as the screensaver keeps them (Prefs.TASK_CHARS)
 
     private final List<String> texts = new ArrayList<>();
@@ -52,8 +52,7 @@ public class TasksActivity extends Activity {
         Digits.init(this);
         micFirst = getIntent().getBooleanExtra(EXTRA_MIC, false);
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0xFF0A2016, 0xFF04120C, 0xFF020806}));
+        glass(scroll);   // the glass look: the home's photo, small and blurred once, under its veil
         scroll.setVerticalScrollBarEnabled(false);
         FrameLayout frame = new FrameLayout(this);
         scroll.addView(frame);
@@ -76,11 +75,7 @@ public class TasksActivity extends Activity {
         confirm.setOrientation(LinearLayout.VERTICAL);
         confirm.setVisibility(View.GONE);
         confirm.setPadding(dp(16), dp(12), dp(16), dp(12));
-        GradientDrawable cbg = new GradientDrawable();
-        cbg.setCornerRadius(dp(14));
-        cbg.setColor(0x26D6AF6B);
-        cbg.setStroke(dp(2), GOLD);
-        confirm.setBackground(cbg);
+        confirm.setBackground(GlassPaint.dialog(this, look));   // the question: a glass panel of its own
         question = text("", 17, "Medium", TEXT);
         confirm.addView(question, right(dp(10)));
         LinearLayout buttons = new LinearLayout(this);
@@ -97,6 +92,7 @@ public class TasksActivity extends Activity {
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         col.addView(list, new LinearLayout.LayoutParams(-1, -2));
+        scroll.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // the D-pad ids of these rows are left-to-right: pinned, so a TV set to Arabic does not mirror the rows under them
         setContentView(scroll);
 
         if (!hasRecognizer()) {
@@ -142,7 +138,7 @@ public class TasksActivity extends Activity {
             final boolean done = dones.get(i);
             final long id = ids.get(i);
             LinearLayout r = new LinearLayout(this);
-            View del = pill("حذف", 0xFFEE8B70, v -> ask("أحذف «" + t + "»؟", () -> delete(t, id)));
+            View del = pill("حذف", look.warn, v -> ask("أحذف «" + t + "»؟", () -> delete(t, id)));
             r.addView(del, new LinearLayout.LayoutParams(dp(84), -1));
             View card = card((done ? "✓  " : "●  ") + t, done, v -> {
                 if (done) toast("هذي المهمة منجزة");
@@ -182,6 +178,14 @@ public class TasksActivity extends Activity {
                 : TASKS.buildUpon().appendPath(String.valueOf(n)).build();
         if ((which > 0 || n > 0) && write(() -> getContentResolver().delete(uri, null, null) > 0)) toast("حُذفت: " + t);
         else failed();
+    }
+
+    /** Text typed on the phone («تحكم من الجوال») becomes a task, like a spoken one. */
+    @Override public boolean acceptText(String t) {
+        String text = t.trim();
+        if (text.isEmpty()) return false;
+        add(text.length() > MAX_CHARS ? text.substring(0, MAX_CHARS) : text);
+        return true;
     }
 
     private void add(String t) {
@@ -324,35 +328,19 @@ public class TasksActivity extends Activity {
         c.setFocusable(true);
         c.setClickable(true);
         c.setId(View.generateViewId());
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        c.setBackground(bg);
-        View.OnFocusChangeListener paint = (v, has) -> {
-            bg.setColor(has ? 0x33D6AF6B : 0x14FFFFFF);
-            bg.setStroke(dp(2), has ? GOLD : 0x1FD6AF6B);
-        };
-        c.setOnFocusChangeListener(paint);
-        paint.onFocusChange(c, false);
+        GlassPaint.card(c, look, 14);   // the panel, the solid focus fill and its ink while focused
         c.setOnClickListener(click);
         return c;
     }
 
+    /** a small button: its word in {@code accent} (the warning colour for «حذف») at rest, the solid focus fill while focused */
     private View pill(String label, final int accent, View.OnClickListener click) {
-        final TextView p = text(label, 14, "Medium", DIM);
+        final TextView p = text(label, 14, "Medium", accent == look.warn ? look.warn : DIM);
         p.setGravity(Gravity.CENTER);
         p.setFocusable(true);
         p.setClickable(true);
         p.setId(View.generateViewId());
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        p.setBackground(bg);
-        View.OnFocusChangeListener paint = (v, has) -> {
-            bg.setColor(has ? (accent & 0x00FFFFFF) | 0x33000000 : 0x0DFFFFFF);
-            bg.setStroke(dp(2), has ? accent : 0x14FFFFFF);
-            p.setTextColor(has ? TEXT : DIM);
-        };
-        p.setOnFocusChangeListener(paint);
-        paint.onFocusChange(p, false);
+        GlassPaint.card(p, look, 14);
         p.setOnClickListener(click);
         return p;
     }
@@ -386,5 +374,11 @@ public class TasksActivity extends Activity {
 
     private static String ar(int n) {
         return Digits.of(String.valueOf(n));
+    }
+
+    /** The glass look on this page (GlassSource: the home's photo under its veil, or the look's solid colour), and this screen's colours from it. */
+    private void glass(View page) {
+        look = GlassSource.page(this, page);
+        GOLD = look.accent; INK = look.onFocus; TEXT = look.text; DIM = look.sub;
     }
 }

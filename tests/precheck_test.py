@@ -33,7 +33,7 @@ rc, out = run_py("check", batch(PHONE, "samsung"))
 check("a phone (no leanback): stops with exit 3 and an Arabic message", rc == 3 and "Tizen" in out and "webOS" in out and "مو تلفزيون" in out
       and "nothing was changed" in out, out)
 rc, out = run_py("check", batch("", "LG"))
-check("no features at all: stops too", rc == 3, out)
+check("no features at all (the TV did not answer): stops, but says so (exit 5), not «this is a phone»", rc == 5 and "did not say what it is" in out and "Tizen" not in out and "nothing was changed" in out, out)
 rc, out = run_py("check", batch(TV_FEATS + "feature:amazon.hardware.fire_tv\n", "Amazon", UPD.format("com.amazon.webview.chromium", "92.0.4515.1")))
 check("Fire TV: goes on, says it may work partly and the home switch may be refused", rc == 0 and "Fire TV" in out and "may work partly" in out and "refused" in out, out)
 rc, out = run_py("check", batch(TV_FEATS, webviewupdate=UPD.format("com.google.android.webview", "66.0.3359.158")))
@@ -61,7 +61,7 @@ check("held: an old WebView exits 4, silently", rc == 4 and out == "", f"{rc} {o
 rc, out = run_py("held", batch(TV_FEATS, webviewupdate=UPD.format("com.google.android.webview", "120.0.1")))
 check("held: a new WebView exits 0", rc == 0 and out == "", f"{rc} {out}")
 rc, out = run_py("held", batch(TV_FEATS))
-check("held: an unreadable WebView exits 0 (nothing says it cannot run)", rc == 0, f"{rc} {out}")
+check("held: an unreadable WebView exits 5 (unknown holds the screensaver back)", rc == 5 and out == "", f"{rc} {out}")
 
 # ---- the shell script, with a fake tv.py
 t = Path(tempfile.mkdtemp())

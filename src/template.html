@@ -249,6 +249,7 @@
   .week li.stk .chg{flex:0 0 auto;min-width:4.9em;text-align:left;font-size:.74em;font-variant-numeric:tabular-nums}
   .week li.stk .up{color:#79D6A0}
   .week li.stk .down{color:#EE8B70}
+  .week li.adw{border-bottom:none;color:#E6DCC4}   /* «مع العصر ٣:٠٠ م»: the adhkar card waiting beside the verse card */
   .week li.adf{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:.8em;align-items:center;
     border-bottom:none;padding:.6vh 0 0;font-size:calc(clamp(12px,.95vw,18px)*var(--z,1));color:var(--gold-2)}
   .week li.adf .s{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-bottom:.3em;margin-bottom:-.3em}
@@ -382,9 +383,41 @@
     color:#FFFDF6;font-variant-numeric:tabular-nums;
     text-shadow:0 4px 70px rgba(0,0,0,.65), 0 0 130px rgba(255,236,190,.12);
   }
-  /* «حجم الساعة» (#clocksize=): large is the clock above; the others only scale its font (the sub line and the cards keep their sizes) */
-  html.ck-medium .clock{font-size:clamp(96px,min(13.6vw,24.8vh),276px)}
-  html.ck-small .clock{font-size:clamp(74px,min(10.5vw,19vh),214px)}
+  /* «حجم الساعة» (#clocksize=): large is the clock above, centred in its space, and nothing here touches it. A smaller clock is
+     not the large layout with a hole in it: the screen is laid out again around two straight edges, the right one (the date,
+     the clock and its city line, the next prayer) and the left one (the markets, the card, the bottom-left slot).
+     medium: the clock and its city line move to the right edge, the card grows to min(1000px, 56vw) on the left edge, and the
+       gutter between them is the page's own side margin (3.6vw).
+     small: three columns from the middle row to the bottom row. The right one is as wide as the clock at its widest time
+       (--ckk, so nothing moves at 10 o'clock) and holds the clock over the next prayer; the other two hold the card over the
+       occasion and the slot: one card on the left edge, as wide as beside the medium clock, or the card and a second one
+       (#panel2=) as a pair of the same height, a column each. The Hijri date, the headline beside a small clock, is a step larger. */
+  /* the three sizes as 1 : .75 : .55 of the large clock's clamp(120px, min(17vw, 31vh), 345px): a size you can tell apart */
+  html.ck-medium .clock{font-size:clamp(90px,min(12.75vw,23.25vh),259px)}
+  html.ck-small{--ckf:clamp(66px,min(9.35vw,17.05vh),190px);--ckc:calc(var(--ckf) * var(--ckk,3.26))}   /* --ckk: the widest time, in ems (boot) */
+  html.ck-small .clock{font-size:var(--ckf)}
+  html.ck-medium .mid{gap:3.6vw}
+  html.ck-medium .mid > .clockwrap,html.ck-small .mid > .clockwrap{justify-self:start;align-items:flex-start}
+  html.ck-medium .ystrip,html.ck-small .ystrip{left:auto;right:0;transform:none}
+  html.ck-medium .mid > .week{width:min(1000px,56vw)}
+  html.ck-small .hijri{font-size:clamp(21px,2.1vw,42px)}
+  html.ck-small .mid{grid-template-columns:minmax(var(--ckc),auto) minmax(0,1fr) minmax(0,1fr);grid-template-rows:1fr auto 1fr;gap:0 2.4vw}
+  html.ck-small .mid > .clockwrap{grid-column:1;grid-row:1/-1;align-self:center}
+  html.ck-small .mid > .week{grid-row:2;width:auto;max-width:none;justify-self:stretch}
+  html.ck-small .mid.n1 > .week{grid-column:2/-1;justify-self:end;width:min(1000px,56vw);max-width:100%}   /* one card: as wide as beside the medium clock */
+  html.ck-small .mid.n2:not(.fit) > .week{align-self:stretch}
+  /* the pair is one height: a shorter list spreads its rows down its card instead of leaving the lower part empty, and a verse or
+     a dhikr does not end on one word alone */
+  html.ck-small .mid.n2 > .week{display:flex;flex-direction:column}
+  html.ck-small .mid.n2:not(.fit) > .week > ul:not(.pgrid){flex:1;justify-content:space-evenly}
+  html.ck-small .mid.n2 > .week li.quote{text-wrap:pretty}
+  /* a dhikr's foot in a narrow card: the source on its own line (two if it must, never «…»), the count and the dots under it */
+  html.ck-small .mid.n2 > .week li.adf{grid-template-columns:auto minmax(0,1fr);row-gap:.35em}
+  html.ck-small .mid.n2 > .week li.adf .s{grid-column:1/-1;white-space:normal;text-overflow:clip;overflow:visible;line-height:1.35}
+  html.ck-small .mid.n2 > .week li.adf .d{flex-wrap:wrap;row-gap:.3em}
+  @media (min-aspect-ratio:5/4){
+    html.ck-small:not(.slot-none) .bottom{grid-template-columns:var(--ckc) minmax(0,1fr) minmax(0,1fr)}
+  }
   .clock .d{unicode-bidi:isolate}
   .clock .d i{font-style:normal}
   .clock .d i + i{margin-left:var(--digit-gap,.09em)}
@@ -429,7 +462,12 @@
   .panel .sub.when{margin-top:.3vh;font-size:.86em;color:#A79C85}
 
   .p-prayer{text-align:right}
+  /* #prayerbar=1: from the last prayer to the next (or to the iqama, or the sunrise), filling from the right as the text reads */
+  .pbar{height:3px;margin-top:.9vh;overflow:hidden;border-radius:99px;background:rgba(var(--gold-rgb),.18);direction:rtl}
+  .pbar[hidden]{display:none}
+  .pbar i{display:block;width:0;height:100%;border-radius:inherit;background:var(--gold);transition:width .5s linear}
   .p-prayer .big{justify-content:flex-start}
+  #prayer-name[hidden]{display:none}
   .p-mid{text-align:center}
   .p-mid .big{display:block;text-align:center;line-height:1.06}
   .p-mid .num{font-size:1.3em;line-height:1}
@@ -473,6 +511,8 @@
     font-variant-numeric:tabular-nums}
   .wxdust{color:#E8B86A;font-size:.82em}   /* the dust, beside the condition and not instead of it */
   .wxdust:not(:empty)::before{content:'·';margin-inline-end:.5em;color:rgba(214,175,107,.7)}
+  .wxmore{margin-top:.3vh;font-size:clamp(11px,.92vw,18px);font-weight:300;color:var(--dim);white-space:nowrap}
+  .wxmore[hidden]{display:none}
   .wxsrc{margin-top:.3vh;font-size:clamp(10px,.86vw,17px);font-weight:300;color:var(--dim);opacity:.8;white-space:nowrap}
   .wxsrc:empty{display:none}
   .wxsub{margin-top:.55vh;font-size:clamp(12px,1.06vw,21px);font-weight:300;color:var(--dim);white-space:nowrap}
@@ -667,10 +707,10 @@ const CONFIG = {
   // the size of the clock: #clocksize=large|medium|small (anything else = large)
   clockSize: (v => ['medium','small'].includes(v) ? v : 'large')(_Q.get('clocksize')),
   cardStyle: (v => ['dark1','glass1','dark3','glass3'].includes(v) ? v : 'current')(_Q.get('cardstyle')),
-  // the markets at the top left: #markets=tasi,spx,btc (up to 4 of tasi aramco spx btc gold silver xrp; anything else = the default)
+  // the markets at the top left: #markets=tasi,spx,btc (up to 4 of tasi aramco spx btc gold silver oil xrp; anything else = the default)
   // and #mkstyle=arrows (a ▲/▼ only, the default) or prices (the price and the day's change)
   markets: (l => l.length ? l : ['tasi','spx','btc'])(
-    _list('markets').filter((k, i, a) => ['tasi','aramco','spx','btc','gold','silver','xrp'].includes(k) && a.indexOf(k) === i).slice(0, 4)),
+    _list('markets').filter((k, i, a) => ['tasi','aramco','spx','btc','gold','silver','oil','xrp'].includes(k) && a.indexOf(k) === i).slice(0, 4)),
   mkStyle: _Q.get('mkstyle') === 'prices' ? 'prices' : 'arrows',
   // #mkbar=off hides the markets line at the top (the weather stays); the list above is kept and no request is made for it
   mkBar: _Q.get('mkbar') !== 'off',
@@ -685,6 +725,14 @@ const CONFIG = {
   cdName: (_Q.get('cdname') || '').trim().slice(0, 40),
   // «التفسير الميسر» under the verse of the day: #tafsir=1 (anything else = off)
   tafsir: _Q.get('tafsir') === '1',
+  // from PR #28, each off unless asked for: #sunrise=1 the panel at the bottom right counts to the sunrise after Fajr's iqama and tells
+  // it for half an hour after; #prayerbar=1 a thin bar under it, how far the time has come from the last prayer to the next; #wxmore=1
+  // the humidity and the wind under the city at the top left (asked in the same weather request)
+  sunrise: _Q.get('sunrise') === '1',
+  prayerBar: _Q.get('prayerbar') === '1',
+  wxMore: _Q.get('wxmore') === '1',
+  // the Gregorian month's name: #months=levant «تشرين الأول» (the Levant's, as many people read them), anything else «أكتوبر» as always
+  months: _Q.get('months') === 'levant' ? 'levant' : 'default',
   // the slim bar before the adhan: #adhanbar=0 turns it off (anything else = on)
   adhanBar: _Q.get('adhanbar') !== '0',
   // «تعديل وقت الصلاة»: #adj=0,2,0,0,-1 = minutes added to الفجر الظهر العصر المغرب العشاء (each -20..20, whole minutes; anything that is not five
@@ -706,15 +754,18 @@ const CONFIG = {
 };
 // The cards on this page: the screensaver's one (#panel=); the launcher's up to three (#home_panel=a,b,c, none or empty = no card;
 // an older launcher sends the one card as #panel=). Each kind once, in order.
-// the prayer calculation (Aladhan's id): #pm=jafari everywhere, else the country's by the zone, else Umm al-Qura 4; PrayerMath.methodFor
+// the prayer calculation (Aladhan's id; 100 = Oman's ministry, ours): #pm=jafari or #pm=gulf everywhere, else the country's by the zone, else Umm al-Qura 4; PrayerMath.methodFor
 // (launcher) and PrayerMethod (app) say the same, tests/prayer_method_test.py compares them
-CONFIG.prayerMethod = _Q.get('pm') === 'jafari' ? 0
-  : ({'Asia/Kuwait':9, 'Asia/Qatar':10, 'Asia/Dubai':16, 'Asia/Bahrain':8, 'Asia/Muscat':8, 'Africa/Cairo':5, 'Asia/Amman':23, 'Asia/Damascus':5, 'Asia/Beirut':5, 'Asia/Gaza':5, 'Asia/Hebron':5, 'Asia/Jerusalem':5, 'Africa/Casablanca':21, 'Africa/El_Aaiun':21, 'Africa/Algiers':19, 'Africa/Tunis':18})[CONFIG.timezone] || 4;
-// the calculation's name under the clock when it is not Umm al-Qura: «بتوقيت المنامة · حساب الخليج» (ClockZone.calendar in the launcher
-// says the same on the home screen); Umm al-Qura says nothing, «بتوقيت الرياض» as it always was
-const CAL_LABEL = {0:'الحساب الجعفري', 8:'حساب الخليج', 9:'حساب الكويت', 10:'حساب قطر', 16:'حساب الإمارات', 5:'حساب الهيئة المصرية', 23:'حساب الأردن', 21:'حساب المغرب', 19:'حساب الجزائر', 18:'حساب تونس'};
+CONFIG.prayerMethod = _Q.get('pm') === 'jafari' ? 0 : _Q.get('pm') === 'gulf' ? 8
+  : ({'Asia/Kuwait':9, 'Asia/Qatar':10, 'Asia/Dubai':16, 'Asia/Bahrain':8, 'Asia/Muscat':100, 'Africa/Cairo':5, 'Asia/Amman':23, 'Asia/Damascus':5, 'Asia/Beirut':5, 'Asia/Gaza':5, 'Asia/Hebron':5, 'Asia/Jerusalem':5, 'Africa/Casablanca':21, 'Africa/El_Aaiun':21, 'Africa/Algiers':19, 'Africa/Tunis':18})[CONFIG.timezone] || 4;
+// the calculation's name under the clock, none for Umm al-Qura (ClockZone.calendar says the same on the home screen)
+const CAL_LABEL = {0:'الحساب الجعفري', 8:'حساب الخليج', 100:'حساب عُمان', 9:'حساب الكويت', 10:'حساب قطر', 16:'حساب الإمارات', 5:'حساب الهيئة المصرية', 23:'حساب الأردن', 21:'حساب المغرب', 19:'حساب الجزائر', 18:'حساب تونس'};
 const clockSubText = () => 'بتوقيت ' + CONFIG.city + (CAL_LABEL[CONFIG.prayerMethod] ? ' · ' + CAL_LABEL[CONFIG.prayerMethod] : '');
-CONFIG.cards = (CONFIG.widget && _Q.has('home_panel') ? _list('home_panel') : [CONFIG.panel])
+// «بطاقة ثانية» (#panel2=): a second card beside the small clock only; with a larger clock, on the launcher, without a first card,
+// or when it is the first card again or the next prayer (the bottom-right panel says it already), there is none
+CONFIG.panel2 = (p => CARD_KINDS.includes(p) && p !== 'nextprayer' && p !== CONFIG.panel ? p : 'none')(_Q.get('panel2') || '');
+const PAIR = !CONFIG.widget && CONFIG.clockSize === 'small' && CONFIG.panel !== 'none' && CONFIG.panel2 !== 'none';
+CONFIG.cards = (CONFIG.widget && _Q.has('home_panel') ? _list('home_panel') : PAIR ? [CONFIG.panel, CONFIG.panel2] : [CONFIG.panel])
   .filter((k, i, a) => CARD_KINDS.includes(k) && a.indexOf(k) === i).slice(0, 3);
 CONFIG.panel = CONFIG.cards[0] || 'none';   // the first one, for what only needs to know "the card"
 // does a card on this page need that kind's data? The smart card reads what the matches, the adhkar, the prayers and the hours load;
@@ -725,7 +776,7 @@ const USES = k => CONFIG.cards.some(c => c === k || (USES_OF[c] || []).includes(
 // The panels' snapshot is keyed by the link without the settings that only change how things look (the card's style and place, the clock's
 // size, the strips, the photo timing): changing one of those offline must not lose the games already on screen. What changes the words or
 // the markup inside the saved panels (the teams, leagues, digits, slot, markets, their style and switch…) stays in the key.
-const SNAP_LOOK = ['citynote', 'cardstyle', 'panel', 'week', 'clocksize', 'adhanbar', 'yearstrip', 'national', 'photos', 'adj', 'own', 'ownmode', 'gap'];
+const SNAP_LOOK = ['citynote', 'cardstyle', 'panel', 'panel2', 'week', 'clocksize', 'adhanbar', 'yearstrip', 'national', 'photos', 'adj', 'own', 'ownmode', 'gap'];
 function snapLink(){
   return location.hash.replace(/^#/, '').split('&').filter(kv => kv && !SNAP_LOOK.includes(kv.split('=')[0])).join('&');
 }
@@ -758,7 +809,13 @@ const FMT_ALL = new Intl.DateTimeFormat('en-GB',{
 });
 const FMT_HM = new Intl.DateTimeFormat('en-GB',{timeZone:CONFIG.timezone,hour:'2-digit',minute:'2-digit',hour12:false});   // the city's clock
 const FMT_DATE = new Intl.DateTimeFormat('en-CA',{timeZone:CONFIG.timezone});   // YYYY-MM-DD in the city
-const FMT_DAY_MONTH = new Intl.DateTimeFormat(GREG,{timeZone:CONFIG.timezone,weekday:'long',day:'numeric',month:'long'});   // «السبت ٢٤ أكتوبر»
+// #months=levant: every Gregorian month the page writes in the Levant's names (MonthNames.java on the home screen says the same)
+const LEVANT_MONTHS = {'يناير':'كانون الثاني', 'فبراير':'شباط', 'مارس':'آذار', 'أبريل':'نيسان', 'مايو':'أيار', 'يونيو':'حزيران',
+  'يوليو':'تموز', 'أغسطس':'آب', 'سبتمبر':'أيلول', 'أكتوبر':'تشرين الأول', 'نوفمبر':'تشرين الثاني', 'ديسمبر':'كانون الأول'};
+const LEVANT_RE = new RegExp(Object.keys(LEVANT_MONTHS).join('|'), 'g');
+const gm = s => CONFIG.months === 'levant' ? String(s).replace(LEVANT_RE, m => LEVANT_MONTHS[m]) : s;
+const gregFmt = opts => { const f = new Intl.DateTimeFormat(GREG, opts); return {format: d => gm(f.format(d))}; };   // a Gregorian date with a month name
+const FMT_DAY_MONTH = gregFmt({timeZone:CONFIG.timezone,weekday:'long',day:'numeric',month:'long'});   // «السبت ٢٤ أكتوبر»
 const FMT_WEEKDAY = new Intl.DateTimeFormat(GREG,{timeZone:CONFIG.timezone,weekday:'long'});
 const hmParts = d => FMT_HM.formatToParts(d).reduce((a,x)=>(a[x.type]=x.value,a),{});
 function riyadhParts(d = new Date()){
@@ -850,7 +907,7 @@ function tickDates(){
     setText(document.getElementById('hijri'), h + ' هـ');
   }catch(e){}
   try{
-    setText(document.getElementById('greg'), new Intl.DateTimeFormat(GREG,{
+    setText(document.getElementById('greg'), gregFmt({
       timeZone: CONFIG.timezone, weekday:'long', day:'numeric', month:'long', year:'numeric'
     }).format(now));
   }catch(e){}
@@ -884,12 +941,14 @@ function clockText(v){
 // An Aladhan answer for that day (DD-MM-YYYY) whole, or null: five valid times and the day asked. An Isha before Maghrib is after midnight: «24:10»
 function checkedTimings(j, want){
   const t = j && j.data && j.data.timings, got = j && j.data && j.data.date && j.data.date.gregorian && j.data.date.gregorian.date;
-  if(!t || (got && got !== want)) return null;
+  if(!t || got !== want) return null;   // fail closed: an answer that does not say it is today's (a cached or captive page) is not used
   const out = {};
   for(const k of PRAYER_KEYS){ if(!(out[k] = clockText(t[k]))) return null; }
   out.Sunrise = clockText(t.Sunrise) || undefined;
   const mins = k => { const [h, mi] = out[k].split(':').map(Number); return h * 60 + mi; };
   if(mins('Isha') < mins('Maghrib')) out.Isha = pad(Math.floor((mins('Isha') + 1440) / 60)) + ':' + pad(mins('Isha') % 60);
+  // the times of one day come in this order; an answer that has them otherwise is not used
+  for(let i = 1; i < PRAYER_KEYS.length; i++) if(mins(PRAYER_KEYS[i]) <= mins(PRAYER_KEYS[i - 1])) return null;
   return out;
 }
 function buildPrayers(t){
@@ -909,7 +968,7 @@ function buildPrayers(t){
 const PRAYER_METHODS = {
   0:  {fajr:16,   isha:14,   ishaMin:0,  maghrib:4,    tune:[0,0,0,0]},      // Ja'fari (Leva, Qum)
   4:  {fajr:18.5, isha:0,    ishaMin:90, maghrib:.833, tune:[0,0,0,0]},      // Umm al-Qura
-  8:  {fajr:19.5, isha:0,    ishaMin:90, maghrib:.833, tune:[0,0,0,0]},      // Gulf (Bahrain, Oman)
+  8:  {fajr:19.5, isha:0,    ishaMin:90, maghrib:.833, tune:[0,0,0,0]},      // Gulf (Bahrain; Oman by #pm=gulf)
   9:  {fajr:18,   isha:17.5, ishaMin:0,  maghrib:.833, tune:[0,0,0,0]},      // Kuwait
   10: {fajr:18,   isha:0,    ishaMin:90, maghrib:.833, tune:[0,0,0,0]},      // Qatar
   16: {fajr:18.2, isha:18.2, ishaMin:0,  maghrib:.833, tune:[-3,3,3,3]},     // Dubai (the UAE)
@@ -918,6 +977,8 @@ const PRAYER_METHODS = {
   21:  {fajr:19, isha:17, ishaMin:0, maghrib:.833, tune:[0,5,0,5]},  // Morocco (the Awqaf ministry): Dhuhr and Maghrib +5
   19:  {fajr:18, isha:17, ishaMin:0, maghrib:.833, tune:[0,0,0,0]},  // Algeria (Ministry of Religious Affairs)
   18:  {fajr:18, isha:18, ishaMin:0, maghrib:.833, tune:[0,0,0,0]},  // Tunisia (Ministry of Religious Affairs)
+  // 100 is ours (Aladhan has none): Oman's ministry, fitted to its 2026 timetable (PrayerMath.java says more)
+  100: {fajr:18, isha:18, ishaMin:0, maghrib:.833, tune:[0,5,5,5]},
 };
 function computePrayers(){
   const p = riyadhParts(), lat = CONFIG.latitude, lng = CONFIG.longitude;
@@ -968,6 +1029,7 @@ async function loadPrayers(){
             + `?latitude=${CONFIG.latitude}&longitude=${CONFIG.longitude}`
             + `&method=${CONFIG.prayerMethod}&timezonestring=${encodeURIComponent(CONFIG.timezone)}`;
   try{
+    if(CONFIG.prayerMethod >= 100) throw 0;   // not an Aladhan method: computed only
     const r = await fetchT(url, 12000);
     const t = checkedTimings(await r.json(), want);
     if(!t) throw 0;
@@ -1067,6 +1129,9 @@ function tickPrayer(){
   if(!PRAYERS.length) return;
   const p = riyadhParts();
   const mins = p.h*60 + p.mi + p.s/60;
+  const fill = document.getElementById('pbar-fill');
+  if(CONFIG.prayerBar && fill) fill.style.width = (prayerBarFraction(mins) * 100).toFixed(1) + '%';
+  elN.hidden = false;   // the sunrise panel hides the name (its label already says «الشروق»)
 
   // between adhan and iqama: show the iqama countdown
   const cur = PRAYERS.find(x=>{
@@ -1085,6 +1150,7 @@ function tickPrayer(){
   }
 
   if(panel.classList.contains('now')) panel.classList.remove('now');
+  if(CONFIG.sunrise && sunrisePanel(mins, elL, elN, elT, elC)) return;
   setText(elL, 'الصلاة القادمة');
   let next = PRAYERS.find(x => (x.h*60+x.mi) > mins);
   const leftM = next ? (next.h*60 + next.mi) - mins
@@ -1093,6 +1159,39 @@ function tickPrayer(){
   setText(elN, prayerName(next));
   setText(elT, fmtTime(next.h, next.mi));
   setHTML(elC, 'بعد <b>' + untilAdhan(leftM) + '</b>');
+}
+
+// #prayerbar=1: how far the time has come from one prayer to the next, as one measure all day (the iqama is inside it, so the bar never
+// jumps back when the iqama ends); with #sunrise=1 the sunrise is one of the points, as the panel counts to it
+function prayerBarFraction(mins){
+  const at = PRAYERS.map(x => x.h*60 + x.mi);
+  if(CONFIG.sunrise && DAY_TIMES && DAY_TIMES.Sunrise){ const [h, m] = String(DAY_TIMES.Sunrise).split(':').map(Number); at.push(h*60 + m); }
+  at.sort((a, b) => a - b);
+  const last = at.filter(t => t <= mins).pop(), next = at.find(t => t > mins);
+  const from = last !== undefined ? last : at[at.length-1] - 1440, to = next !== undefined ? next : at[0] + 1440;
+  return Math.max(0, Math.min(1, (mins - from) / Math.max(1, to - from)));
+}
+
+// #sunrise=1 (from PR #28): after Fajr's iqama the panel counts to the sunrise («الشروق» · «٦:٠٥ ص» · «بعد ٢٣ دقيقة»), and for half an hour
+// after it says how long ago it was; then the Dhuhr countdown as always. The sunrise is not a prayer: the label says «الشروق», not «الصلاة
+// القادمة». True when it painted the panel.
+const SUNRISE_AFTER_MIN = 30;
+function sunrisePanel(mins, elL, elN, elT, elC){
+  const fajr = PRAYERS.find(x => x.key === 'Fajr');
+  if(!DAY_TIMES || !DAY_TIMES.Sunrise || !fajr) return false;
+  const [sh, sm] = String(DAY_TIMES.Sunrise).split(':').map(Number), at = sh*60 + sm, from = fajr.h*60 + fajr.mi + (CONFIG.iqama.Fajr || 0);
+  if(mins >= from && mins < at){
+    setText(elL, 'الشروق'); elN.hidden = true; setText(elT, fmtTime(sh, sm));   // «الشروق» once: the label, then the time
+    setHTML(elC, 'بعد <b>' + untilAdhan(at - mins) + '</b>');
+    return true;
+  }
+  const ago = mins - at;
+  if(ago >= 0 && ago < SUNRISE_AFTER_MIN){
+    setText(elL, 'الشروق'); elN.hidden = true; setText(elT, fmtTime(sh, sm));
+    setHTML(elC, ago < 1 ? 'الآن' : 'قبل <b>' + humanRemaining(Math.max(60, Math.floor(ago) * 60)) + '</b>');
+    return true;
+  }
+  return false;
 }
 
 // ---- «المناسبة القادمة»: the card in the middle of the bottom row follows the Hijri year ----
@@ -1140,10 +1239,24 @@ function occasionNow(){
 
 // `raw`: the calendar's own month, without «فرق التاريخ الهجري»: prayer times never follow the offset (only what is shown does)
 function hijriMonthNow(raw){
+  const at = raw ? new Date() : hijriAt(new Date());
   try{
-    return +new Intl.DateTimeFormat('en-u-ca-islamic-umalqura',{timeZone:CONFIG.timezone,month:'numeric'})
-      .format(raw ? new Date() : hijriAt(new Date())).replace(/[^0-9]/g,'');
-  }catch(e){ return 0; }
+    const m = +new Intl.DateTimeFormat('en-u-ca-islamic-umalqura',{timeZone:CONFIG.timezone,month:'numeric'}).format(at).replace(/[^0-9]/g,'');
+    if(m >= 1 && m <= 12) return m;
+  }catch(e){}
+  return tabularHijriMonth(at);   // fail closed: no Umm al-Qura calendar here is not «not Ramadan»
+}
+// The Hijri month by the tabular (arithmetic) Islamic calendar, for a browser without Umm al-Qura's: the city's date as a Julian day,
+// then the civil Hijri date. It can be a day off Umm al-Qura at a month's turn, never a month.
+function tabularHijriMonth(d){
+  const p = riyadhParts(d), a = Math.floor((14 - p.mo) / 12), y = p.y + 4800 - a, mo = p.mo + 12 * a - 3;
+  const jd = p.d + Math.floor((153 * mo + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+  let l = jd - 1948440 + 10632;
+  const n = Math.floor((l - 1) / 10631);
+  l = l - 10631 * n + 354;
+  const j = Math.floor((10985 - l) / 5316) * Math.floor(50 * l / 17719) + Math.floor(l / 5670) * Math.floor(43 * l / 15238);
+  l = l - Math.floor((30 - j) / 15) * Math.floor(17719 * j / 50) - Math.floor(j / 16) * Math.floor(15238 * j / 43) + 29;
+  return Math.floor(24 * l / 709);
 }
 function tickOccasion(){
   const elL=document.getElementById('occ-label'),
@@ -1189,7 +1302,7 @@ function tickOccasion(){
     return;
   }
   setHTML(elD, ar(oc.days) + ' <span class="unit">' + OCC_TEXT.unit + '</span>');
-  setHTML(elS, esc(new Intl.DateTimeFormat(GREG,{timeZone:'UTC',weekday:'long',day:'numeric',month:'long'})
+  setHTML(elS, esc(gregFmt({timeZone:'UTC',weekday:'long',day:'numeric',month:'long'})
       .format(new Date(Date.UTC(oc.y, oc.mo-1, oc.d, 12))).replace('،','') + ' · ' + OCC_TEXT.expected)
     + (o.note ? '<div class="note">' + esc(o.note) + '</div>' : ''));
 }
@@ -1378,7 +1491,7 @@ function matchWhen(d){
 
 // «الخميس ٢٢ أكتوبر»: the day of a finished game
 const matchDay = d => FMT_DAY_MONTH.format(d).replace('،','');
-const FMT_DM = new Intl.DateTimeFormat(GREG,{timeZone:CONFIG.timezone,day:'numeric',month:'long'});
+const FMT_DM = gregFmt({timeZone:CONFIG.timezone,day:'numeric',month:'long'});
 // the short form of matchWhen: «الجمعة ٩:٠٠ م» for a game this week, «٢٤ أكتوبر» for any other (and for a game already played)
 function matchWhenShort(d, now, done){
   const p = hmParts(d), ahead = d - now;
@@ -1825,6 +1938,7 @@ const MARKETS = {
   btc:    {name:'بيتكوين',  cg:'bitcoin',   dec:0, unit:'$'},
   gold:   {name:'الذهب',    sym:'GC=F',     dec:2, unit:'ر.س', mul:GRAM},
   silver: {name:'الفضة',    sym:'SI=F',     dec:2, unit:'ر.س', mul:GRAM},
+  oil:    {name:'نفط برنت', sym:'BZ=F',     dec:2, unit:'دولار/برميل'},
   xrp:    {name:'ريبل',     cg:'ripple',    dec:2, unit:'$'},
 };
 const CG_YAHOO = {bitcoin:'BTC-USD', ripple:'XRP-USD'};   // the file CI keeps holds crypto under Yahoo's pair
@@ -1944,7 +2058,7 @@ function slotHTML(s){
   if(s === 'countdown'){
     const n = countdownDays();
     const name = CONFIG.cdName ? esc(CONFIG.cdName)
-      : new Intl.DateTimeFormat(GREG, {timeZone:'UTC', day:'numeric', month:'long'}).format(new Date(CONFIG.cd + 'T12:00:00Z'));
+      : gregFmt({timeZone:'UTC', day:'numeric', month:'long'}).format(new Date(CONFIG.cd + 'T12:00:00Z'));
     return slotBlock(n === 0 ? 'اليوم' : '<span class="num">' + ar(n) + '</span> <span class="unit">يوم</span>', name);
   }
   return null;
@@ -2444,10 +2558,32 @@ const Z_STEPS = [1, .94, .88, .82, .76, .7, .64];
 function cardCut(card){   // a name or a cell wider than its place: it would end in «…» or run into the next
   for(const e of card.el.querySelectorAll('li, li *, .hd > span')){
     if(e.clientWidth > 0 && e.scrollWidth > e.clientWidth + 1) return true;
+    // the screensaver's pair is measured to the fraction of a pixel (fits()): a source line over by half a pixel ended in «…» there
+    if(!CONFIG.widget && e.clientWidth > 0 && e.scrollWidth >= e.clientWidth && getComputedStyle(e).textOverflow === 'ellipsis' && !fits(e)) return true;
   }
   return false;
 }
+// The screensaver's pair is read from the sofa: its text never goes below a floor (a row's text 2.1vh, every other line 1.45vh);
+// at the floor a verse or a dhikr takes a shorter text and a list fewer rows, as the home screen's cards do, instead of a smaller size.
+const PAIR_FLOOR = {row: .021, small: .0145};
+// (a text that is smaller than its floor at full size is not made smaller at all)
+function aboveFloor(c){
+  const vh = innerHeight, z = parseFloat(c.el.style.getPropertyValue('--z')) || 1, px = e => parseFloat(getComputedStyle(e).fontSize);
+  const under = (e, floor) => { const now = px(e); return now < Math.min(floor * vh, now / z) - .05; };
+  for(const li of c.ul.children) if(li.textContent.trim() && under(li, PAIR_FLOOR.row)) return false;
+  for(const e of c.el.querySelectorAll('.hd, li *')) if(e.children.length === 0 && e.textContent.trim() && under(e, PAIR_FLOOR.small)) return false;
+  return true;
+}
 function shrinkCard(c, tooWide){   // false when there is no step left
+  if(!CONFIG.widget){   // the pair: a smaller size only while it stays above the floor; else the other ways
+    const zi = c.zi;
+    if(c.zi < Z_STEPS.length - 1){
+      c.zi++; c.el.style.setProperty('--z', Z_STEPS[c.zi]);
+      const ok = aboveFloor(c);
+      c.zi = zi; c.el.style.setProperty('--z', Z_STEPS[zi]);
+      if(!ok) return shrinkByContent(c);
+    }else return shrinkByContent(c);
+  }
   const list = LISTS.includes(c.eff), quote = c.eff === 'verse' || c.eff === 'adhkar', zLeft = c.zi < Z_STEPS.length - 1;
   if(tooWide){ if(!zLeft) return false; c.zi++; }
   else if(list && c.ri < c.base - 1) c.ri++;
@@ -2462,17 +2598,39 @@ function shrinkCard(c, tooWide){   // false when there is no step left
   if(cap !== c.cap || maxLen !== c.maxLen){ c.cap = cap; c.maxLen = maxLen; renderCard(c, false, true); }
   return true;
 }
+// at the pair's floor: fewer rows of a list, a shorter verse or dhikr; false when neither is left (the card is then as it is)
+function shrinkByContent(c){
+  const list = LISTS.includes(c.eff), quote = c.eff === 'verse' || c.eff === 'adhkar';
+  if(list && c.ri < c.base - 1) c.ri++;
+  else if(quote && c.ri < 6) c.ri++;
+  else return false;
+  const cap = list ? c.base - c.ri : 0, maxLen = quote ? Math.max(20, Math.floor(c.len0 * Math.pow(.8, c.ri))) : 0;
+  if(cap !== c.cap || maxLen !== c.maxLen){ c.cap = cap; c.maxLen = maxLen; renderCard(c, false, true); }
+  return true;
+}
+// The screensaver's pair beside the small clock (#panel2=) is fitted the same way: its box is the middle row, which may not push
+// the bottom row down (and keeps 2vh of air); the pair is drawn the same height, so while it is fitted each card has its own.
 function fitCards(){
-  if(!CONFIG.widget || CARDS.length < 2) return;
+  if(CARDS.length < 2) return;
   const mid = document.querySelector('.mid');
-  for(let g = 0; g < 120; g++){
-    const tall = mid.getBoundingClientRect().height > innerHeight + .5;
-    const cut = CARDS.filter(cardCut);
-    if(!tall && !cut.length) return;
-    // the cut-off cards first; then, only if the box is too tall, the tallest that can still give something
-    if(cut.some(c => shrinkCard(c, true))) continue;
-    if(!tall || !CARDS.slice().sort((a, b) => b.el.offsetHeight - a.el.offsetHeight).some(c => shrinkCard(c))) return;
-  }
+  const tooTall = CONFIG.widget ? () => mid.getBoundingClientRect().height > innerHeight + .5 : pairTooTall;
+  mid.classList.add('fit');
+  try{
+    for(let g = 0; g < 120; g++){
+      const tall = tooTall();
+      const cut = CARDS.filter(cardCut);
+      if(!tall && !cut.length) return;
+      // the cut-off cards first; then, only if the box is too tall, the tallest that can still give something
+      if(cut.some(c => shrinkCard(c, true))) continue;
+      if(!tall || !CARDS.slice().sort((a, b) => b.el.offsetHeight - a.el.offsetHeight).some(c => shrinkCard(c))) return;
+    }
+  }finally{ mid.classList.remove('fit'); }
+}
+function pairTooTall(){
+  const stage = document.querySelector('.stage'), cs = getComputedStyle(stage);
+  const room = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 2 * parseFloat(cs.rowGap)
+    - document.querySelector('.top').offsetHeight - document.querySelector('.bottom').offsetHeight - .02 * innerHeight;
+  return Math.max(...CARDS.map(c => c.el.offsetHeight)) > room + .5;
 }
 
 // the year's numbers, shared by the card and the strip: the Gregorian year in Riyadh time, its days, today's number
@@ -2873,8 +3031,9 @@ function wisdomOfDay(){
 }
 
 // «أذكار الصباح والمساء» (from حصن المسلم): only those .github/tools/verify_adhkar.py found in the six books or the Quran.
-// Morning ones from Fajr until Dhuhr, evening ones from Asr until Maghrib, the night ones (the end of al-Baqara) from
-// Isha until Fajr; outside those hours the card shows the verse or hadith of the day. One timer, and only while a dhikr is on screen: 20 s + 0.1 s per character, at most 60 s.
+// Morning: Fajr to Dhuhr; evening: Asr to Maghrib; night (the end of al-Baqara): Isha to Fajr. Between them the «both» ones,
+// under when the next begin («أذكار المساء · مع العصر ٣:٠٠ م»), never the verse or hadith of the day. A set with no dhikr
+// (the night verse is too long for the screen) falls back to the evening ones, «late»: a dhikr always shows. One timer, 20 s + 0.1 s per character, at most 60 s.
 const ADHKAR = __ADHKAR__;   // assets/shared/adhkar.json, through src/build.py
 const ADHKAR_COUNT = {1:'مرة واحدة', 2:'مرتان', 3:'ثلاث مرات', 4:'أربع مرات', 7:'سبع مرات', 10:'عشر مرات', 33:'ثلاثاً وثلاثين مرة', 100:'مئة مرة'};
 const ADHKAR_ICON = {
@@ -2882,15 +3041,16 @@ const ADHKAR_ICON = {
   evening:'<svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>',
   night:'<svg viewBox="0 0 24 24"><path d="M19 13.5A7.5 7.5 0 0 1 9.5 4.4a7.5 7.5 0 1 0 9.5 9.1z"/><path d="M16.5 3.5v3M15 5h3"/></svg>',
 };
-const ADHKAR_HEAD = {morning:['أذكار الصباح', 'حتى الظهر'], evening:['أذكار المساء', 'حتى المغرب'], night:['الآيتان من آخر سورة البقرة', 'حتى الفجر']}   // the hadith's own words, no new category name;
-// the adhkar's place in a card: card.ad = {i: which, t: the timer, mode: morning|evening|night, n: how many}
+ADHKAR_ICON.late = ADHKAR_ICON.night;
+const ADHKAR_HEAD = {morning:['أذكار الصباح', 'حتى الظهر'], evening:['أذكار المساء', 'حتى المغرب'], night:['الآيتان من آخر سورة البقرة', 'حتى الفجر'], late:['أذكار المساء', 'حتى الفجر']};
 function adhkarWindow(){
   if(!DAY_TIMES) return '';
   const p = riyadhParts(), now = p.h * 60 + p.mi;
   const at = k => { const [h, mi] = String(DAY_TIMES[k]).split(':').map(Number); return h * 60 + mi; };
   if(now >= at('Fajr') && now < at('Dhuhr')) return 'morning';
   if(now >= at('Asr') && now < at('Maghrib')) return 'evening';
-  if(now >= at('Isha') || now < at('Fajr')) return 'night';   // after midnight it is still the night before
+  const late = ADHKAR.some(d => d.when === 'night') ? 'night' : 'late';   // after midnight it is still the night before
+  if(now >= at('Isha') || now < at('Fajr')) return late;
   return '';
 }
 function adhkarNext(card){
@@ -2899,27 +3059,37 @@ function adhkarNext(card){
   renderCard(card, card.ad.n > 1);
   fitCards();
 }
+function adhkarNextWindow(){
+  const at = k => { const [h, mi] = String(DAY_TIMES[k]).split(':').map(Number); return fmtTime(h, mi); };
+  const p = riyadhParts(), now = p.h * 60 + p.mi, mins = k => { const [h, mi] = String(DAY_TIMES[k]).split(':').map(Number); return h * 60 + mi; };
+  return !DAY_TIMES ? ['أذكار الصباح والمساء', 'في أوقاتها، من الفجر ومن العصر', '']
+    : now < mins('Asr') ? ['أذكار المساء', 'مع العصر ' + at('Asr'), 'evening'] : ['الآيتان من آخر سورة البقرة', 'بعد العشاء ' + at('Isha'), 'night'];
+}
+function adhkarWait(){
+  const [title, when] = adhkarNextWindow();
+  return {title, hd: `<span>${title}</span>`, rows: [`<li class="adw"><span>${esc(when)}</span></li>`]};
+}
 function adhkarCard(card){
-  const ad = card.ad, mode = adhkarWindow(), list = mode ? ADHKAR.filter(d => d.when === mode || (d.when === 'both' && mode !== 'night')) : [];
-  if(!list.length){
-    clearTimeout(ad.t); ad.t = 0; ad.mode = '';
-    return quoteOfDay(card);
-  }
-  if(mode !== ad.mode){ ad.mode = mode; ad.i = 0; clearTimeout(ad.t); ad.t = 0; }
+  const ad = card.ad, mode = adhkarWindow(), key = mode || 'between';
+  const list = ADHKAR.filter(d => mode ? d.when === (mode === 'late' ? 'evening' : mode) || (d.when === 'both' && mode !== 'night') : d.when === 'both');
+  if(!list.length){ clearTimeout(ad.t); ad.t = 0; ad.mode = ''; return adhkarWait(); }
+  if(key !== ad.mode){ ad.mode = key; ad.i = 0; clearTimeout(ad.t); ad.t = 0; }
   let i = ad.i % list.length;
-  // a card in a small place skips the dhikr that is too long for it (card.maxLen), if a shorter one follows
   if(card.maxLen) for(let k = 0; k < list.length && list[i].text.length > card.maxLen; k++){ ad.i++; i = ad.i % list.length; }
   const d = list[i];
   card.len = d.text.length;
   ad.n = list.length;
   if(!ad.t) ad.t = setTimeout(() => adhkarNext(card), Math.min(60, 20 + .1 * d.text.length) * 1000);
   const dots = Math.min(list.length, 12), on = Math.floor(i * dots / list.length);
-  const text = d.quran ? `<span class="orn">﴿</span><span class="qt">${esc(d.text)}</span><span class="orn">﴾</span>` : esc(d.text);
-  const [title, until] = ADHKAR_HEAD[mode];
+  // the ayah-end signs of a surah carry their number inside the ornament in Arabic-Indic digits (the font draws only those inside it);
+  // with Western digits chosen the number goes and the ornament stays empty, rather than a «1» outside the circle
+  const qt = d.quran && LATIN ? d.text.replace(/(\u06DD)[\u0660-\u0669]+/g, '$1') : d.text;
+  const text = d.quran ? `<span class="orn">﴿</span><span class="qt">${esc(qt)}</span><span class="orn">﴾</span>` : esc(d.text);
+  const [title, until, icon] = mode ? [...ADHKAR_HEAD[mode], mode] : adhkarNextWindow();
   return {
     title,
-    hd: `${ADHKAR_ICON[mode]}<span>${title}</span><span class="until">${until}</span>`,
-    rows: [`<li class="quote${d.quran ? ' quran' : ''}${d.text.length > 560 ? ' q4' : quoteSize(d.text.length)}">${text}</li>`,   // harakat make a dhikr long: one more step
+    hd: `${ADHKAR_ICON[icon] || ''}<span>${title}</span><span class="until">${esc(until)}</span>`,
+    rows: [`<li class="quote${d.quran ? ' quran' : ''}${d.text.length > 560 ? ' q4' : quoteSize(d.text.length)}">${text}</li>`,
            `<li class="adf"><span class="s">${esc(ar(d.virtue ? `${d.virtue.text} · ${d.virtue.source.replace(' · ', ' ')}` : d.source))}</span><span class="c">${ADHKAR_COUNT[d.count] || ar(d.count) + ' مرة'}</span>`
            + `<span class="d">${Array.from({length: dots}, (_, k) => k === on ? '<i class="on"></i>' : '<i></i>').join('')}</span></li>`],
   };
@@ -2951,19 +3121,32 @@ function wxAgeText(ms){
 function wxSource(){
   const el = document.getElementById('wx-src');
   if(!el) return;
-  setText(el, WX.at && Date.now() - WX.at < WX_STALE_MS ? 'Open-Meteo · ' + wxAgeText(Date.now() - WX.at) : '');
+  const fresh = WX.at && Date.now() - WX.at < WX_STALE_MS;
+  setText(el, fresh ? 'Open-Meteo · ' + wxAgeText(Date.now() - WX.at) : '');
+  // #wxmore=1: «رطوبة ٤٥٪، رياح ١٢ كم/س» («،», not «·»: beside «٪» it reads as «٠») from the same reading (none of it when the reading is stale or did not have it)
+  const more = document.getElementById('wx-more');
+  if(!more) return;
+  const parts = [];
+  if(CONFIG.wxMore && fresh && typeof WX.hum === 'number') parts.push('رطوبة ' + ar(Math.round(WX.hum)) + '٪');
+  if(CONFIG.wxMore && fresh && typeof WX.wind === 'number') parts.push('رياح ' + ar(Math.round(WX.wind)) + ' كم/س');
+  setText(more, parts.join('، '));
+  more.hidden = !parts.length;
 }
 async function loadWeather(){
   const q = `latitude=${CONFIG.latitude}&longitude=${CONFIG.longitude}&timezone=${encodeURIComponent(CONFIG.timezone)}`;
   try{
     // the hours card asks in the same request: its hourly values, and sunrise and sunset for the day or night icon
     const hours = USES('hourly');
-    const r = await fetchT(`https://api.open-meteo.com/v1/forecast?${q}&current=temperature_2m,weather_code,visibility`
+    const r = await fetchT(`https://api.open-meteo.com/v1/forecast?${q}&current=temperature_2m,weather_code,visibility${CONFIG.wxMore ? ',relative_humidity_2m,wind_speed_10m' : ''}`
                          + `&daily=temperature_2m_max,temperature_2m_min,weather_code${hours ? ',sunrise,sunset' : ''}&forecast_days=5`
                          + (hours ? '&hourly=temperature_2m,weather_code' : ''), 12000);
     if(!r.ok) throw 0;
     const j = await r.json();
-    WX.at = Date.now(); WX.vis = typeof j.current.visibility === 'number' ? j.current.visibility : null; saveWx();
+    WX.at = Date.now(); WX.vis = typeof j.current.visibility === 'number' ? j.current.visibility : null;
+    // off, the values are not asked: none kept, so turning it on offline shows nothing old as if it were now
+    WX.hum = CONFIG.wxMore && typeof j.current.relative_humidity_2m === 'number' ? j.current.relative_humidity_2m : null;
+    WX.wind = CONFIG.wxMore && typeof j.current.wind_speed_10m === 'number' ? j.current.wind_speed_10m : null;
+    saveWx();
     setText(document.getElementById('wx-temp'), ar(Math.round(j.current.temperature_2m)) + '°');
     const d = document.getElementById('wx-desc');
     setText(d, WX_CODES[j.current.weather_code] || '');
@@ -3084,10 +3267,11 @@ const CARD_FILTER = {   // blur px, then the CSS filter functions, as in the app
   dark1:[6,'saturate(140%)'], glass1:[9,'saturate(170%) brightness(.62)'],
   dark3:[6,'saturate(140%)'], glass3:[9,'saturate(160%) brightness(.55)'],
 };
-const CARD = {cv:null, t:0, url:'', since:0};
+const CARD = {cv:null, t:0, url:'', since:0};   // cv: the copies drawn, one per card beside the clock (two for the small clock's pair)
 function cardRelease(){
   clearTimeout(CARD.t); CARD.t = 0;
-  if(CARD.cv){ CARD.cv.width = 0; CARD.cv.remove(); CARD.cv = null; }
+  document.querySelectorAll('.week > canvas.bl').forEach(cv => { cv.width = 0; cv.remove(); });   // every card's, also one left half made
+  CARD.cv = null;
 }
 function cardBlurLater(url){
   CARD.url = url; CARD.since = Date.now();
@@ -3098,41 +3282,43 @@ function cardBlurLater(url){
 }
 function cardBlurNow(){
   CARD.t = 0;
-  const f = CARD_FILTER[CONFIG.cardStyle], card = document.querySelector('.week'), url = CARD.url;
-  if(!f || !card || !url || CONFIG.panel === 'none') return;
+  const f = CARD_FILTER[CONFIG.cardStyle], cards = CARDS.map(c => c.el), url = CARD.url;
+  if(!f || !cards.length || !url || CONFIG.panel === 'none') return;
   try{
     const img = new Image();
     img.onload = () => {
       try{
         if(url !== CARD.url || CARD.cv) return;   // the photo changed while this loaded
-        const W = innerWidth, H = innerHeight, r = card.getBoundingClientRect(), K = .25;   // a quarter size is plenty under a blur
-        const [sx, sy] = SHIFT_SEQ[shiftTick];   // the stage's burn-in shift moves the card, not the photo
-        const cv = document.createElement('canvas');
-        cv.width = Math.max(1, Math.round(r.width * K)); cv.height = Math.max(1, Math.round(r.height * K));
-        const g = cv.getContext('2d');
-        const patch = () => g.setTransform(K, 0, 0, K, -(r.left - sx) * K, -(r.top - sy) * K);   // canvas = the card's patch of the screen
-        patch();
-        if(g.filter !== undefined) g.filter = `blur(${f[0] * K}px) ${f[1]}`;
-        // where .photo draws it: cover, centred at 26%, then its final scale(1.03) about the centre
-        const iw = img.naturalWidth, ih = img.naturalHeight, s = Math.max(W / iw, H / ih), dw = iw * s, dh = ih * s;
-        g.translate(W / 2, H / 2); g.scale(1.03, 1.03); g.translate(-W / 2, -H / 2);
-        g.drawImage(img, (W - dw) * .5, (H - dh) * .26, dw, dh);
-        g.filter = 'none';
-        patch();
-        g.fillStyle = `rgba(0,0,0,${document.querySelector('.photo').style.getPropertyValue('--dim') || .05})`;   // the photo's own darkness
-        g.fillRect(0, 0, W, H);
-        const v = g.createLinearGradient(0, 0, 0, H);   // the vertical part of .veil, the part that reaches the card
-        v.addColorStop(0, 'rgba(3,10,7,.62)'); v.addColorStop(.22, 'rgba(3,10,7,.30)'); v.addColorStop(.46, 'rgba(3,10,7,.12)');
-        v.addColorStop(.74, 'rgba(3,10,7,.42)'); v.addColorStop(1, 'rgba(2,6,4,.88)');
-        g.fillStyle = v; g.fillRect(0, 0, W, H);
-        g.translate(.22 * W, .34 * H); g.scale(1.2 * W, .85 * H);   // and its soft shade at 22% 34%
-        const rg = g.createRadialGradient(0, 0, 0, 0, 0, 1);
-        rg.addColorStop(0, 'rgba(3,14,9,.42)'); rg.addColorStop(.58, 'rgba(3,14,9,0)');
-        g.fillStyle = rg; g.fillRect(-1, -1, 2, 2);
-        cv.className = 'bl';
-        card.insertBefore(cv, card.firstChild);
-        CARD.cv = cv;
-        requestAnimationFrame(() => requestAnimationFrame(() => cv.classList.add('on')));
+        CARD.cv = cards.map(card => {
+          const W = innerWidth, H = innerHeight, r = card.getBoundingClientRect(), K = .25;   // a quarter size is plenty under a blur
+          const [sx, sy] = SHIFT_SEQ[shiftTick];   // the stage's burn-in shift moves the card, not the photo
+          const cv = document.createElement('canvas');
+          cv.width = Math.max(1, Math.round(r.width * K)); cv.height = Math.max(1, Math.round(r.height * K));
+          const g = cv.getContext('2d');
+          const patch = () => g.setTransform(K, 0, 0, K, -(r.left - sx) * K, -(r.top - sy) * K);   // canvas = the card's patch of the screen
+          patch();
+          if(g.filter !== undefined) g.filter = `blur(${f[0] * K}px) ${f[1]}`;
+          // where .photo draws it: cover, centred at 26%, then its final scale(1.03) about the centre
+          const iw = img.naturalWidth, ih = img.naturalHeight, s = Math.max(W / iw, H / ih), dw = iw * s, dh = ih * s;
+          g.translate(W / 2, H / 2); g.scale(1.03, 1.03); g.translate(-W / 2, -H / 2);
+          g.drawImage(img, (W - dw) * .5, (H - dh) * .26, dw, dh);
+          g.filter = 'none';
+          patch();
+          g.fillStyle = `rgba(0,0,0,${document.querySelector('.photo').style.getPropertyValue('--dim') || .05})`;   // the photo's own darkness
+          g.fillRect(0, 0, W, H);
+          const v = g.createLinearGradient(0, 0, 0, H);   // the vertical part of .veil, the part that reaches the card
+          v.addColorStop(0, 'rgba(3,10,7,.62)'); v.addColorStop(.22, 'rgba(3,10,7,.30)'); v.addColorStop(.46, 'rgba(3,10,7,.12)');
+          v.addColorStop(.74, 'rgba(3,10,7,.42)'); v.addColorStop(1, 'rgba(2,6,4,.88)');
+          g.fillStyle = v; g.fillRect(0, 0, W, H);
+          g.translate(.22 * W, .34 * H); g.scale(1.2 * W, .85 * H);   // and its soft shade at 22% 34%
+          const rg = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+          rg.addColorStop(0, 'rgba(3,14,9,.42)'); rg.addColorStop(.58, 'rgba(3,14,9,0)');
+          g.fillStyle = rg; g.fillRect(-1, -1, 2, 2);
+          cv.className = 'bl';
+          card.insertBefore(cv, card.firstChild);
+          requestAnimationFrame(() => requestAnimationFrame(() => cv.classList.add('on')));
+          return cv;
+        });
       }catch(e){ cardRelease(); }
       img.onload = null; img.src = '';
     };
@@ -3326,12 +3512,21 @@ function boot(){
   if(!SLOT_MATCHES) document.getElementById('match-row').textContent = '';   // not «لا شيء هذا الأسبوع»: that is the matches slot's
   if(CONFIG.cardStyle !== 'current') document.documentElement.classList.add('cs-' + CONFIG.cardStyle);
   if(CONFIG.clockSize !== 'large') document.documentElement.classList.add('ck-' + CONFIG.clockSize);
+  // the small clock's column: its widest time of day in ems, every minute measured in Thmanyah Display (١٢:٣٣ م is 2.60 of them, 10:00 م
+  // in Latin digits 3.25), so the cards beside it and the panels under it never move
+  if(CONFIG.clockSize === 'small') document.documentElement.style.setProperty('--ckk', LATIN ? '3.26' : '2.62');
   buildMarkets();
   restoreSnap();
+  // #wxmore=1: its line under the city, once (the saved copy of the top left may bring one back: keep that one); off, none at all
+  const wxMoreEl = document.getElementById('wx-more');
+  if(CONFIG.wxMore && !wxMoreEl) document.getElementById('wx-src').insertAdjacentHTML('beforebegin', '<div class="wxmore" id="wx-more" hidden></div>');
+  if(!CONFIG.wxMore && wxMoreEl) wxMoreEl.remove();
   paintMkUp(); wxExpire(); wxSource();
   setTimeout(saveSnap, 15*1000);   // the dream can be killed before pagehide
   setInterval(saveSnap, 60*1000);
   addEventListener('pagehide', saveSnap);
+  // the parts of the choices that are off by default are made only when chosen: off, the page is as it was, element for element
+  if(CONFIG.prayerBar) document.getElementById('prayer-count').insertAdjacentHTML('afterend', '<div class="pbar" id="pbar"><i id="pbar-fill"></i></div>');
   const wxCity = document.getElementById('wx-city');
   if(wxCity) wxCity.textContent = CONFIG.city;
   const cs = document.getElementById('clock-sub');

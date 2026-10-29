@@ -30,7 +30,7 @@ def check(name, ok, detail=""):
 A = "am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.SET "
 bad = "it's"
 for words in (["city", bad], ["city", "x", bad, "46.7"], ["city", "x", "24.7", bad], ["city", "x", "24.7", "46.7", bad], ["teams", bad], ["card", bad],
-              ["home-card", bad], ["greeting", bad], ["adhanbar", bad], ["genres", bad], ["leagues", bad], ["events", bad], ["langs", bad],
+              ["home-card", bad], ["greeting", bad], ["listenpill", bad], ["updatebell", bad], ["adhanbar", bad], ["genres", bad], ["leagues", bad], ["events", bad], ["langs", bad],
               ["minrating", bad], ["photos", bad], ["cardstyle", bad], ["markets", bad], ["mkstyle", bad], ["stocks", bad], ["slot", bad],
               ["countdown", "2026-12-01", bad], ["countdown", bad, "name"], ["national", bad], ["digits", bad], ["idle", bad]):
     rc, out, sent = run(*words)

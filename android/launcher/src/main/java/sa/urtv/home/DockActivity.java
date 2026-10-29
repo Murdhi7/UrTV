@@ -3,7 +3,6 @@ package sa.urtv.home;
 import android.app.Activity;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -24,11 +23,12 @@ import java.util.Map;
 /**
  * «ترتيب المفضلة»: the favourites row as a list, arranged with the remote. OK on an app picks it up, ▲▼ move
  * it, OK drops it. «إزالة» beside each one, every other app below to add. No dialogs: the launcher is laid
- * out left to right, so rows are built right-aligned by hand. Opened from the long-press menu, from the
- * screensaver's settings, or `am start -n sa.urtv.home/.DockActivity`.
+ * out left to right, so rows are built right-aligned by hand. Opened from the screensaver's settings only (the home
+ * screen's own way is «تعديل المفضلة», see FavEdit), or `am start -n sa.urtv.home/.DockActivity`.
  */
 public class DockActivity extends Activity {
-    private static final int GOLD = 0xFFD6AF6B, INK = 0xFF04120C, TEXT = 0xFFF6EFE0, DIM = 0xFFC6BBA4;
+    private int GOLD, INK, TEXT, DIM;   // from the glass look (glass(), before anything is drawn)
+    private GlassStyle.Look look;
 
     private Map<String, String> apps;
     private final List<String> row = new ArrayList<>();
@@ -37,6 +37,7 @@ public class DockActivity extends Activity {
     private final List<View> cards = new ArrayList<>(), removes = new ArrayList<>();
     private int moving = -1;
     private View screen;
+    private ScrollView scroll;
     private boolean verified;
     private int swallowUp = -1;   // the OK that drops an app must not also click it
 
@@ -47,9 +48,8 @@ public class DockActivity extends Activity {
         apps = Dock.launchable(this);
         row.addAll(Dock.shown(this, apps));
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0xFF0A2016, 0xFF04120C, 0xFF020806}));
+        scroll = new ScrollView(this);
+        glass(scroll);   // the glass look: the home's photo, small and blurred once, under its veil
         scroll.setVerticalScrollBarEnabled(false);
         FrameLayout frame = new FrameLayout(this);
         scroll.addView(frame);
@@ -66,6 +66,7 @@ public class DockActivity extends Activity {
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         col.addView(list, new LinearLayout.LayoutParams(-1, -2));
+        scroll.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // the D-pad ids of these rows are left-to-right: pinned, so a TV set to Arabic does not mirror the rows under them
         setContentView(scroll);
         screen = scroll;
         render(0);
@@ -139,6 +140,13 @@ public class DockActivity extends Activity {
                 removes.get(i).setNextFocusDownId(removes.get(i + 1).getId());
             }
         }
+        // the first app brings the list back to its very top, the title over it (the TV test: back up, the header stayed hidden)
+        View first = cards.isEmpty() ? reset : cards.get(0);
+        final View.OnFocusChangeListener was = first.getOnFocusChangeListener();
+        first.setOnFocusChangeListener((v, has) -> {
+            if (was != null) was.onFocusChange(v, has);
+            if (has) scroll.post(() -> scroll.smoothScrollTo(0, 0));
+        });
         View f = cards.isEmpty() ? reset : cards.get(Math.max(0, Math.min(focus, cards.size() - 1)));
         f.post(f::requestFocus);
     }
@@ -171,9 +179,6 @@ public class DockActivity extends Activity {
         c.setFocusable(true);
         c.setClickable(true);
         c.setId(View.generateViewId());
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        c.setBackground(bg);
 
         final TextView arrows = text(lifted ? "▲▼" : "", 14, "Medium", INK);
         c.addView(arrows, new LinearLayout.LayoutParams(-2, -2));
@@ -196,14 +201,13 @@ public class DockActivity extends Activity {
             n.setGravity(Gravity.CENTER);
             c.addView(n, new LinearLayout.LayoutParams(-2, -2));
         }
-        final boolean isLifted = lifted;
-        View.OnFocusChangeListener paint = (v, has) -> {
-            bg.setColor(isLifted ? GOLD : has ? 0x33D6AF6B : 0x14FFFFFF);
-            bg.setStroke(dp(2), isLifted || has ? GOLD : 0x1FD6AF6B);
-            name.setTextColor(isLifted ? INK : TEXT);
-        };
-        c.setOnFocusChangeListener(paint);
-        paint.onFocusChange(c, false);
+        if (lifted) {   // picked up: the solid focus fill all the time, its words in the focus ink
+            c.setBackground(GlassPaint.fill(this, look.focus, 14, 0));
+            name.setTextColor(INK);
+            if (pkg != null) ((TextView) c.getChildAt(c.getChildCount() - 1)).setTextColor(INK);
+        } else {
+            GlassPaint.card(c, look, 14);
+        }
         c.setOnClickListener(click);
         return c;
     }
@@ -214,16 +218,8 @@ public class DockActivity extends Activity {
         p.setFocusable(true);
         p.setClickable(true);
         p.setId(View.generateViewId());
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        p.setBackground(bg);
-        View.OnFocusChangeListener paint = (v, has) -> {
-            bg.setColor(has ? 0x33EE8B70 : 0x0DFFFFFF);
-            bg.setStroke(dp(2), has ? 0xFFEE8B70 : 0x14FFFFFF);
-            p.setTextColor(has ? 0xFFFFD9CF : DIM);
-        };
-        p.setOnFocusChangeListener(paint);
-        paint.onFocusChange(p, false);
+        p.setTextColor(look.warn);   // «إزالة»: the warning colour, the solid focus fill while focused
+        GlassPaint.card(p, look, 14);
         p.setOnClickListener(click);
         return p;
     }
@@ -304,5 +300,11 @@ public class DockActivity extends Activity {
 
     private static String ar(int n) {
         return Digits.of(String.valueOf(n));
+    }
+
+    /** The glass look on this page (GlassSource: the home's photo under its veil, or the look's solid colour), and this screen's colours from it. */
+    private void glass(View page) {
+        look = GlassSource.page(this, page);
+        GOLD = look.accent; INK = look.onFocus; TEXT = look.text; DIM = look.sub;
     }
 }

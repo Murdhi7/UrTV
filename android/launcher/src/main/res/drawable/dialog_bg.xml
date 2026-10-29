@@ -1,16 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- the sleep-timer dialog: the same glass, a little denser so the words stay readable over the player -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <shape android:shape="rectangle">
-            <gradient android:angle="270" android:startColor="#8C2F6B4C" android:endColor="#8C0F2D1F" />
-            <stroke android:width="1dp" android:color="@color/gold" />
-            <corners android:radius="24dp" />
-        </shape>
-    </item>
-    <item android:left="24dp" android:right="24dp" android:height="1dp" android:gravity="top">
-        <shape android:shape="rectangle">
-            <solid android:color="#59FFFFFF" />
-        </shape>
-    </item>
-</layer-list>
+<!-- the sleep timer's dialog: the dialog glass over the solid colour, opaque (nothing behind shows through) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle"><solid android:color="?attr/gDialogSolid" /><stroke android:width="1dp" android:color="?attr/gLine" /><corners android:radius="24dp" /></shape>

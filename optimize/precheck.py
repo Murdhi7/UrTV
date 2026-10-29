@@ -90,6 +90,10 @@ def lines(answers):
 def check(answers):
     k = kind(answers)
     _, ver = webview(answers)
+    if k == "no" and not re.search(r"^feature:", find(answers, "pm list features"), re.M):
+        # no feature line at all: the TV did not answer (still booting?), which is not «this is a phone»
+        print("!! The TV did not say what it is (its feature list came back empty), so nothing was changed. Wait a minute, check it is awake and on Wi-Fi, then run optimize/precheck.sh again.")
+        return 5
     if k == "no":
         print("!! This device is not an Android TV (it has no android.software.leanback): the setup stops here, nothing was changed.")
         print("   Samsung (Tizen) and LG (webOS) TVs can't run these apps, and a phone or tablet is not a TV. Tell the person, in Arabic:")
@@ -120,7 +124,9 @@ def main(argv):
         return 0
     if argv[:1] == ["held"]:
         _, ver = webview(answers)
-        return 4 if ver is not None and ver < MIN_WEBVIEW else 0
+        if ver is None:   # the TV did not say which WebView it has: unknown is not «new enough»
+            return 5
+        return 4 if ver < MIN_WEBVIEW else 0
     return check(answers)
 
 

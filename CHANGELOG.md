@@ -2,21 +2,53 @@
 
 Newest first. `next` is where changes land first; a release is what was tested there.
 
-## On `next` (not released yet)
+## 4.0 (on `next`, not released yet)
+
+**Version 4.0:** the release has a name now, the `VERSION` file at the root («4.0»). The apps' `versionName` is exactly `4.0` (what Android's app info shows), the `versionCode` is still the GitHub run number, so every build installs over the last; the screens show «4.0» (the build only in the reports)
+(settings «الإصدار», «تحديث تلفزيوني», the phone page, `saver.sh show`). Updates are untouched: `version.txt` is still exactly `3.<build>` (an app installed
+before 4.0 (build 142 and later) reads it as before and still sees the update), and the apps compare by build, never by name. Master builds publish `apk-latest` as before and a
+numbered release tagged `v4.0.<build>` (only the URL shows it; the title is «UrTV 4.0», the build is in the body); the older `v3.N` ones stay.
+
+**Phone**
+- The phone remote's arrows, OK, Back and Home work in every app, through our accessibility service («تلفزيونك: التحكم والكتابة من الجوال», renamed from «…: الكتابة من الجوال»; or the sleep timer's service from Android 13): the dpad global actions on Android 13+, a focus move on the window in front before it (OK = a click on the focused node). Our own screens keep their exact key path; the phone page names the service when it is off. A phone key stops a playing adhan first when «إيقاف الأذان بأي زر» is on. Log tag `UrTVRemote`: the key, the route and the answer only.
+- Typing from the phone into other apps: the typing service now declares `typeWindowStateChanged` (read by nobody) so Android tracks the window in front and the field can be found; it also takes the input-focused field first and fields that accept set-text. A fixed-words log (tag `UrTVType`) shows each step.
+- «تحكم من الجوال» is the first row of «الجوال والتحديث», and that tile names it.
+**Fixes from the TV test**
+- A tile «تلفزيونك» (an activity-alias with LEANBACK_LAUNCHER and our banner) opens the home from the TV's own apps row, for the one setup in four that keeps the stock home (setupwraith / launcherx); it never changes which home is the default, Back at the top of our home then leaves it for the home that opened it, and our own «كل التطبيقات» does not list it.
+- The adhan alarm no longer falls back to the bundled place (Riyadh) when the screensaver's settings cannot be read (the owner's TCL kills its process and refuses to start it from the background): the last good place is kept, a failed read never reschedules, and the alarm is set from the place it was judged by (log tag `UrTVAdhan`); the home's other settings keep their last good values meanwhile.
+- Phone page, «الإعدادات»: the cards being chosen are no longer put back by a TV answer that was still on its way (a «بدون» pressed soon after a save sent the old card again); the message over the page no longer takes taps.
+- The adhkar card with Western digits chosen no longer shows the surahs' Arabic-Indic ayah numbers (the ornament stays empty, as a Western digit would fall outside the circle).
+- The screen stays on (only while shown) on the phone-control pairing screen and its «سماح/رفض» prompt, the update screens and «إعداد تلفزيوني», so the screensaver no longer closes them.
+- Typing from the phone into YouTube TV (no text field to Android) opens YouTube's own search with the words; where an app has none, the phone page says so. The log (`UrTVType`) now adds the focused node's class name when no field is found.
+- Cards saved from the phone (setting the first one back to «بدون» too) reach the home screen in front at once; the TV now asks the screensaver what it holds after the save and tells the phone if it is not what was sent.
+- Typing into YouTube TV: its search opens first, on any of its screens (the first version asked Android if the app could be reached, which Android 11+ answers «no» for other apps).
+- «حماية العائلة (DNS)»: the first check waits for Private DNS and retries a fresh name (up to 40 s), so a working TV is no longer turned down.
+- The adhkar card shows a dhikr at night too (the evening ones when there is no night verse), never only a start time.
 
 **Prayer times and adhan**
-- Gulf cities, each country's own prayer method, and Ja'fari.
+- Gulf cities, each country's own prayer method, and Ja'fari. Oman uses its Ministry of Awqaf's method (Fajr and Isha 18°, Dhuhr, Asr and Maghrib +5 minutes, from egyjs/afnon-android-tv-launcher, MIT); the Gulf method stays as «طريقة الحساب» ← الخليج.
 - «تعديل وقت الصلاة»: move each prayer by its own minutes.
 - The adhan bar names the prayer before the adhan; the Fajr voice and a short adhan; honest buffering.
 - The adhan keeps its right time through previews and city changes; the TV's volume comes back after any adhan.
 - «أذان من ملفي»: the person's own adhan; the old one stays until the new one is in.
 
 **Home screen and screensaver**
+- Network only while the home is in front and the display is on (weather, hosted photos, Aladhan's times, adhan recordings, the update check); the adhan itself is unchanged. The audit is `docs/NETWORK.md`.
+- The «المصادر» list shows the name an HDMI-CEC device gives itself (console, box) instead of «HDMI 2», and « · وضع الاستعداد» when the input is in standby; your own name still wins; `dock.sh input-names` shows both.
+- «جرس التحديثات»: a bell in the home screen's top row that shows only on evidence of waiting Play Store updates (none can be read with normal permissions yet, so it stays out of sight), a setting and `saver.sh updatebell`.
+- «تعديل المفضلة»: press a favourite to pick it up and move it along the row, × to remove it with «تراجع»; «ترتيب التطبيقات المفضلة» is now in the settings only.
+- The glass look (د) on every screen of ours: settings, tasks, phone control and pairing, parental and the PIN, update, «إعداد تلفزيوني», «مركز التحكم», Family protection, the «تلاوة وأذان» screens and the phone page. Smoked glass in dark, frosted white in light, over the home's photo blurred once per photo (no live blur); each photo gets the veil its texts need to read.
+- «المظهر» is the first row of the home screen's settings: «الشكل» (زجاجي، فحمي، كحلي، نظيف) for every screen of ours, and «الإضاءة» (داكن، فاتح، تلقائي), each choice previewed live before it is picked; `saver.sh look`.
+- From the TV test (build 147): «أكمل المشاهدة» is a row of favourite-sized cards under the favourites again (it could come before them and fill the screen); a focused row in the settings has dark ink on its white fill; the settings never move sideways; the pickers are opaque; the «إعدادات تلفزيونك» tile has its icon.
+- «تعديل التطبيقات»: «كل التطبيقات» in your own order (pick up and move across the grid), × to hide an app with «تراجع», «المخفية» to bring one back, ▲ from the first row into the favourites; «ترتيب كل التطبيقات» in the settings, with «رجوع للترتيب الأصلي». Not in kids mode, and neither is «تعديل المفضلة» now.
 - Prayer times as boxes, new pills (icons only, the name shows on focus), glass panels, softer glow on the focused app.
 - «يُتلى الآن» card while تلاوة plays; the screen is now «تلاوة وأذان».
 - A year strip under the clock, the date beside the clubs, club crests when fetch is refused, fixes to the league card.
 - The screensaver starts from its pill; the page survives a WebView renderer that dies.
+- «مركز التحكم»: one round pill opens a panel of tiles (sleep timer, turn off now, network, speed test, sound output, screensaver, our settings, the TV's settings); the sleep, screensaver, Wi-Fi and settings pills moved into it, locked by the same names, plus a new lock `@center`.
+- «مركز التحكم»: all tiles fit on 1080p and 720p, it opens on the tile used last, the sound output tile names the real output, «أطفئ الآن» says first when the sleep service is off, a new «إعدادات تلفزيونك» tile (locked by `@urtv`); «حرّر الذاكرة» is gone (no use on Android 14). The remote's Settings key now opens our settings.
 - The weather and the dust are told apart; forecast and weather show only as old as they are; the last price is kept and marked.
+- The medium and small clocks lay the screen out again (the large one is unchanged); «بطاقة ثانية»: a second card beside the small clock.
 
 **Speed and safety**
 - Fetches and the live poll stay inside their deadlines; apps load off the UI thread; downloads are capped.
@@ -36,6 +68,18 @@ Newest first. `next` is where changes land first; a release is what was tested t
 - Reports keep only the lines the script builds, and the scrub (the net for what the scripts printed on `!!` lines)
   also covers IPv6 addresses, emails, serials, tokens, links with tokens, Wi-Fi names and user names.
 - `SECURITY.md`, `CONTRIBUTING.md` and this file.
+- «تحكم من الجوال»: a much better page (a swipe pad, volume, an Arabic text field, the favourites with their real icons, what plays, the sleep timer and screensaver, a read-only family card) and the endpoints behind it; locked apps ask for the PIN on the TV; Back works over other apps with the accessibility service.
+- For testing only: `optimize/saver.sh updatechannel next` makes «تحديث تلفزيوني» read the apk-next build (the CI now publishes its `version.txt`); `tests/android_compile.sh` compiles both apps against API 34 (SKIP when offline) and runs in `tests/run.sh`. It also fails on a source that uses a class hidden in the public SDK (`tests/hidden_api_scan.py`; that is what broke the release build once), and uses the real public `android.jar` when the Android SDK is installed.
+
+**Thanks (GitHub handles, with the issue or pull request number):**
+- Brent oil in the markets bar: hak151617-sys (#39).
+- The 24-hour clock «ساعة ٢٤»: saadabdelhafid-cyber (#41).
+- The Jordan prayer method: alaaalquda-hub (#34). Egypt's method and cities are in too.
+- The fix for the older WebView (66) that stopped the page's JavaScript: ayhankaraalitr-eng posted it first (#21), ckpb4fjvs7-ops sent the same fix again (#43), and omarghxd-art reported the problem (#19).
+- The sunrise after Fajr, the bar of the time between two prayers and the humidity and wind: beeshooo2010-jpg (#28).
+- The audio-focus fix (the Quran and the adhan no longer stutter or fight other sound): itsAbdulelah (#35); the TV updating itself, earlier: itsAbdulelah (#10).
+- The PIN and kids mode («حماية العائلة»): AbdullahCg (#40).
+- Club crests: samiharthy (#30).
 
 ## 23 October 2026 (51b9680)
 

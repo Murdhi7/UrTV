@@ -13,11 +13,27 @@
 #   optimize/saver.sh teams 136013:Al-Hilal 150643:Al-Zulfi    followed teams in order (up to 20; more are left out and listed);
 #                                                  `teams none` (or `teams ""`) follows no team: the defaults (الهلال، المنتخب السعودي) go
 #   optimize/saver.sh card prayers                 beside the clock: shows prayers forecast hourly prayerrow matches verse wisdom adhkar stocks tasks year smart today none
+#   optimize/saver.sh card2 hourly                 a second card beside the clock, shown only while the clock is small (clocksize small):
+#                                                  the same choices but nextprayer and the first card; card2 none = one card (default)
 #   optimize/saver.sh home-card verse,hourly,year  on the home screen (launcher): up to 3 cards, same choices and nextprayer (home only), in this order
 #                                                  (one value works too; none = off). Two sit side by side, a third under them
 #   optimize/saver.sh greeting off                 home screen: the greeting (by prayer time) and the weather line under it: on (default) or off
+#   optimize/saver.sh listenpill off               home screen: the «تلاوة وأذان» button: on (default) or off. Off removes only the button: the adhan, its alarm and bar, the
+#                                                  any-key stop, the «يُتلى الآن» card and the Quran stay; the screen opens from the app menu (long OK on an app) or the card
+#   optimize/saver.sh watchnext off                home screen: «أكمل المشاهدة» under the favourites: on (default) or off. It shows once the home app may
+#                                                  read the TV's Watch Next list (the owner allows it once from the settings row)
+#   optimize/saver.sh updatebell off               home screen: the «جرس التحديثات» bell: on (default) or off. It shows only while the Play Store has app updates waiting;
+#                                                  off removes only the bell
+#   optimize/saver.sh appearance auto              home screen: «المظهر ← الإضاءة», dark (default), light, or auto (light from sunrise until Maghrib in the city)
+#   optimize/saver.sh look navy                    all our screens: «المظهر ← الشكل», glass (default), graphite, navy, or clean
 #   optimize/saver.sh adhanbar off                 the slim bar before the adhan (last 10 minutes, then until the iqama) on the screensaver and the home screen: on (default) or off
+#   optimize/saver.sh updatechannel next          TESTING ONLY (agents; no screen shows it): «تحديث تلفزيوني» reads the version and the APKs from the apk-next release instead
+#                                                  of apk-latest: next or latest (default). Same signature, newer-version and permission checks. Put it back to latest after
 #   optimize/saver.sh yearstrip on                 the slim year strip under the screensaver's clock (365 dots in 7 rows, today lit, no words): on or off (default)
+#   optimize/saver.sh sunrise on                   the prayer panel counts to the sunrise after Fajr's iqama, and tells it for 30 minutes: on or off (default)
+#   optimize/saver.sh prayerbar on                 a thin bar under the prayer panel, how far it is from the last prayer to the next: on or off (default)
+#   optimize/saver.sh wxmore on                    the humidity and the wind under the city at the top left: on or off (default)
+#   optimize/saver.sh months levant                the Gregorian month's names on both screens: default (يناير…) or levant (كانون الثاني…)
 #   optimize/saver.sh genres Drama,Comedy          episodes card: Drama Comedy Action Crime Thriller Mystery
 #                                                  Science-Fiction Fantasy Adventure Romance Family History Horror
 #                                                  Anime Documentary Sports  ("" = all)
@@ -33,7 +49,7 @@
 #   optimize/saver.sh hijrioffset -1               the Hijri date moved by whole days, -2..2 (default 0 = Umm al-Qura as it is): where the month
 #                                                  starts by moon sighting (Egypt, Jordan, the Levant, Morocco); the page and the home screen both follow
 #   optimize/saver.sh clock24 on                   every time of day as 24-hour (١٩:٣٠) instead of 12-hour (٧:٣٠ م): on | off (default off)
-#   optimize/saver.sh markets tasi,gold,btc        top left, up to 4 in order: tasi aramco spx btc gold silver xrp (default tasi,spx,btc)
+#   optimize/saver.sh markets tasi,gold,btc        top left, up to 4 in order: tasi aramco spx btc gold silver oil xrp (default tasi,spx,btc)
 #   optimize/saver.sh markets off                  hide the markets line at the top (only the weather stays; the list is kept and nothing is fetched for it); `markets on` brings it back
 #   optimize/saver.sh clocksize medium             the screensaver's clock: large (default) medium small
 #   optimize/saver.sh mkstyle prices               markets: arrows (▲▼ only, default) or prices (price and day's change)
@@ -46,7 +62,7 @@
 #   optimize/saver.sh leagues 'Saudi-Arabian Pro League'   whole leagues, up to 5, by English or Arabic name (دوري روشن السعودي);
 #                                                  every game of every club in them joins the teams' games ("" = none)
 #   optimize/saver.sh events f1,ufc               other sports beside the teams' games: f1 ufc boxing  ("" = none)
-#   optimize/saver.sh prayermethod jafari|auto     «طريقة الحساب»: auto (the default) = the city's country's own, jafari = Shia Ithna-Ashari (Leva, Qum)
+#   optimize/saver.sh prayermethod jafari|gulf|auto  «طريقة الحساب»: auto (the default) = the city's country's own, gulf = the Gulf method (Fajr 19.5°, Isha 90 min) for any place, jafari = Shia Ithna-Ashari (Leva, Qum)
 #   optimize/saver.sh prayeradj on|off             «تعديل وقت الصلاة» (off by default): each prayer moved by its own whole minutes, -20..20
 #   optimize/saver.sh prayeradj fajr +2 maghrib -1   the minutes of fajr dhuhr asr maghrib isha (the others stay); sunrise is never moved
 #   optimize/saver.sh export > settings.json       the settings to move to a second TV (city, prayer method, cards, markets, teams, adhan…;
@@ -59,10 +75,19 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PY:-optimize/venv/bin/python}"
-send() {   # $1 action, $2 extras; prints the receiver's answer (the "data" of am broadcast); exit 1 on "error:"
-  local out
-  out=$("$PY" -I optimize/tv.py "am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.$1 ${2:-}" \
-    | sed -n '/data="/,$p' | sed '1s/.*data="//; $s/"$//')
+send() {   # $1 action, $2 extras; prints the receiver's answer (the "data" of am broadcast); exit 1 on "error:" or when there is no answer
+  local raw out
+  raw=$("$PY" -I optimize/tv.py "am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.$1 ${2:-}" | tr -d '\r') || raw=""
+  # no «data=» at all = the receiver never ran (app missing, another signature, just updated): that is not «done»
+  if ! grep -q 'data=' <<< "$raw"; then
+    if [ "$1" = UPDATE ]; then   # the download can still be running: no answer yet is not «not installed»
+      echo "!! saver.sh: no answer to the update (it may still be downloading): wait a minute, then optimize/saver.sh show says the version; if it did not change, run the same command again." >&2
+      return 1
+    fi
+    echo "!! saver.sh: no answer from the TV's screensaver app (it is not installed, was just updated, or the connection dropped), so nothing is known to have changed. Run optimize/install.sh saver, then the same command again." >&2
+    return 1
+  fi
+  out=$(sed -n '/data="/,$p' <<< "$raw" | sed '1s/.*data="//; $s/"$//')
   echo "$out"
   [[ "$out" != error:* ]]
 }
@@ -78,10 +103,13 @@ active() {   # one line: which screensaver the TV uses now
   elif [[ "$comp" == sa.urtv.screensaver/* ]]; then echo "screensaver now: ours (شاشة تلفزيونك)"
   else echo "screensaver now: the TV's own, $comp"; fi
 }
-stock_dream() {   # a screensaver this TV lists besides ours: component, or nothing
-  local list
-  list=$("$PY" -I optimize/tv.py "(cmd package query-services --brief -a android.service.dreams.DreamService || pm query-services --brief -a android.service.dreams.DreamService) 2> /dev/null" \
-    | tr -d '\r' | grep -E '^[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+$' | grep -v '^sa\.urtv\.' || true)
+stock_dream() {   # a screensaver this TV lists besides ours: component, or nothing; returns 2 when the TV did not list its screensavers at all
+  local raw list
+  raw=$("$PY" -I optimize/tv.py "(cmd package query-services --brief -a android.service.dreams.DreamService || pm query-services --brief -a android.service.dreams.DreamService) 2> /dev/null" \
+    | tr -d '\r' | sed 's/^[[:space:]]*//' | grep -E '^[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+$' || true)   # the real output is indented under «Service #N:»
+  # a TV that answered lists at least one screensaver (ours, if it is installed); an empty answer is «the TV did not say», not «it has none of its own»
+  [ -n "$raw" ] || return 2
+  list=$(grep -v '^sa\.urtv\.' <<< "$raw" || true)
   { grep -iE 'backdrop|dream|ambient|photo' <<< "$list" || true; echo "$list"; } | grep -m1 . || true
 }
 quote() {  # one shell-safe argument for the TV's shell
@@ -111,11 +139,18 @@ case "${1:-}" in
     fi
     prev="${prev%%,*}"
     case "$prev" in ""|null|sa.urtv.screensaver/*) prev= ;; esac   # none then, or a backup taken with ours already set
-    if [ -n "$prev" ]; then why="the one from before setup"; else why="a stock one"; prev=$(stock_dream); fi
+    if [ -n "$prev" ]; then why="the one from before setup"; else
+      why="a stock one"; prev=$(stock_dream) || {
+        echo "!! saver.sh off: the TV did not list its screensavers, so nothing was changed. Run the same command again."; exit 1; }
+    fi
     if [ -n "$prev" ] && [[ "$prev" =~ ^[A-Za-z0-9_.]+/[A-Za-z0-9_.\$]+$ ]]; then
-      case "$enabled" in 0|1) ;; *) enabled=1 ;; esac
-      printf '%s\n' "settings put secure screensaver_enabled $enabled" "settings put secure screensaver_components '$prev'" \
-        "settings delete secure screensaver_default_component" | "$PY" -I optimize/tv.py --batch > /dev/null
+      [ -f "$BACKUP" ] || enabled=1   # no backup at all: the stock screensaver is switched on, as before
+      case "$enabled" in 0|1) ;; "") ;; *) enabled=1 ;; esac   # a backup whose line is empty (it could not read it): the switch is left as it is
+      {
+        [ -z "$enabled" ] || echo "settings put secure screensaver_enabled $enabled"
+        echo "settings put secure screensaver_components '$prev'"
+        echo "settings delete secure screensaver_default_component"
+      } | "$PY" -I optimize/tv.py --batch > /dev/null
       echo "Ours is off ($why is back). It stays installed: optimize/saver.sh on turns it on again."
     else
       printf '%s\n' "settings put secure screensaver_enabled 0" "settings delete secure screensaver_components" \
@@ -150,10 +185,22 @@ case "${1:-}" in
     set1 teams "$(IFS=,; echo "$*")" ;;
   card)     [ "${2:-}" = nextprayer ] && { echo "!! nextprayer is a home-screen card only (the screensaver's bottom-right panel already shows the next prayer): optimize/saver.sh home-card nextprayer"; exit 1; }
             set1 panel "${2:?usage: optimize/saver.sh card prayers}" ;;
+  card2)    [ "${2:-}" = nextprayer ] && { echo "!! nextprayer is a home-screen card only (the screensaver's bottom-right panel already shows the next prayer): pick another card2, or card2 none"; exit 1; }
+            set1 panel2 "${2:?usage: optimize/saver.sh card2 hourly | none   (shown beside the small clock: optimize/saver.sh clocksize small)}" ;;
   home-card)set1 home_panel "${2?usage: optimize/saver.sh home-card verse,hourly,year | none}" ;;
   greeting) set1 greeting "${2:?usage: optimize/saver.sh greeting on|off}" ;;
+  listenpill) set1 listenpill "${2:?usage: optimize/saver.sh listenpill on|off}" ;;
+  updatebell) set1 updatebell "${2:?usage: optimize/saver.sh updatebell on|off}" ;;
+  watchnext) set1 watchnext "${2:?usage: optimize/saver.sh watchnext on|off}" ;;
+  appearance) set1 appearance "${2:?usage: optimize/saver.sh appearance dark|light|auto}" ;;
+  look) set1 look "${2:?usage: optimize/saver.sh look glass|graphite|navy|clean}" ;;
   adhanbar) set1 adhanbar "${2:?usage: optimize/saver.sh adhanbar on|off}" ;;
+  updatechannel) set1 updatechannel "${2:?usage: optimize/saver.sh updatechannel next|latest   (testing only)}" ;;
   yearstrip)set1 yearstrip "${2:?usage: optimize/saver.sh yearstrip on|off}" ;;
+  sunrise)  set1 sunrise "${2:?usage: optimize/saver.sh sunrise on|off}" ;;
+  prayerbar)set1 prayerbar "${2:?usage: optimize/saver.sh prayerbar on|off}" ;;
+  wxmore)   set1 wxmore "${2:?usage: optimize/saver.sh wxmore on|off}" ;;
+  months)   set1 months "${2:?usage: optimize/saver.sh months default|levant}" ;;
   genres)   set1 genres "${2-}" ;;
   # no value at all is a question, not a change: it used to clear them (`""` still means none)
   leagues)  [ $# -ge 2 ] || { echo "usage: optimize/saver.sh leagues 'دوري روشن السعودي' ('' = none; optimize/saver.sh show lists the ones set)"; exit 1; }
@@ -216,8 +263,8 @@ case "${1:-}" in
   prayermethod)
     shift
     case "${1:-}" in
-      jafari|auto) [ $# -eq 1 ] || { echo "usage: optimize/saver.sh prayermethod jafari|auto"; exit 1; } ;;
-      *) echo "usage: optimize/saver.sh prayermethod jafari|auto   (auto = the city's country's own method)"; exit 1 ;;
+      jafari|gulf|auto) [ $# -eq 1 ] || { echo "usage: optimize/saver.sh prayermethod jafari|gulf|auto"; exit 1; } ;;
+      *) echo "usage: optimize/saver.sh prayermethod jafari|gulf|auto   (auto = the city's country's own method)"; exit 1 ;;
     esac
     rc=0; send SET "--es prayermethod $1" || rc=$?
     # the home app's adhan alarm was set for the old times: set it again now (no launcher, no harm)

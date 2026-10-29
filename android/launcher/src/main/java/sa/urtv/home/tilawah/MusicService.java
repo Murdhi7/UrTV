@@ -300,6 +300,10 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
             case ACTION_STOP_ADHAN: if (source == Prefs.SOURCE_ADHAN) finishAdhan(); break;   // what it paused comes back, as when it ends by itself
             default: break;
         }
+        // a command that started nothing (a pause with nothing loaded, a timer of 0, an unknown reciter) must not leave the service
+        // foreground for good; a command that plays (radio, adhan) is left to its own course
+        boolean mayLeaveNothing = !ACTION_PLAY_RADIO.equals(action) && !ACTION_PLAY_ADHAN.equals(action) && !ACTION_STOP.equals(action);
+        if (IdleCommand.leavesNothing(mayLeaveNothing, source == Prefs.SOURCE_NONE, player != null, sleepUntil)) stopIdle();
         return START_NOT_STICKY;
     }
 
@@ -719,6 +723,13 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
         }
     }
 
+    /** Nothing was started: leave without save(), which would wipe the remembered surah and position. */
+    private void stopIdle() {
+        foregroundStarted = false;
+        stopForeground(true);
+        stopSelf();
+    }
+
     void stopPlayback() {
         resetSeekBurst();
         if (source != Prefs.SOURCE_ADHAN) save();
@@ -951,7 +962,7 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
                 .setShowWhen(false)
                 .setCategory(Notification.CATEGORY_TRANSPORT)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .setColor(getResources().getColor(R.color.gold))
+                .setColor(getResources().getColor(R.color.notify_accent))   // a plain colour: a notification has no theme
                 .addAction(R.drawable.ic_prev, getString(R.string.previous), command(ACTION_PREV))
                 .addAction(playing ? R.drawable.ic_pause : R.drawable.ic_play,
                         getString(R.string.play_pause), command(ACTION_TOGGLE))

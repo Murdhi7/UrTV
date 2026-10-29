@@ -23,15 +23,20 @@ final class AdhanScheduler {
 
     private AdhanScheduler() {}
 
-    static void schedule(Context c) {
+    static void schedule(Context c) { schedule(c, Place.get(c)); }
+
+    /** The alarm for the next adhan of this place (the caller read it once, so what it was judged by is what the alarm is set for). */
+    static synchronized void schedule(Context c, Place place) {   // one at a time: two threads cannot interleave the identity and the alarm
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
+        // the one place the identity is written, for every schedule from anywhere: what the alarm is REALLY set from (AdhanSync compares with it)
+        c.getSharedPreferences("tilawah", Context.MODE_PRIVATE).edit().putString("sched_identity", place.identity()).apply();
         cancelLegacy(c, am);
         if (!new Prefs(c).adhanOn()) { am.cancel(pending(c, 0, -1)); return; }
         // the replacement first, then the swap: an alarm is never cancelled for nothing, and a prayer that is due in the next seconds is
         // still the one set (nextAlarm, not next: the screen's 30-second rule would skip it). Setting the same pending intent replaces
         // the old alarm, so there is never one for the old time beside the new.
-        PrayerTimes.Next next = PrayerTimes.nextAlarm(c);
+        PrayerTimes.Next next = PrayerTimes.nextAlarm(c, place);
         if (next == null) { am.cancel(pending(c, 0, -1)); return; }
         Adhan.prefetchChosen(c);   // the recording is on the TV before its prayer, not fetched while it should be playing
         PendingIntent pending = pending(c, next.at, next.index);

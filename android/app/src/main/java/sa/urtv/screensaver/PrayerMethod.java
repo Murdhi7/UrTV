@@ -10,7 +10,7 @@ package sa.urtv.screensaver;
  * tests/prayer_method_test.py keeps the three tables equal. Plain Java: tests/PrayerMethodRun.java runs it on a JVM.
  */
 final class PrayerMethod {
-    static final String AUTO = "auto", JAFARI = "jafari";
+    static final String AUTO = "auto", JAFARI = "jafari", GULF = "gulf";
     /**
      * the countries the city search offers (Open-Meteo's country codes): Saudi Arabia, the other Gulf states, Egypt, Jordan, Syria, Lebanon,
      * Morocco, Algeria and Tunisia. Each place comes with the zone Open-Meteo gives it, and that zone picks the calculation (authority below).
@@ -25,11 +25,11 @@ final class PrayerMethod {
     static String parse(String s) {
         if (s == null) return null;
         String v = s.trim().toLowerCase(java.util.Locale.ROOT);
-        return AUTO.equals(v) || JAFARI.equals(v) ? v : null;
+        return AUTO.equals(v) || JAFARI.equals(v) || GULF.equals(v) ? v : null;
     }
 
     /** What goes in the settings fragment: nothing for «تلقائي» (the page is then as it was). */
-    static String fragment(String saved) { return JAFARI.equals(saved) ? "&pm=jafari" : ""; }
+    static String fragment(String saved) { return JAFARI.equals(saved) ? "&pm=jafari" : GULF.equals(saved) ? "&pm=gulf" : ""; }
 
     static boolean searchable(String countryCode) {
         for (String c : SEARCH_COUNTRIES) if (c.equalsIgnoreCase(countryCode)) return true;
@@ -43,7 +43,8 @@ final class PrayerMethod {
             case "Asia/Kuwait": return "الكويت";
             case "Asia/Qatar": return "قطر";
             case "Asia/Dubai": return "الإمارات";
-            case "Asia/Bahrain": case "Asia/Muscat": return "الخليج";
+            case "Asia/Bahrain": return "الخليج";
+            case "Asia/Muscat": return "وزارة الأوقاف والشؤون الدينية العُمانية";
             case "Africa/Cairo": case "Asia/Damascus": case "Asia/Beirut": case "Asia/Gaza": case "Asia/Hebron": case "Asia/Jerusalem": return "الهيئة المصرية للمساحة";
             case "Asia/Amman": return "وزارة الأوقاف الأردنية";
             case "Africa/Casablanca": case "Africa/El_Aaiun": return "وزارة الأوقاف المغربية";
@@ -54,6 +55,6 @@ final class PrayerMethod {
     }
 
     static String label(String saved, String tz) {
-        return JAFARI.equals(saved) ? "جعفري · معهد ليفا، قم" : "تلقائي · " + authority(tz);
+        return JAFARI.equals(saved) ? "جعفري · معهد ليفا، قم" : GULF.equals(saved) ? "الخليج" : "تلقائي · " + authority(tz);
     }
 }

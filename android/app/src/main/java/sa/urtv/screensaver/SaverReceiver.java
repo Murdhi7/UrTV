@@ -20,12 +20,13 @@ import java.util.Locale;
  *   am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.CITIES
  *   am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.SET
  *       [--es city 'الرس'] [--es lat 25.86 --es lon 43.49 --es tz Asia/Kuwait]   (tz is needed for a place that is not in the list) [--es teams '136013:Al-Hilal,150643:Al-Zulfi']
- *       [--es panel prayers] [--es home_panel prayers,hourly,verse|none] [--es greeting on|off] [--es adhanbar on|off] [--es yearstrip on|off] [--es minrating 7] [--es genres Drama,Comedy] [--es langs English]
+ *       [--es panel prayers] [--es panel2 hourly|none] [--es home_panel prayers,hourly,verse|none] [--es greeting on|off] [--es listenpill on|off] [--es updatebell on|off] [--es watchnext on|off] [--es appearance dark|light|auto] [--es look glass|graphite|navy|clean] [--es adhanbar on|off] [--es yearstrip on|off] [--es minrating 7]
+ *       [--es sunrise on|off] [--es prayerbar on|off] [--es wxmore on|off] [--es months default|levant] [--es genres Drama,Comedy] [--es langs English]
  *       [--es photos 30] [--es idle 10] [--es digits hindi|latin] [--es hijrioffset -2..2] [--es clock24 on|off]
  *       [--es cardstyle current|dark1|glass1|dark3|glass3] [--es national auto|off]
  *       [--es markets tasi,gold,btc] [--es mkstyle arrows|prices] [--es mkbar on|off] [--es clocksize large|medium|small] [--es stocks 2222,1120,AAPL]
  *       [--es leagues 'Saudi-Arabian Pro League,NBA']
- *       [--es prayermethod jafari|auto]   («طريقة الحساب»: auto = the country's own, jafari = Shia Ithna-Ashari)
+ *       [--es prayermethod jafari|gulf|auto]   («طريقة الحساب»: auto = the country's own, gulf = the Gulf method for any place, jafari = Shia Ithna-Ashari)
  *       [--es prayeradj on|off] [--es adj_fajr +2 --es adj_dhuhr 0 --es adj_asr 0 --es adj_maghrib -1 --es adj_isha 0]   («تعديل وقت الصلاة», minutes -20..20)
  *       [--es slot matches|weather|fasting|countdown|markets|none] [--es countdown 2026-12-01|clear --es cdname 'رحلة الصيف']
  *   am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.UPDATE
@@ -34,17 +35,29 @@ import java.util.Locale;
  *   am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.PHOTOS
  *       --es op list | add --ei size BYTES | add --ei size BYTES --es path /data/local/tmp/urtv-own/in.jpg | del --ei n 1 | clear | mode --es mode mix|only
  *
+ * updatechannel = latest (the default) or next: where «تحديث تلفزيوني» (the TV's screen and the phone page) and the newest-version line read the
+ * version and the APKs, the apk-latest or the apk-next release. For TESTING an update only, set by agents; no screen shows it, the settings export leaves
+ * it out, and every signature, newer-version and permission check is the same.
  * leagues = whole leagues (Prefs.LEAGUES, up to Prefs.MAX_LEAGUES; the English or the Arabic name; "" = none): every game of every
  * club in them joins the followed teams' games.
  * PHOTOS = «صوري», the owner's own photos (Own, up to 10; optimize/photos.sh): "add" keeps the photo the shell just wrote
  * through ConfigProvider (.../own-in), or, with path, one in /data/local/tmp/urtv-own/ (only where the app may read it);
  * mode = mix (they join ours, as always) or only.
+ * appearance = «المظهر ← الإضاءة» of the home screen: dark (the default), light, or auto (light from sunrise until Maghrib in the city).
+ * look = «المظهر ← الشكل» of all our screens: glass (the default), graphite, navy or clean.
+ * listenpill = the «تلاوة وأذان» button on the home screen (on, the default, or off: only the button goes, the adhan and the Quran stay).
+ * watchnext = «أكمل المشاهدة» under the home screen's favourites (on, the default, or off); it needs the home app's TV listings permission.
+ * updatebell = the «جرس التحديثات» on the home screen (on, the default, or off: only the bell goes; it shows only while the Play Store has updates waiting).
  * greeting = the greeting and the weather line above the home screen's clock (on, the default, or off: the plain good-morning).
  * yearstrip = the slim year strip under the screensaver's clock (on, or off, the default).
+ * sunrise, prayerbar, wxmore = on or off (the default): the sunrise after Fajr in the prayer panel, the bar under it, the humidity and wind.
+ * months = default («أكتوبر») or levant («تشرين الأول»), the Gregorian month's names on both screens.
  * slot = what the bottom-left slot shows (Prefs.SLOTS). countdown = the date (YYYY-MM-DD) slot=countdown counts down to, or
  * "clear"; cdname = its name (up to 40 characters).
  * national = auto (as always from now: the quiet green look on National Day, 21-25 September, and Founding Day, 20-24 February) or off.
  * cardstyle = the look of the card beside the clock (Prefs.CARD_STYLES; current is the plain card).
+ * panel2 = «بطاقة ثانية», a second card beside the clock while it is small (SecondCard): one of the screensaver's cards but the
+ * first one, or none (the default). Kept with any clock size; the page shows it only beside the small clock.
  * mkbar = the markets line at the top, on (default) or off (the weather stays; the list is kept); clocksize = the screensaver's clock.
  * markets = up to four of Prefs.MARKETS at the top left, in order; mkstyle = arrows only (as always) or the price and the day's change.
  * stocks = the watchlist of the stocks card (panel stocks): up to Prefs.MAX_STOCKS Tadawul codes (4 digits) or US tickers.
@@ -105,7 +118,8 @@ public class SaverReceiver extends BroadcastReceiver {
         return CityMatch.find(name).size() == 1;
     }
 
-    private static String set(Context c, Prefs p, Intent i) {
+    /** The one place a setting is checked and saved: the ADB receiver and the launcher's phone control (ConfigProvider.call) both come here. */
+    static String set(Context c, Prefs p, Intent i) {
         // check everything first, then save: a typo never leaves half the settings changed
         String[] city = null;
         String name = i.getStringExtra("city"), lat = i.getStringExtra("lat"), lon = i.getStringExtra("lon");
@@ -159,6 +173,11 @@ public class SaverReceiver extends BroadcastReceiver {
         String panel = i.getStringExtra("panel"), home = i.getStringExtra("home_panel");
         if (panel != null && Prefs.homeOnly(panel)) return "error: " + panel + " is a home-screen card only (the screensaver's panel already shows it): optimize/saver.sh home-card " + panel;
         if (panel != null && !isPanel(panel)) return "error: panel is one of " + panels();
+        String panel2 = i.getStringExtra("panel2");   // checked against the first card it will sit beside: this one's new one, else today's
+        if (panel2 != null) {
+            String why = SecondCard.refuse(panel2, panel != null ? panel : p.panel(), Prefs.SAVER_PANELS);
+            if (why != null) return why;
+        }
         List<String> homeCards = null;
         if (home != null) {
             homeCards = new ArrayList<>();
@@ -173,12 +192,15 @@ public class SaverReceiver extends BroadcastReceiver {
         String adhanBar = i.getStringExtra("adhanbar");
         if (adhanBar != null && !"on".equals(adhanBar) && !"off".equals(adhanBar))
             return "error: adhanbar is one of on off";
+        String updateChannel = i.getStringExtra("updatechannel");
+        if (updateChannel != null && !"latest".equals(updateChannel) && !"next".equals(updateChannel))
+            return "error: updatechannel is one of latest next";
         String prayerAdj = i.getStringExtra("prayeradj");
         if (prayerAdj != null && !"on".equals(prayerAdj) && !"off".equals(prayerAdj))
             return "error: prayeradj is one of on off";
         String prayerMethod = i.getStringExtra("prayermethod");
         if (prayerMethod != null && PrayerMethod.parse(prayerMethod) == null)
-            return "error: prayermethod is one of jafari auto";
+            return "error: prayermethod is one of jafari gulf auto";
         int[] adj = null;   // «تعديل وقت الصلاة»: each given prayer is a whole number of minutes, −20..20; the rest stay
         for (int k = 0; k < PrayerAdj.COUNT; k++) {
             String v = i.getStringExtra("adj_" + PrayerAdj.KEYS[k]);
@@ -197,9 +219,29 @@ public class SaverReceiver extends BroadcastReceiver {
         String yearStrip = i.getStringExtra("yearstrip");
         if (yearStrip != null && !"on".equals(yearStrip) && !"off".equals(yearStrip))
             return "error: yearstrip is one of on off";
+        String sunrise = i.getStringExtra("sunrise"), prayerBar = i.getStringExtra("prayerbar"), wxMore = i.getStringExtra("wxmore");
+        for (String[] x : new String[][] {{"sunrise", sunrise}, {"prayerbar", prayerBar}, {"wxmore", wxMore}})
+            if (x[1] != null && !"on".equals(x[1]) && !"off".equals(x[1])) return "error: " + x[0] + " is one of on off";
+        String months = i.getStringExtra("months");
+        if (months != null && !"default".equals(months) && !"levant".equals(months)) return "error: months is one of default levant";
         String greeting = i.getStringExtra("greeting");
         if (greeting != null && !"on".equals(greeting) && !"off".equals(greeting))
             return "error: greeting is one of on off";
+        String listenPill = i.getStringExtra("listenpill");
+        if (listenPill != null && !"on".equals(listenPill) && !"off".equals(listenPill))
+            return "error: listenpill is one of on off";
+        String watchNext = i.getStringExtra("watchnext");
+        if (watchNext != null && !"on".equals(watchNext) && !"off".equals(watchNext))
+            return "error: watchnext is one of on off";
+        String updateBell = i.getStringExtra("updatebell");
+        if (updateBell != null && !"on".equals(updateBell) && !"off".equals(updateBell))
+            return "error: updatebell is one of on off";
+        String appearance = i.getStringExtra("appearance");
+        if (appearance != null && !Arrays.asList(Prefs.APPEARANCES).contains(appearance))
+            return "error: appearance is one of " + Prefs.join(Arrays.asList(Prefs.APPEARANCES), " ");
+        String look = i.getStringExtra("look");
+        if (look != null && !Arrays.asList(GlassStyle.LOOKS).contains(look))
+            return "error: look is one of " + Prefs.join(Arrays.asList(GlassStyle.LOOKS), " ");
         String rating = i.getStringExtra("minrating");
         if (rating != null && !Arrays.asList(Prefs.MIN_RATINGS).contains(rating))
             return "error: minrating is one of " + Prefs.join(Arrays.asList(Prefs.MIN_RATINGS), " ");
@@ -291,10 +333,24 @@ public class SaverReceiver extends BroadcastReceiver {
         if (city != null) p.setCity(city[0], city[1], city[2], tz == null ? "" : tz);
         if (teams != null) p.setList("teams", teams);
         if (panel != null) p.setPanel(panel);
+        if (panel2 != null) p.setPanel2(panel2);
         if (homeCards != null) p.setHomePanels(homeCards);
         if (greeting != null) p.setGreeting("on".equals(greeting));
+        if (listenPill != null) p.setListenPill("on".equals(listenPill));
+        if (updateBell != null) p.setUpdateBell("on".equals(updateBell));
+        if (watchNext != null) p.setWatchNext("on".equals(watchNext));
+        if (appearance != null) p.setAppearance(appearance);
+        if (look != null) p.setLook(look);
         if (adhanBar != null) p.setAdhanBar("on".equals(adhanBar));
+        if (updateChannel != null && !updateChannel.equals(p.updateChannel())) {   // another release now: the number shown as the newest is read again
+            p.setUpdateChannel(updateChannel);
+            Updater.refreshLatestAsync(c);
+        }
         if (yearStrip != null) p.setYearStrip("on".equals(yearStrip));
+        if (sunrise != null) p.setSunrise("on".equals(sunrise));
+        if (prayerBar != null) p.setPrayerBar("on".equals(prayerBar));
+        if (wxMore != null) p.setWxMore("on".equals(wxMore));
+        if (months != null) p.setMonths(months);
         if (prayerMethod != null) p.setPrayerMethod(PrayerMethod.parse(prayerMethod));
         if (adj != null) p.setPrayerAdj(adj);
         if (hijriOffset != null) p.setHijriOffset(hijriOffset);
@@ -319,6 +375,8 @@ public class SaverReceiver extends BroadcastReceiver {
         if (langs != null) p.setList("langs", langs);
         if (events != null) p.setList("events", events);
         if (leagues != null) p.setList("leagues", leagues);
+        // the page reads its settings once, when it starts: a screensaver (or preview) already on the screen would go on showing the old ones
+        c.sendBroadcast(new Intent(Prefs.CHANGED).setPackage(c.getPackageName()));
         return "saved\n" + describe(c, p);
     }
 
@@ -408,15 +466,26 @@ public class SaverReceiver extends BroadcastReceiver {
 
     private static String describe(Context c, Prefs p) {
         String[] city = p.city();
-        String latest = p.raw().getString("latestVersion", null);   // what Updater last saw on the release
-        return "version: " + BuildConfig.VERSION_NAME + (latest != null ? " (newest: " + latest + ")" : "")
+        String latest = p.latestVersion();   // what Updater last saw on the release of the current channel
+        int newest = Versions.buildOf(latest);
+        return "version: " + Versions.displayEn(BuildConfig.MARKETING, BuildConfig.VERSION_CODE)
+            + (newest >= 0 ? " (newest: " + Versions.otherEn(BuildConfig.MARKETING, newest) + ("next".equals(p.updateChannel()) ? ", on the next channel" : "") + ")" : "")
             + "\ncity: " + city[0] + " (" + city[1] + ", " + city[2] + ")"
             + "\ntimezone: " + p.cityTz()
             + "\nteams: " + Prefs.join(p.teams(), ", ")
-            + "\npanel: " + p.panel() + "\nhome_panel: " + p.homePanel()
+            + "\npanel: " + p.panel() + "\npanel2: " + p.panel2()
+            + "\nhome_panel: " + p.homePanel()
             + "\ngreeting: " + (p.greeting() ? "on" : "off")
+            + "\nlistenpill: " + (p.listenPill() ? "on" : "off")
+            + "\nupdatebell: " + (p.updateBell() ? "on" : "off")
+            + "\nwatchnext: " + (p.watchNext() ? "on" : "off")
+            + "\nappearance: " + p.appearance()
+            + "\nlook: " + p.look()
             + "\nadhanbar: " + (p.adhanBar() ? "on" : "off")
+            + "\nupdatechannel: " + p.updateChannel()
             + "\nyearstrip: " + (p.yearStrip() ? "on" : "off")
+            + "\nsunrise: " + (p.sunrise() ? "on" : "off") + "\nprayerbar: " + (p.prayerBar() ? "on" : "off")
+            + "\nwxmore: " + (p.wxMore() ? "on" : "off") + "\nmonths: " + p.months()
             + "\nprayermethod: " + p.prayerMethod()
             + "\nprayeradj: " + (p.prayerAdjOn() ? "on" : "off") + " " + PrayerAdj.describe(p.prayerAdj())
             + "\nhijrioffset: " + HijriOffset.describe(p.hijriOffset())

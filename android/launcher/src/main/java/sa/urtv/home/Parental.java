@@ -57,6 +57,7 @@ final class Parental {
 
     /** Tell a running home screen to redraw (kids mode changed what it shows). */
     static void changed(Context c) {
+        PhoneApps.invalidate();   // the phone remote's list of favourites and locks follows at once
         c.sendBroadcast(new Intent(Dock.CHANGED).setPackage(c.getPackageName()));
     }
 
@@ -70,11 +71,13 @@ final class Parental {
     }
 
     static void setKids(Context c, boolean on) {
+        PhoneApps.invalidate();
         prefs(c).edit().putBoolean("kids", on).commit();
         changed(c);
     }
 
     private static void toggle(Context c, String key, String item, boolean on) {
+        PhoneApps.invalidate();
         Set<String> set = ParentalPolicy.parse(prefs(c).getString(key, ""));
         if (on) set.add(item); else set.remove(item);
         prefs(c).edit().putString(key, ParentalPolicy.join(set)).commit();
@@ -108,14 +111,21 @@ final class Parental {
         return status(c);
     }
 
+    /** {@code dock.sh pin lock|unlock TARGET}: one app (its package), a pill (@wifi...) or «قفل الإعدادات» (@urtv); from the computer, like the PIN itself. */
+    static String adbLock(Context c, String target, boolean on) {
+        if (!ParentalPolicy.validTarget(target)) return "error: name an app's package (com.example.app), a pill (" + String.join(" ", ParentalPolicy.PILLS) + ") or " + ParentalPolicy.OWN_SETTINGS;
+        setLocked(c, target, on);
+        return status(c);
+    }
+
     /** What is set, never the PIN. */
     static String status(Context c) {
         ParentalPolicy.State s = state(c);
         PinStore store = pin(c);
         long wait = store.waitLeft(System.currentTimeMillis());
         return "pin: " + (s.pinSet ? "set" : "not set")
-                + "\nlocked: " + (s.locked.isEmpty() ? "none" : ParentalPolicy.join(s.locked))
-                + "\nkids mode: " + (s.kids ? "on" : "off") + (s.allowed.isEmpty() ? "" : " (" + s.allowed.size() + " apps allowed)")
+                + "\nlocked: " + ParentalPolicy.lockedLine(s)
+                + "\nkids mode: " + (s.kids ? "on" : "off") + (s.allowed.isEmpty() ? "" : " (" + s.allowed.size() + " apps allowed" + (s.pinSet ? "" : ", kept, nothing asks while there is no PIN") + ")")
                 + "\nwrong tries in a row: " + store.fails() + (wait > 0 ? ", locked for " + (wait + 999) / 1000 + " more seconds" : "");
     }
 

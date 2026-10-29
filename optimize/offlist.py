@@ -39,7 +39,14 @@ def read_list(path):
 
 
 def kept():
-    return read_list(kept_path())
+    """What the person asked to keep on. A file that cannot be read is NOT «nothing kept»: nothing is changed then."""
+    try:
+        with open(kept_path(), encoding="utf-8") as f:
+            return [l.split()[0] for l in f if l.strip() and not l.lstrip().startswith("#")]
+    except FileNotFoundError:
+        return []
+    except OSError as e:
+        sys.exit(f"!! kept.txt could not be read ({e.strerror}), so nothing was changed. Fix the file's permissions (or delete it if it is empty on purpose), then run the same command again.")
 
 
 def write_kept(pkgs):

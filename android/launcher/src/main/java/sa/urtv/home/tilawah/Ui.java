@@ -1,7 +1,9 @@
 package sa.urtv.home.tilawah;
 
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Typeface;
+import android.view.View;
 import android.widget.TextView;
 
 import java.util.HashMap;
@@ -26,7 +28,33 @@ final class Ui {
         view.setTypeface(font(view.getContext(), file));
         view.setText(digits(view.getText().toString()));   // a text written in the layout or the strings has the setting's digits too
         view.setTextSize(sizeSp);
-        view.setTextColor(view.getResources().getColor(color));
+        view.setTextColor(view.getContext().getColorStateList(color));   // res/color, in the screen's theme: the focus ink on a focused row
+    }
+
+    /**
+     * The theme of «المظهر» for these screens (styles.xml: one per look and light, made from GlassStyle), from «الشكل» and «الإضاءة»
+     * (GlassSource: automatic follows the home). For onCreate, before the screen is drawn.
+     */
+    static int theme(Context c) {
+        String look;
+        boolean light;
+        try { look = sa.urtv.home.GlassSource.lookName(c); light = sa.urtv.home.GlassSource.light(c); }
+        catch (RuntimeException e) { look = "glass"; light = false; }
+        switch (look) {
+            case "graphite": return light ? sa.urtv.home.R.style.Tilawah_Graphite_Light : sa.urtv.home.R.style.Tilawah_Graphite_Dark;
+            case "navy": return light ? sa.urtv.home.R.style.Tilawah_Navy_Light : sa.urtv.home.R.style.Tilawah_Navy_Dark;
+            case "clean": return light ? sa.urtv.home.R.style.Tilawah_Clean_Light : sa.urtv.home.R.style.Tilawah_Clean_Dark;
+            default: return light ? sa.urtv.home.R.style.Tilawah_Glass_Light : sa.urtv.home.R.style.Tilawah_Glass_Dark;
+        }
+    }
+
+    /** After setContentView: the page is the home's photo blurred once, under its veil (GlassSource.page); the old photo layer goes. */
+    static void glassPage(Activity a, int photoId) {
+        View photo = a.findViewById(photoId);
+        if (photo == null) return;
+        photo.setVisibility(View.GONE);
+        if (photo instanceof android.widget.ImageView) ((android.widget.ImageView) photo).setImageDrawable(null);   // not kept in memory
+        sa.urtv.home.GlassSource.page(a, (View) photo.getParent());
     }
 
     /** 1:05, 12:40, 1:02:03 */

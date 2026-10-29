@@ -38,7 +38,9 @@ case "$1" in
           log drop; exit 1
         fi
         [ "$NOHOME" = yes ] && { echo stock > "$T/home"; exit 0; }   # firmware or the wizard keeps Home
+        [ "$NOHOME" = once ] && { echo stock > "$T/home"; exit 0; }   # Home only goes to ours at the second ask
         echo ours > "$T/home" ;;
+      *"add-role-holder --user 0 android.app.role.HOME sa.urtv.home"*"input keyevent KEYCODE_HOME"*) log retry; [ "$NOHOME" = once ] && echo ours > "$T/home" ;;
       *"pm enable"*"touch /data/local/tmp/home_ok"*) [ "$RESTORE_FAIL" = yes ] && { log restore-fail; exit 1; }
         log restore-stock; echo stock > "$T/home"
         case "$in" in *"add-role-holder --user 0 android.app.role.HOME other.launcher"*) log holder-other ;; esac
@@ -49,14 +51,21 @@ case "$1" in
     exit 0 ;;
 esac
 case "$1" in
+  "pm list packages")   # PKGS=none: the TV answered nothing; STOCKLESS=yes: neither Google launcher is installed; PKGEXTRA: more packages
+    [ "$PKGS" = none ] && exit 0
+    echo "package:android"; echo "package:com.android.settings"
+    [ "$STOCKLESS" = yes ] || echo "package:com.google.android.apps.tv.launcherx"
+    for p in $PKGEXTRA; do echo "package:$p"; done ;;
   *launcherx*) echo "package:com.google.android.apps.tv.launcherx" ;;
-  "settings get global verifier_verify_adb_installs") cat "$T/verifier" 2>/dev/null || echo null ;;
+  "settings get global verifier_verify_adb_installs") [ "$VERIFIER_EMPTY" = yes ] && exit 0; cat "$T/verifier" 2>/dev/null || echo null ;;
   "settings put global verifier_verify_adb_installs"*) log "put-${1##* }"; echo "${1##* }" > "$T/verifier" ;;
   "settings delete global verifier_verify_adb_installs") log delete; rm -f "$T/verifier" ;;
   "pm install -i com.android.vending"*) log vending; touch "$T/stays"; echo Success ;;
   "pm list packages sa.urtv."*)
     pkg=${1##* }
     if [ -n "$VANISH" ] && { [ "$VANISH" = always ] || [ ! -f "$T/stays" ]; }; then log gone; else echo "package:$pkg"; fi ;;
+  "pm list packages com.tcl.tv") [ "$TCLTV" = yes ] && { log tcl-listed; echo "package:com.tcl.tv"; echo "package:com.tcl.tvinput"; } ;;
+  "am force-stop com.tcl.tv") log force-stop ;;
   "pm uninstall"*) log uninstall ;;
   "pm install"*)
     [ "$INSTALL_MODE" = silent ] && { log silent; exit 1; }   # tv.py --bg gave up: no output at all
@@ -68,11 +77,22 @@ case "$1" in
     n=$(( $(cat "$T/polls" 2>/dev/null || echo 0) + 1 )); echo $n > "$T/polls"
     [ "$n" -le "$DOWN_POLLS" ] && exit 1
     echo 0123456789 ;;
-  "cmd package query-activities"*) [ "$WRAITH_HOME" = yes ] && echo "com.google.android.tungsten.setupwraith/.RecoveryActivity"; echo "$QUERY_EXTRA" ;;
+  "cmd package query-activities"*) echo "2 activities found:"; echo "  Activity #0:"; echo "    priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true"   # the real format: components are indented
+       [ "$WRAITH_HOME" = yes ] && echo "    com.google.android.tungsten.setupwraith/.RecoveryActivity"
+       [ -n "$QUERY_EXTRA" ] && printf '    %s\n' $QUERY_EXTRA ;;
   "dumpsys wifi") case "$WIFI" in owned) echo "cname=com.google.android.tungsten.setupwraith" ;; other) echo "cname=android.uid.system" ;; esac ;;
   "pm disable-user --user 0 com.google.android.tungsten.setupwraith") log wraith-off ;;
-  *resolve-activity*) [ "$(cat "$T/home" 2>/dev/null)" = ours ] && echo sa.urtv.home/.MainActivity || echo stock/.Home ;;
-  *dumpsys*) [ "$(cat "$T/home" 2>/dev/null)" = ours ] && echo "mResumedActivity: sa.urtv.home" ;;
+  *resolve-activity*) [ "$RESOLVE" = empty ] && exit 0
+       [ "$RESOLVE" = after ] && ls "$T"/marker.* > /dev/null 2>&1 && exit 0
+       [ "$RESOLVE" = chooser ] && { echo "android/com.android.internal.app.ResolverActivity"; exit 0; }
+       [ "$RESOLVE" = stockpkg ] && ! ls "$T"/marker.* > /dev/null 2>&1 && { echo "com.google.android.apps.tv.launcherx/.home.HomeActivity"; exit 0; }
+       [ "$(cat "$T/home" 2>/dev/null)" = ours ] && echo sa.urtv.home/.MainActivity || echo stock/.Home ;;
+  "cmd role get-role-holders"*) echo "$ROLE" ;;
+  *dumpsys*) n=$(( $(cat "$T/dumps" 2>/dev/null || echo 0) + 1 )); echo $n > "$T/dumps"
+    if [ "$DIALOG" = yes ] && [ "$n" -le 4 ]; then echo "mResumedActivity: ActivityRecord{x u0 android/com.android.internal.app.ResolverActivity t5}"
+    elif [ "$DIALOG" = yes ]; then echo ours > "$T/home"; echo "mResumedActivity: sa.urtv.home"
+    elif [ "$(cat "$T/home" 2>/dev/null)" = ours ]; then echo "mResumedActivity: sa.urtv.home"
+    else echo "mResumedActivity: ActivityRecord{x u0 com.google.android.apps.tv.launcherx/.home.HomeActivity t3}"; fi ;;
   "touch /data/local/tmp/home_ok."*)
     n=${1##*.}
     if [ "$n" = "$(cat "$T/nonce" 2>/dev/null)" ]; then log disarm; else log disarm-wrong; fi
@@ -98,7 +118,7 @@ while [ $# -gt 0 ]; do [ "$1" = -o ] && : > "$2"; shift; done
 
 
 def run(name, fail_switches, first_drop, down_polls=0, verify="", verifier=None, curl_mode="", vanish="", illegal="", wraith_home="", wifi="", nohome="", install_mode="",
-        watchdog="", restore_fail="", seed=None, seed_home="", seed_marker=False, role="", script="install.sh", args=("launcher",)):
+        watchdog="", restore_fail="", tcltv="", dialog="", verifier_empty="", pkgs="", stockless="", pkgextra="", query_extra="", seed=None, seed_home="", seed_marker=False, role="", resolve="", script="install.sh", args=("launcher",)):
     t = Path(tempfile.mkdtemp())
     tree, bin_ = t / "tree", t / "bin"
     (tree / "optimize" / "lists").mkdir(parents=True); bin_.mkdir()
@@ -122,7 +142,7 @@ def run(name, fail_switches, first_drop, down_polls=0, verify="", verifier=None,
         (bin_ / f).write_text(body); (bin_ / f).chmod(0o755)
     if verifier is not None:
         (t / "verifier").write_text(verifier + "\n")
-    env = dict(os.environ, RESTORE_FAIL=restore_fail, WATCHDOG=watchdog, ROLE=role, INSTALL_MODE=install_mode, NOHOME=nohome, WRAITH_HOME=wraith_home, WIFI=wifi, ILLEGAL=illegal, VERIFY=verify, VANISH=vanish, CURL_MODE=curl_mode, PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), T=str(t),
+    env = dict(os.environ, QUERY_EXTRA=query_extra, PKGS=pkgs, STOCKLESS=stockless, PKGEXTRA=pkgextra, VERIFIER_EMPTY=verifier_empty, DIALOG=dialog, TCLTV=tcltv, RESTORE_FAIL=restore_fail, WATCHDOG=watchdog, ROLE=role, RESOLVE=resolve, INSTALL_MODE=install_mode, NOHOME=nohome, WRAITH_HOME=wraith_home, WIFI=wifi, ILLEGAL=illegal, VERIFY=verify, VANISH=vanish, CURL_MODE=curl_mode, PATH=f"{bin_}:{os.environ['PATH']}", PY=str(bin_ / "py"), T=str(t),
                FAIL_SWITCHES=str(fail_switches), FIRST_DROP=first_drop, DOWN_POLLS=str(down_polls))
     r = subprocess.run(["bash", str(tree / "optimize" / script), *args], env=env, capture_output=True, text=True)
     log = (t / "log").read_text().split() if (t / "log").exists() else []
@@ -147,7 +167,7 @@ cases = [
     ("two drops: gives up, exits 1", run("d", 2, "stock"),
      lambda c, o, l: c == 1 and l.count("arm") == 2 and "!! The safety switch put the stock home back" in o),
     ("TV never answers: exits 1", run("e", 1, "stock", down_polls=99),
-     lambda c, o, l: c == 1 and "did not come back within 6 minutes" in o and l.count("arm") == 1),
+     lambda c, o, l: c == 1 and "did not come back within 10 minutes" in o and l.count("arm") == 1),
     ("Play Protect refuses: check off for the install, old value back", run("f", 0, "", verify="once", verifier="1"),
      lambda c, o, l: c == 0 and "Play Protect refused" in o and "(was: 1)" in o and l.count("refused") == 1
      and l.count("installed") == 1 and l[l.index("put-0"):].count("put-1") == 1 and l[-1] == "final-1"),
@@ -177,9 +197,22 @@ cases = [
      lambda c, o, l: c == 0 and l.count("wraith-off") == 1 and "Launcher is home" in o),
     ("the wizard answers Home and owns the Wi-Fi: it stays on and the switch goes on without it", run("s", 0, "", wraith_home="yes", wifi="owned"),
      lambda c, o, l: c == 0 and "wraith-off" not in l and "Launcher is home" in o and "left on" in o and "!!" not in o),
-    ("Home never opens ours (the wizard owns the Wi-Fi and keeps Home): the stock home is put back at once, not in 5 minutes",
+    ("Home never opens ours and the wizard owns the Wi-Fi (it must stay on): the stock home is put back at once, and it says plainly that this TV keeps its own home (not an error)",
      run("u", 0, "", wraith_home="yes", wifi="owned", nohome="yes"),
-     lambda c, o, l: c == 1 and "wraith-off" not in l and "restore-stock" in l and "stock home was put back" in o),
+     lambda c, o, l: c == 0 and "wraith-off" not in l and "restore-stock" in l and "keeps its own home screen" in o and "!!" not in o and "Launcher is home" not in o and "أيقونة «تلفزيونك»" in o),
+    ("Home does not open ours the first time and does at the second ask: no rollback, the switch is confirmed",
+     run("ua", 0, "", nohome="once"),
+     lambda c, o, l: c == 0 and "asking once more" in o and "retry" in l and "restore-stock" not in l and "Launcher is home" in o and l[-1] == "journal-done"),
+    ("Home never opens ours (no wizard in the way): ONE plain result that is not an error (exit 0, no !!), the reason (role holder, what Home resolves to, what is on screen) in it, two asks made, the stock home back, and the Arabic hint to the «تلفزيونك» tile",
+     run("ub", 0, "", nohome="yes", role="sa.urtv.home"),
+     lambda c, o, l: c == 0 and "!!" not in o and "Home switch skipped: this TV keeps its own home screen" in o and "role holder: sa.urtv.home" in o and "Home resolves to: stock/.Home" in o
+     and "on screen after Home:" in o and "launcherx" in o and "retry" in l and "restore-stock" in l and "أيقونة «تلفزيونك»" in o and "Launcher is home" not in o and "not an error" in o),
+    ("the wizard answers Home and the TV does not say who owns the Wi-Fi, and Home never opens ours: the same plain result (it used to be an error that said to run again)",
+     run("ud", 0, "", wraith_home="yes", wifi="", nohome="yes"),
+     lambda c, o, l: c == 0 and "!!" not in o and "wraith-off" not in l and "keeps its own home screen" in o and "أيقونة «تلفزيونك»" in o and "restore-stock" in l),
+    ("an on-TV dialog is open: it says to choose with the remote, waits, and does not roll back when the person answers",
+     run("uc", 0, "", dialog="yes"),
+     lambda c, o, l: c == 0 and "An on-TV dialog is open" in o and "restore-stock" not in l and "Launcher is home" in o),
     ("the wizard answers Home but the TV does not say who owns the Wi-Fi: the wizard stays on", run("t", 0, "", wraith_home="yes", wifi=""),
      lambda c, o, l: c == 0 and "wraith-off" not in l),
     ("an app of the same name with another signature: never uninstalled, stops and says what is lost", run("u", 0, "", install_mode="incompatible"),
@@ -191,6 +224,22 @@ cases = [
      lambda c, o, l: c == 0 and "put-0" not in l and "Play Protect refused" not in o),
 ]
 cases += [
+    ("Play Protect refuses and the TV does not say what its ADB check is set to (empty answer): it is NOT switched off, a !! line says so, exit 1",
+     run("pv", 0, "", verify="once", verifier_empty="yes"),
+     lambda c, o, l: c == 1 and "!! Play Protect refused the install over ADB, but the TV did not say" in o and "put-0" not in l and "refused" in l),
+    ("another maker's home (no Google launcher): the one other app that answers Home, in the REAL indented query-activities format, is the stock home",
+     run("st1", 0, "", stockless="yes", pkgextra="com.acme.home", query_extra="com.acme.home/.Main"),
+     lambda c, o, l: c == 0 and "Stock home: com.acme.home/.Main" in o and "arm" in l and "Launcher is home" in o),
+    ("only a bare fallback home and the settings app answer Home: neither is taken for the stock home; the switch is skipped with a !! line, nothing changed",
+     run("st2", 0, "", stockless="yes", pkgextra="com.android.tv.settings", query_extra="com.android.tv.settings/.FallbackHome com.android.settings/.Settings"),
+     lambda c, o, l: c == 0 and "!! Could not tell which app is this TV's own home screen" in o and "arm" not in l and "switch" not in l and "Launcher is home" not in o),
+    ("the TV answers nothing for its package list: not «no Google launcher» but «the TV did not say»: stops with a !! line, nothing switched",
+     run("st3", 0, "", pkgs="none"),
+     lambda c, o, l: c == 1 and "!! Could not read this TV's package list" in o and "arm" not in l and "switch" not in l),
+    ("a TCL (com.tcl.tv is there): its TV app is stopped BEFORE the home app is installed over, once",
+     run("tc", 0, "", tcltv="yes"),
+     lambda c, o, l: c == 0 and l.count("force-stop") == 1 and l.index("force-stop") < l.index("installed")),
+    ("not a TCL: nothing is force-stopped (com.tcl.tvinput alone does not count)", run("tn", 0, ""), lambda c, o, l: c == 0 and "force-stop" not in l),
     ("normal switch: the journal is written, the safety switch is checked alive, then the marker with ITS nonce disarms it",
      run("w", 0, ""),
      lambda c, o, l: c == 0 and l.count("hb-check") == 1 and l.index("hb-check") < l.index("switch") and l.count("disarm") == 1
@@ -230,6 +279,18 @@ cases += [
     ("Home is ours but a switch was cut off (journal «switching»): it is not skipped, the switch is made and confirmed",
      run("ai", 0, "", seed=("switching", ""), seed_home="ours"),
      lambda c, o, l: c == 0 and "nothing to switch" not in o and "arm" in l and "disarm" in l and l[-1] == "journal-done"),
+    ("no role holder named and Home cannot be read either: the switch is not made (undoing it could not put the right app back)",
+     run("ra", 0, "", resolve="empty", role=""),
+     lambda c, o, l: c == 1 and "!! Could not tell which app is the TV's home now" in o and "arm" not in l and "switch" not in l),
+    ("no role holder named, but the stock home answers Home: it is the «before» in the journal",
+     run("rb", 0, "", role="", resolve="stockpkg"),
+     lambda c, o, l: c == 0 and "rhb-com.google.android.apps.tv.launcherx" in l and "arm" in l),
+    ("no role holder named, and what answers Home is the chooser (android) or anything but the stock home: not recorded, a restore goes to the stock home",
+     run("rd", 0, "", role="", resolve="chooser"),
+     lambda c, o, l: "rhb-" in l and "rhb-android" not in l and "arm" in l),
+    ("Home cannot be read after the switch (empty each time): not called «restored», the journal stays «switching», and it says so",
+     run("rc", 0, "", resolve="after"),
+     lambda c, o, l: c == 1 and "!! The TV did not say what Home is now" in o and "journal-restored" not in l and "trying the switch again" not in o and l.count("arm") == 1),
     ("restore-home.sh: from the journal, the role goes back to who held it, the helpers come back, the journal says restored, ADB is said",
      run("ad", 0, "", seed=("done", "other.launcher"), seed_home="ours", script="restore-home.sh", args=()),
      lambda c, o, l: c == 0 and "holder-other" in l and "helpers" in l and l[-1] == "journal-restored" and "needs ADB" in o.replace("this needs ADB", "needs ADB")),

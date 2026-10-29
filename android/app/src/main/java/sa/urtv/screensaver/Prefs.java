@@ -85,7 +85,7 @@ final class Prefs {
     // markets at the top left (sent to the page as #markets=, up to MAX_MARKETS, in this order of choice; tasi,spx,btc is what it always showed)
     static final String[][] MARKETS = {
         {"tasi", "تاسي"}, {"aramco", "أرامكو"}, {"spx", "S&P 500"}, {"btc", "بيتكوين"},
-        {"gold", "الذهب (الجرام بالريال)"}, {"silver", "الفضة (الجرام بالريال)"}, {"xrp", "ريبل"},
+        {"gold", "الذهب (الجرام بالريال)"}, {"silver", "الفضة (الجرام بالريال)"}, {"oil", "نفط برنت (للبرميل)"}, {"xrp", "ريبل"},
     };
     static final int MAX_MARKETS = 4;
     static final String DEFAULT_MARKETS = "tasi,spx,btc";
@@ -114,6 +114,9 @@ final class Prefs {
     private final SharedPreferences sp;
     private final Context ctx;
 
+    /** sent (to this app only) when a SET from ADB or the launcher saved something: a screensaver that is already showing starts over with it */
+    static final String CHANGED = "sa.urtv.screensaver.SETTINGS_CHANGED";
+
     Prefs(Context c) { ctx = c; sp = c.getSharedPreferences("settings", Context.MODE_PRIVATE); }
 
     /** {name, latitude, longitude}; Riyadh until the user picks */
@@ -138,8 +141,8 @@ final class Prefs {
         return java.util.TimeZone.getDefault().getID();
     }
 
-    /** «طريقة الحساب» (default auto = the country's own): PrayerMethod.AUTO or JAFARI; sent as #pm=jafari only for the latter. */
-    String prayerMethod() { return PrayerMethod.JAFARI.equals(sp.getString("prayerMethod", "auto")) ? PrayerMethod.JAFARI : PrayerMethod.AUTO; }
+    /** «طريقة الحساب» (default auto = the country's own): PrayerMethod.AUTO, GULF or JAFARI; sent as #pm=gulf / #pm=jafari only for those. */
+    String prayerMethod() { String v = sp.getString("prayerMethod", "auto"); return PrayerMethod.JAFARI.equals(v) ? PrayerMethod.JAFARI : PrayerMethod.GULF.equals(v) ? PrayerMethod.GULF : PrayerMethod.AUTO; }
     void setPrayerMethod(String v) { sp.edit().putString("prayerMethod", v).apply(); }
 
     static final int MAX_TEAMS = 20;
@@ -207,6 +210,18 @@ final class Prefs {
         return homeOnly(v) ? "verse" : v;
     }
     void setPanel(String v) { sp.edit().putString("panel", v).apply(); }
+
+    /** The screensaver's choices for a card beside the clock: PANELS without the home-only ones («لا شيء» included). */
+    static final String[][] SAVER_PANELS = saverPanels();
+    private static String[][] saverPanels() {
+        List<String[]> out = new ArrayList<>();
+        for (String[] p : PANELS) if (!homeOnly(p[0])) out.add(p);
+        return out.toArray(new String[0][]);
+    }
+
+    /** «بطاقة ثانية» beside the small clock (SecondCard): none by default, never the first card again nor the next prayer. */
+    String panel2() { return SecondCard.read(sp.getString("panel2", "none"), panel(), SAVER_PANELS); }
+    void setPanel2(String v) { sp.edit().putString("panel2", v).apply(); }
 
     // One plain line about each card, in the words of docs/FEATURES.md (tests/check.py compares them): the pickers show it under the name
     static final String[][] PANEL_ABOUT = {
@@ -353,9 +368,39 @@ final class Prefs {
     String photoMinutes() { return sp.getString("photoMinutes", "30"); }
     void setPhotoMinutes(String v) { sp.edit().putString("photoMinutes", v).apply(); }
 
+    /**
+     * The release «تحديث تلفزيوني» (the home screen's screen and the phone page) and the newest-version line read: "latest" (default), or "next",
+     * the test build. For agents only (`saver.sh updatechannel`); no screen shows it and the settings export leaves it out.
+     */
+    String updateChannel() { return "next".equals(sp.getString("updateChannel", "latest")) ? "next" : "latest"; }
+    void setUpdateChannel(String v) { sp.edit().putString("updateChannel", "next".equals(v) ? "next" : "latest").apply(); }
+
+    /**
+     * The newest version Updater last read, but only one that came from the release of the CURRENT channel (an older app stored none: that was the
+     * latest's); a value read before the channel changed is not shown as the newest of this one.
+     */
+    String latestVersion() {
+        String v = sp.getString("latestVersion", null);
+        return v != null && updateChannel().equals(sp.getString("latestChannel", "latest")) ? v : null;
+    }
+
     /** The slim bar before the adhan, on the screensaver and on the home screen (default on); sent to the page as #adhanbar=. */
     boolean adhanBar() { return sp.getBoolean("adhanBar", true); }
     void setAdhanBar(boolean v) { sp.edit().putBoolean("adhanBar", v).apply(); }
+
+    /** From PR #28, each off by default and sent to the page only when on: the sunrise after Fajr in the bottom-right panel (#sunrise=1),
+     *  the bar of the time between two prayers under it (#prayerbar=1), and the humidity and wind at the top left (#wxmore=1). */
+    boolean sunrise() { return sp.getBoolean("sunrise", false); }
+    void setSunrise(boolean v) { sp.edit().putBoolean("sunrise", v).apply(); }
+    boolean prayerBar() { return sp.getBoolean("prayerBar", false); }
+    void setPrayerBar(boolean v) { sp.edit().putBoolean("prayerBar", v).apply(); }
+    boolean wxMore() { return sp.getBoolean("wxMore", false); }
+    void setWxMore(boolean v) { sp.edit().putBoolean("wxMore", v).apply(); }
+
+    /** The Gregorian month's names: "default" («أكتوبر») or "levant" («تشرين الأول»), on the screensaver and the home screen; #months=levant. */
+    String months() { return "levant".equals(sp.getString("months", "default")) ? "levant" : "default"; }
+    void setMonths(String v) { sp.edit().putString("months", "levant".equals(v) ? "levant" : "default").apply(); }
+    static String monthsLabel(String v) { return "levant".equals(v) ? "كانون الثاني، شباط، آذار…" : "يناير، فبراير، مارس…"; }
 
     /** The slim year strip under the clock, on the screensaver only (default off); sent to the page as #yearstrip=. */
     boolean yearStrip() { return sp.getBoolean("yearStrip", false); }
@@ -398,7 +443,7 @@ final class Prefs {
      * panel= and cardstyle= are taken out of the fragment first: the page reads the first one it finds.
      */
     String previewUrl(Context c, String panel, String cardStyle) {
-        String frag = fragment().replaceAll("(^|&)(panel|week|cardstyle|home_panel)=[^&]*", "");
+        String frag = fragment().replaceAll("(^|&)(panel|panel2|week|cardstyle|home_panel)=[^&]*", "");
         return pageBase(c) + "#" + frag + "&panel=" + panel + "&cardstyle=" + cardStyle + "&widget=1";
     }
 
@@ -428,6 +473,7 @@ final class Prefs {
             + "&events=" + join(list("events"), ",")
             + "&leagues=" + Uri.encode(join(leagues(), ","))
             + "&panel=" + panel()
+            + SecondCard.fragment(panel2(), SAVER_PANELS)
             + "&week=" + ("none".equals(panel()) ? "0" : "1")   // for a page older than #panel
             + "&genres=" + Uri.encode(join(list("genres"), ","))
             + "&langs=" + Uri.encode(join(list("langs"), ","))
@@ -439,6 +485,8 @@ final class Prefs {
             + "&cardstyle=" + cardStyle()
             + "&adhanbar=" + (adhanBar() ? "1" : "0")
             + "&yearstrip=" + (yearStrip() ? "1" : "0")
+            + (sunrise() ? "&sunrise=1" : "") + (prayerBar() ? "&prayerbar=1" : "") + (wxMore() ? "&wxmore=1" : "")
+            + ("levant".equals(months()) ? "&months=levant" : "")
             + PrayerAdj.fragment(prayerAdjOn(), prayerAdj())
             + PrayerMethod.fragment(prayerMethod())
             + HijriOffset.fragment(hijriOffset())
@@ -621,9 +669,37 @@ final class Prefs {
         setHomePanels(v);
     }
 
+    /** «المظهر» of the launcher's home screen: dark (the default, as it always was), light, or auto (light from sunrise until Maghrib). */
+    static final String[] APPEARANCES = {"dark", "light", "auto"};
+    String appearance() { String v = sp.getString("appearance", "dark"); return java.util.Arrays.asList(APPEARANCES).contains(v) ? v : "dark"; }
+    void setAppearance(String v) { if (java.util.Arrays.asList(APPEARANCES).contains(v)) sp.edit().putString("appearance", v).apply(); }
+    static String appearanceLabel(String v) {
+        return "light".equals(v) ? "فاتح" : "auto".equals(v) ? "تلقائي · فاتح من الشروق إلى المغرب، وداكن بعده" : "داكن";
+    }
+
+    /** «المظهر ← الشكل» of all our screens: glass (the default), graphite, navy or clean (GlassStyle.LOOKS); anything else is glass. */
+    String look() { return GlassStyle.look(sp.getString("look", GlassStyle.LOOKS[0])); }
+    void setLook(String v) { if (java.util.Arrays.asList(GlassStyle.LOOKS).contains(v)) sp.edit().putString("look", v).apply(); }
+    static String lookLabel(String v) { return GlassStyle.LOOK_NAMES[java.util.Arrays.asList(GlassStyle.LOOKS).indexOf(GlassStyle.look(v))]; }
+
     /** The greeting and the weather line on the launcher's home screen (default on). Off: the plain good-morning it had. */
     boolean greeting() { return sp.getBoolean("greeting", true); }
     void setGreeting(boolean v) { sp.edit().putBoolean("greeting", v).apply(); }
+
+    /**
+     * «زر تلاوة وأذان» on the launcher's home screen (default shown). Hidden removes only the button: the adhan, its alarm and bar, the
+     * any-key stop, the «يُتلى الآن» card and a Quran that was started elsewhere go on; the screen opens from the app menu (long OK on an
+     * app) or from the «يُتلى الآن» card instead.
+     */
+    boolean listenPill() { return sp.getBoolean("listenPill", true); }
+    void setListenPill(boolean v) { sp.edit().putBoolean("listenPill", v).apply(); }
+
+    /** «جرس التحديثات» on the home screen: on by default (it shows only on evidence of waiting updates, so it cannot hurt) */
+    boolean updateBell() { return sp.getBoolean("updateBell", true); }
+    /** «أكمل المشاهدة» under the home screen's favourites (default on; it shows only once the home app may read the TV's Watch Next list). */
+    boolean watchNext() { return sp.getBoolean("watchNext", true); }
+    void setWatchNext(boolean v) { sp.edit().putBoolean("watchNext", v).apply(); }
+    void setUpdateBell(boolean v) { sp.edit().putBoolean("updateBell", v).apply(); }
 
     List<String> teamIds() {
         List<String> ids = new ArrayList<>();

@@ -113,11 +113,15 @@ final class PrayerTimes {
     static Next next(Context c) { return next(c, 30_000); }
 
     /** The next prayer the adhan alarm is for: one still due even a second from now, so a refresh just before it keeps it. */
-    static Next nextAlarm(Context c) { return next(c, 0); }
+    static Next nextAlarm(Context c) { return next(c, 0, Place.get(c)); }
 
-    private static Next next(Context c, long aheadMs) {
+    /** The same for a place the caller already has (the alarm is set from the very place it was judged by). */
+    static Next nextAlarm(Context c, Place place) { return next(c, 0, place); }
+
+    private static Next next(Context c, long aheadMs) { return next(c, aheadMs, Place.get(c)); }
+
+    private static Next next(Context c, long aheadMs, Place place) {
         long now = System.currentTimeMillis();
-        Place place = Place.get(c);
         Calendar day = Calendar.getInstance(TimeZone.getTimeZone(place.tz), Locale.US);
         for (int d = 0; d < 3; d++) {
             PrayerTimes t = d == 0 ? today(c, place) : of(day, place);
@@ -162,6 +166,8 @@ final class PrayerTimes {
      * new times. Runs off the main thread; `done` runs on the main thread when something changed.
      */
     static void refresh(final Context c, final Runnable done) {
+        // standby: not asked now (the adhan itself rings on the computed times, and the home's minute tick asks when it is back in front)
+        if (!sa.urtv.home.NetGate.backgroundOk(sa.urtv.home.NetGateAndroid.displayOn(c))) return;
         new Thread(() -> {
             if (refreshNow(c) && done != null) new android.os.Handler(android.os.Looper.getMainLooper()).post(done);
         }, "adhan-times").start();
@@ -172,6 +178,8 @@ final class PrayerTimes {
      * try in 30 minutes while it has not worked, none once today's are kept (the answer is on disk, no thread, no network).
      */
     static void refreshIfDue(Context c, Place place) {
+        if (!PrayerMath.aladhanKnows(place.method)) return;   // Oman's ministry: Aladhan has no such method, the computed times are the times
+        if (!sa.urtv.home.NetGate.backgroundOk(sa.urtv.home.NetGateAndroid.displayOn(c))) return;   // a try is not counted while nothing could be asked
         Calendar day = Calendar.getInstance(TimeZone.getTimeZone(place.tz), Locale.US);
         String key = key(day, place);
         SharedPreferences sp = prefs(c);
@@ -186,6 +194,7 @@ final class PrayerTimes {
         final Place place = Place.get(c);
         final Calendar day = Calendar.getInstance(TimeZone.getTimeZone(place.tz), Locale.US);
         final String key = key(day, place);
+        if (!PrayerMath.aladhanKnows(place.method)) return false;   // Aladhan has no id for it: nothing to ask
         if (prefs(c).getBoolean("fetched_" + key, false)) return false;
         try {
             String url = "https://api.aladhan.com/v1/timings/" + PrayerMath.aladhanDate(day.getTimeInMillis(), place.tz)

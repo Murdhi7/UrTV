@@ -9,7 +9,7 @@
     tv.py --shot out.png                     screenshot from the TV
     tv.py --bg NAME 'cmd'                    a long command, run in the background on the TV and polled (no 60 s silence)
     tv.py --reboot                           restart the TV (sent once, never retried) and wait until it is back from a new boot
-    tv.py --wait                             wait until the TV answers again (after a reboot), up to 5 min
+    tv.py --wait                             wait until the TV answers again (after a reboot), up to 10 min
     tv.py --check                            is the device answering the TV the setup started on? (saves it if none yet)
     tv.py --new-tv                           the device answering now is the TV to work on from here (replaces the saved one)
 
@@ -68,17 +68,34 @@ MAX_PAUSE_S = 30
 ID_FILE = os.path.join(os.environ.get("URTV_RUN_DIR") or HOME_DIR, "tv-id.json")
 OLD_ID_FILE = os.path.join(HERE, "run", "tv-id.json")
 
-# One round trip: who is answering. The serial is ro.serialno, else ro.boot.serialno.
+# One round trip: who is answering. The id is the first usable one of ro.serialno, ro.boot.serialno and the Android id (random, per TV): the
+# same policy as optimize/run.sh's, which asks `tv.py --id`. A placeholder (cheap boxes all carry one) is never an id.
 IDENT_CMD = ('echo "serial=$(getprop ro.serialno)"; echo "bootserial=$(getprop ro.boot.serialno)"; '
+             'echo "androidid=$(settings get secure android_id)"; '
              'echo "manufacturer=$(getprop ro.product.manufacturer)"; echo "model=$(getprop ro.product.model)"')
+PLACEHOLDERS = ("", "unknown", "null", "none", "n/a", "0123456789abcdef", "1234567890abcdef", "1234567890", "0000000000", "00000000")
+
+
+def is_placeholder(value):
+    v = (value or "").strip().lower()
+    return v in PLACEHOLDERS or len(v) < 4 or len(set(v)) == 1   # empty, a known placeholder, too short, or one repeated character
 
 
 def parse_identity(out):
+    """{serial, android_id, manufacturer, model}. Each candidate is checked before the next is looked at: a placeholder
+    ro.serialno does not hide a real ro.boot.serialno."""
     got = dict(l.split("=", 1) for l in out.replace("\r", "").splitlines() if "=" in l)
-    serial = (got.get("serial", "").strip() or got.get("bootserial", "").strip())
-    if serial.lower() in ("unknown", "null"):
-        serial = ""
-    return {"serial": serial, "manufacturer": got.get("manufacturer", "").strip(), "model": got.get("model", "").strip()}
+    serial = next((got.get(k, "").strip() for k in ("serial", "bootserial") if not is_placeholder(got.get(k, ""))), "")
+    aid = got.get("androidid", "").strip()
+    return {"serial": serial, "android_id": "" if is_placeholder(aid) else aid,
+            "manufacturer": got.get("manufacturer", "").strip(), "model": got.get("model", "").strip()}
+
+
+def unique_id(ident):
+    """The one id run.sh and this file share: the serial, else «aid:<android id>», else nothing (the address then)."""
+    if ident.get("serial"):
+        return ident["serial"]
+    return "aid:" + ident["android_id"] if ident.get("android_id") else ""
 
 
 def tv_name(ident):
@@ -88,14 +105,21 @@ def tv_name(ident):
 def unreadable(ident):
     """An identity with no serial, no make and no model says nothing about which device answered (a TV that has not finished
     waking up, a shell that returned nothing): comparing it with the saved one would pass."""
-    return not (ident.get("serial") or ident.get("manufacturer") or ident.get("model"))
+    return not (ident.get("serial") or ident.get("android_id") or ident.get("manufacturer") or ident.get("model"))
 
 
 def same_tv(saved, now):
-    """Same device? Two serials that both exist must match; and the make and model, where both are known, must match
-    (some cheap boxes all carry one placeholder serial). No serial on one side: the make and model decide."""
-    if saved.get("serial") and now.get("serial") and saved["serial"].lower() != now["serial"].lower():
-        return False
+    """Same device? The first unique id both sides have (serial, then Android id) decides, and a model never overrides it. A saved unique id
+    that the TV cannot show now is NOT a reason to fall back to the model (two TVs of one model are the case this guards). Only when the
+    saved identity has no unique id at all (an older record, a placeholder serial) do the make and model decide."""
+    for k in ("serial", "android_id"):
+        if saved.get(k) and now.get(k):
+            if saved[k].lower() != now[k].lower():
+                return False   # another id: another TV, whatever the model says
+            break              # the same id: still not the same TV if the make or model say otherwise (one made-up serial on many boxes)
+    else:
+        if saved.get("serial") or saved.get("android_id"):
+            return False
     for k in ("manufacturer", "model"):
         if saved.get(k) and now.get(k) and saved[k].lower() != now[k].lower():
             return False
@@ -108,7 +132,13 @@ def load_identity():
     try:
         with open(ID_FILE, encoding="utf-8") as f:
             ident = json.load(f)
-        return ident if isinstance(ident, dict) else None
+        if not isinstance(ident, dict):
+            return None
+        # a record from an older version can hold a placeholder as the serial (it only rejected «unknown» and «null»): that was never an id
+        for k in ("serial", "android_id"):
+            if k in ident and is_placeholder(str(ident[k])):
+                ident[k] = ""
+        return ident
     except (OSError, ValueError):
         return None
 
@@ -135,9 +165,16 @@ def check_identity(out):
     if saved is None:
         save_identity(now)
         return
+    if same_tv(saved, now):   # an older record learns the ids it did not have (the Android id) once the TV is confirmed
+        merged = {**saved, **{k: v for k, v in now.items() if v and not saved.get(k)}}
+        if merged != saved:
+            save_identity(merged)
     if not same_tv(saved, now):
         was, is_now = tv_name(saved), tv_name(now)
-        if was.lower() == is_now.lower():
+        no_id = (saved.get("serial") or saved.get("android_id")) and not any(saved.get(k) and now.get(k) for k in ("serial", "android_id"))
+        if no_id:   # the saved TV had an id this answer does not show: not downgraded to a model match
+            is_now += " (that did not show its serial this time)"
+        elif was.lower() == is_now.lower():
             is_now += " (another one of the same model)"
         sys.exit(f"!! This is not the TV the setup started on: that was a {was}, and a {is_now} answers now. Nothing was "
                  "changed. If two devices are on this Wi-Fi, run optimize/find-tv.sh and pick the TV (or set TV_HOST), then "
@@ -210,7 +247,8 @@ def new_dev(timeout):
 
 
 def upload_chunk():
-    return wireless.AdbCli.chunk if "TV_PORT" not in os.environ and wireless.state_for(HOST) else 96_000
+    # 40 000 characters: the size reports from Android 12 TVs say works (96 000 stalled with TcpTimeoutException on some)
+    return wireless.AdbCli.chunk if "TV_PORT" not in os.environ and wireless.state_for(HOST) else 40_000
 
 
 def signer():
@@ -242,15 +280,16 @@ def send_once(cmd):
 class TV:
     """One connection, reopened on failure; every call retried with a growing pause."""
 
-    def __init__(self, guard=False, tries=None):
+    def __init__(self, guard=False, tries=None, transport_s=60.0):
         self.dev = None
+        self.transport_s = transport_s   # how long one read from the TV may stay silent: 180 s for uploads, decodes, installs
         self.guard = guard   # this run changes the TV: every new connection first checks it is the right one
         self.tries = tries or TRIES
         self.last_ok = 0.0
 
     def _open(self):
         self.close()
-        dev = new_dev(60.0)
+        dev = new_dev(self.transport_s)
         dev.connect(rsa_keys=[signer()], auth_timeout_s=120)
         if self.guard:
             try:
@@ -355,6 +394,7 @@ def is_git_folder(folder):   # Git Bash's own folder is the one with its bash in
 
 
 JOB = "/data/local/tmp/urtv-job-"
+SLOW_READ_S = 180.0   # read timeout for the upload, md5, decode and pm install steps (the library's own is 60 s)
 POLL_S = 3                                              # between two looks at a background job
 LIMIT_S = int(os.environ.get("TV_JOB_LIMIT_S", "600"))  # a job silent for longer than this is given up on
 
@@ -381,7 +421,7 @@ def run_bg(tv, name, cmd, progress=None, limit_s=None):
         waited = int(time.time() - began)
         # alive is checked first: the job writes .rc before it lets go of .pid, so "not alive, no .rc" means it died
         got = tv.soft(f"if {alive}; then echo running $({progress or 'echo'}); elif [ -f {j}.rc ]; then echo done; "
-                      f"else echo dead; fi")
+                      f"else echo dead; fi", timeout=SLOW_READ_S)
         state = (got or "").split()
         if got is None:
             silent += 1
@@ -451,11 +491,11 @@ def push_b64(tv, local, remote, chunk=None):   # one argument may not exceed 128
         print(f"resuming upload at {done * 100 // len(enc)}%")
     for i in range(done, len(enc), chunk):
         piece, want = enc[i:i + chunk], str(min(i + chunk, len(enc)))
-        size = tv.shell(f"echo -n '{piece}' >> {tmp}; wc -c < {tmp}").strip()   # write and check in one call
+        size = tv.shell(f"echo -n '{piece}' >> {tmp}; wc -c < {tmp}", SLOW_READ_S).strip()   # write and check in one call
         for _ in range(5):    # a retried call wrote the piece twice, or not at all: cut back and write it again
             if size == want:
                 break
-            size = tv.shell(cut_back(tmp, i) + f"; echo -n '{piece}' >> {tmp}; wc -c < {tmp}").strip()
+            size = tv.shell(cut_back(tmp, i) + f"; echo -n '{piece}' >> {tmp}; wc -c < {tmp}", SLOW_READ_S).strip()
         if size != want:
             free = tv.shell(f"df -h {folder} | tail -1").strip()
             sys.exit(f"!! upload keeps failing at {i * 100 // len(enc)}% (the TV wrote {size or 'nothing'} of {want}; "
@@ -502,12 +542,51 @@ def is_new_boot(before, now):
     return True if now[1] < before[1] else None
 
 
-def wait_for_tv(limit_s=300, before=None, restart=False):
-    """Try every 10 s until the TV answers and has finished booting. After a reboot (restart=True) the TV may still
+WAIT_S = 600          # how long a restarted TV is waited for
+HINT_EVERY_S = 60     # while waiting: look again for the TV this often
+
+
+def address_hint(host=None):
+    """When the saved address does not answer: the one other device on this Wi-Fi with ADB open (a TV whose address changed
+    after the restart), as a printable hint, else "". Looks only; it never saves or switches to anything: the identity guard
+    decides which TV this is, and a person says so. Uses find-tv.py's own helpers (standard library only)."""
+    host = host or HOST
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("find_tv", os.path.join(HERE, "find-tv.py"))
+        ft = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ft)
+        st = wireless.load_state()
+        ports = [PORT] + ([int(st["port"])] if st.get("host") == host and str(st.get("port", "")).isdigit() else [])
+        if any(ft.connects(host, p, 1.5) for p in ports):
+            return ""   # the saved TV is there (it may still be booting): nothing to suggest
+        ip = ft.local_ip()
+        nets = ft.my_networks(ip)
+        if not nets:
+            return ""
+        own = ft.own_addresses(ip)
+        pool = [str(h) for n in nets for h in n.hosts() if str(h) not in own]
+        if len(pool) > 1024:
+            pool = [h for h in ft.neighbours() if h not in own]
+        found = ft.candidates([h for h, _ in ft.knock_all([(h, 5555) for h in pool if h != host], 1.5)], own, set(ft.gateways()), nets)
+    except Exception:  # noqa: BLE001  (a hint is never worth a failure)
+        return ""
+    if len(found) != 1:
+        return ""
+    return (f"   (the saved address {host} does not answer, but one device on this Wi-Fi has ADB open at {found[0]}: "
+            f"if that is the TV, its address changed. Ask the person, then: optimize/find-tv.sh use {found[0]})")
+
+
+def wait_for_tv(limit_s=WAIT_S, before=None, restart=False):
+    """Try every 10 s until the TV answers and has finished booting, up to 10 minutes (a few TVs take that long to restart).
+    The same address and the same port are used throughout (5555, or the remembered Wireless-debugging port, looked up again by
+    name when it changed). Every 60 s, if the saved address does not answer, a hint is printed when another device on the
+    Wi-Fi now has ADB open; the saved TV is never replaced by itself. After a reboot (restart=True) the TV may still
     answer for a while before it goes down, so it only counts as back from a different boot than `before`; where the
     boots can't be told apart, only once it was seen not answering."""
     start = time.time()
     down = False   # seen not answering, or still booting, since we started
+    next_hint, hinted = start + HINT_EVERY_S, set()
     while time.time() - start < limit_s:
         try:
             dev = new_dev(15.0)
@@ -522,15 +601,39 @@ def wait_for_tv(limit_s=300, before=None, restart=False):
                 return
         except Exception:  # noqa: BLE001
             down = True
+        if time.time() >= next_hint:
+            next_hint += HINT_EVERY_S
+            print(f"   (still waiting for the TV: {int(time.time() - start) // 60} min)", file=sys.stderr)
+            hint = address_hint()
+            if hint and hint not in hinted:
+                hinted.add(hint)
+                print(hint, file=sys.stderr)
         time.sleep(10)
     if restart and not down:
         sys.exit("!! The TV kept answering but never restarted: it may have ignored the reboot. Restart it from its "
                  "own menu (not with this command again), then go on.")
-    sys.exit("!! TV did not come back within 5 minutes. Check it is on and on Wi-Fi (ADB stays on after a reboot).")
+    sys.exit("!! The TV did not come back within 10 minutes. Check it is on and on Wi-Fi (ADB stays on after a reboot)."
+             + ("\n" + "\n".join(hinted) if hinted else ""))
 
 
 def main():
     a = sys.argv[1:]
+    if a == ["--address-hint"]:   # only looks: prints a line if another device now has ADB open, else nothing
+        hint = address_hint()
+        if hint:
+            print(hint)
+        return
+    if a[:1] == ["--is-placeholder"]:   # exit 0 when the value is not an id (run.sh uses the same list)
+        sys.exit(0 if is_placeholder(a[1] if len(a) > 1 else "") else 1)
+    if a == ["--transport"]:   # how this TV is reached: «wireless» (Wireless debugging: TLS and pairing, the port changes on a restart) or «adb» (plain network adb, port 5555)
+        print("wireless" if "TV_PORT" not in os.environ and wireless.state_for(HOST) else "adb")
+        return
+    if a == ["--id"]:   # the TV's unique id for run.sh: the serial, else aid:<android id>, else nothing (read-only)
+        tv = TV()
+        ident = parse_identity(tv.shell(IDENT_CMD))
+        tv.close()
+        print(unique_id(ident))
+        return
     if a == ["--wait"]:
         wait_for_tv()
         return
@@ -579,7 +682,8 @@ def main():
         changes = True
     else:
         changes = bool(a) and a != ["--probe"] and not is_read_only(shell_line(a))
-    tv = TV(guard=changes, tries=LONG_TRIES if a[:1] in (["--bg"], ["--push-b64"]) else None)   # uploads and installs get the longer patience
+    slow = a[:1] in (["--bg"], ["--push-b64"])
+    tv = TV(guard=changes, tries=LONG_TRIES if slow else None, transport_s=SLOW_READ_S if slow else 60.0)   # uploads and installs get the longer patience
     if not a or a == ["--probe"]:
         for p in ("ro.product.manufacturer", "ro.product.brand", "ro.product.model", "ro.product.device",
                   "ro.build.version.release", "ro.build.version.sdk", "ro.build.display.id"):

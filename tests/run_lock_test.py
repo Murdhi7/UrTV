@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-STUB_PY = '#!/usr/bin/env bash\n[ "$2" = optimize/tv.py ] || exit 0\nshift 2\ncase "$1" in\n  "getprop ro.serialno") echo 0123456789 ;;\nesac\nexit 0\n'
+STUB_PY = '#!/usr/bin/env bash\n[ "$2" = optimize/tv.py ] || exit 0\nshift 2\ncase "$1" in\n  "getprop ro.serialno") echo 0123456789 ;;\n  "--id") echo 0123456789 ;;\n  "--is-placeholder") exit 1 ;;\nesac\nexit 0\n'
 
 
 def tree(slow=False, fail=""):
@@ -22,7 +22,7 @@ def tree(slow=False, fail=""):
     (t / "bin" / "py").write_text(STUB_PY); (t / "bin" / "py").chmod(0o755)
     for step in ("precheck", "autostart", "community", "backup", "keep", "measure", "disable", "tweaks", "install", "dock"):
         body = "#!/usr/bin/env bash\n"
-        if step == "backup": body += "echo x > optimize/backup-1.txt\n"
+        if step == "backup": body += "{ echo '== all packages'; echo package:android; for i in $(seq 25); do echo package:com.x$i; done; } > optimize/backup-1.txt\n"
         if step == "measure": body += "echo '| ok |' >> optimize/run/summary.md\n"
         if step == "keep" and slow: body += 'while [ ! -f "$GO" ]; do sleep 0.1; done\n'   # holds the first run here
         if step == fail: body += "exit 3\n"
@@ -117,13 +117,20 @@ results.append(("run.sh again: the backup of the first run is kept, not replaced
                 code == 0 and (t / "optimize/run/backup.txt").read_text() == "FIRST\n" and any("first run stays" in l for l in out), out[:8]))
 t = tree()
 (t / "optimize/run").mkdir()
-(t / "optimize/run/.tv").write_text("9999999999\n")   # another TV than the one answering
+(t / "optimize/run/.tv").write_text("9988776655\n")   # another TV than the one answering
 for f in ("backup.txt", "tweaks-journal.txt", "home-switch.json"):
     (t / "optimize/run" / f).write_text("OLD\n")
 code, out = run(t)
 left = [f for f in ("tweaks-journal.txt", "home-switch.json") if (t / "optimize/run" / f).exists()]
 results.append(("a different TV: the last TV's tweak and home-switch journals are not used, its backup is replaced",
                 code == 0 and not left and (t / "optimize/run/backup.txt").read_text() != "OLD\n", (out[:5], left)))
+
+# a backup saved while the TV answered nothing is refused (it would be kept for ever)
+t = tree()
+(t / "optimize" / "backup.sh").write_text("#!/usr/bin/env bash\necho '== all packages' > optimize/backup-1.txt\n"); (t / "optimize" / "backup.sh").chmod(0o755)
+code, out = run(t)
+results.append(("an empty package list in the saved backup: stops with a !! line, nothing kept",
+                code == 1 and any("package list came back empty" in l for l in out) and not (t / "optimize/run/backup.txt").exists(), out[-4:]))
 
 for name, ok, info in results:
     print(f"run.sh: {name}: " + ("ok" if ok else f"WRONG {info}"))

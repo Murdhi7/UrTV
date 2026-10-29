@@ -26,21 +26,21 @@ check("Pill: a focused pill is its own focus target (focusable, children are not
 check("Pill: only the padding and the name's window change; the pill's own size params (its height) are never touched",
       pill.count("getLayoutParams()") == 2 and "clip.getLayoutParams()" in pill and "name.getLayoutParams()" in pill)
 order = re.findall(r"Arrays\.asList\(([^)]*)\)", main.split("List<Pill> row", 1)[1].split("\n", 1)[0])
-check("MainActivity: the pills are the same seven in the same order (sources, network, settings, sleep, then tasks, screensaver, tilawah)",
-      order == ["inputs, wifiPill, settings, sleepPill"] and "row.add(tasks); row.add(saver);" in main and "row.add(tilawah)" in main, order)
+check("MainActivity: the pills left in the row are sources, then tasks (with the screensaver app), the control center and tilawah (the sleep, screensaver, network and settings pills are tiles of the control center)",
+      order == ["inputs"] and "if (isInstalled(SAVER_PKG)) row.add(tasks);" in main and "if (centerWanted()) row.add(centerPill);" in main and "row.add(tilawah)" in main
+      and main.index("row.add(tasks)") < main.index("row.add(centerPill)") < main.index("row.add(tilawah)"), order)
 check("MainActivity: every pill is a Pill with a fixed 30 dp row (the row's height is reserved)",
       "right.addView(p, llp(-2, dp(Pill.HEIGHT), dp(10), 0, 0, 0))" in main and "TextView tasks" not in main and "TextView saver" not in main)
 check("MainActivity: D-pad ends and order are unchanged (wireFocus and moveFocusSideways still walk the pills list)",
       "p.setNextFocusLeftId(i == 0 ? p.getId() : pills.get(i - 1).getId())" in main and "int next = right ? index - 1 : index + 1;" in main)
-check("MainActivity: the sleep and network names are set on the pill, not drawn on the row", "sleepPill.setLabel(Digits.of(PillText.sleep(left)))" in main
-      and "wifiPill.setLabel(PillText.network(" in main)
-
-check("MainActivity: OK on the screensaver pill starts the screensaver (the preview activity, a fresh task), a long OK opens its settings",
-      # through the family lock (Parental): with nothing locked the same call runs at once
-      'saver.setOnClickListener(v -> guarded(ParentalPolicy.PILL_SAVER, SAVER_PKG, "شاشة التوقف", this::startSaver))' in main
-      and 'saver.setOnLongClickListener(v -> { guarded(ParentalPolicy.PILL_SAVER_SETTINGS, SAVER_PKG, "شاشة التوقف", () -> openPackage(SAVER_PKG)); return true; })' in main
+check("MainActivity: the control center's pill is gold while the sleep timer runs (its tile says how long is left)", "centerPill.setAccent(SleepTimer.minutesLeft(this) > 0)" in main
+      and "wifiPill" not in main and "sleepPill" not in main)
+check("MainActivity: OK on the screensaver tile starts the screensaver (the preview activity, a fresh task), a long OK opens its settings, both through the family lock (the pill's old targets)",
+      'guarded(ParentalPolicy.PILL_SAVER, SAVER_PKG, "شاشة التوقف", MainActivity.this::startSaver)' in main
+      and 'guarded(ParentalPolicy.PILL_SAVER_SETTINGS, SAVER_PKG, "شاشة التوقف", () -> openPackage(SAVER_PKG))' in main
       and 'SAVER_PKG + ".MainActivity"' in main and "FLAG_ACTIVITY_CLEAR_TASK" in main.split("private void startSaver", 1)[1].split("}", 1)[0])
-check("MainActivity: the pill's name is PillText.SAVER, which names the long press", 'pill(PillText.SAVER,' in main)
+center = (HOME / "ControlCenter.java").read_text(encoding="utf-8")
+check("ControlCenter: the screensaver tile says a long OK opens the settings, OK starts it", "host.openSaver()" in center and "host.openSaverSettings()" in center and '"مطوّلًا: الإعدادات"' in center)
 
 if not shutil.which("javac"):
     print("SKIP pill text: no javac here")

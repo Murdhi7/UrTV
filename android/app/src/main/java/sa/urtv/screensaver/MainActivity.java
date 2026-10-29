@@ -1,6 +1,10 @@
 package sa.urtv.screensaver;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
@@ -13,6 +17,16 @@ public class MainActivity extends Activity {
     private final RenderGuard guard = new RenderGuard();
     private boolean alive;
     private final AdhanKeys adhanKeys = new AdhanKeys();
+    /** settings were saved while this preview is open: it starts over with them (the page reads its settings once) */
+    private final BroadcastReceiver changed = new BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) {
+            if (!alive || web == null) return;
+            WebView old = web;
+            web = null;
+            ScreenView.release(old);
+            show();
+        }
+    };
 
     @Override
     protected void onCreate(Bundle b) {
@@ -21,6 +35,7 @@ public class MainActivity extends Activity {
         if (!getIntent().getBooleanExtra("sleeping", false)) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         alive = true;
         show();
+        InternalReceivers.register(this, changed, new IntentFilter(Prefs.CHANGED));
     }
 
     private void show() {
@@ -56,6 +71,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         alive = false;
+        try { unregisterReceiver(changed); } catch (IllegalArgumentException ignored) { }
         ScreenView.release(web);
         web = null;
         super.onDestroy();

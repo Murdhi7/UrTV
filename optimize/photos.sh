@@ -16,10 +16,14 @@ PY="${PY:-optimize/venv/bin/python}"
 MAX=10
 STAGE=/data/local/tmp/urtv-own
 tv() { "$PY" -I optimize/tv.py "$@"; }
-send() {   # $1 extras; prints the receiver's answer (the "data" of am broadcast); exit 1 on "error:"
-  local out
-  out=$(tv "am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.PHOTOS $1" \
-    | sed -n '/data="/,$p' | sed '1s/.*data="//; $s/"$//')
+send() {   # $1 extras; prints the receiver's answer (the "data" of am broadcast); exit 1 on "error:" or when there is no answer
+  local raw out
+  raw=$(tv "am broadcast -n sa.urtv.screensaver/.SaverReceiver -a sa.urtv.screensaver.PHOTOS $1" | tr -d '\r') || raw=""
+  if ! grep -q 'data=' <<< "$raw"; then
+    echo "!! photos.sh: no answer from the TV's screensaver app (it is not installed, was just updated, or the connection dropped), so nothing is known to have changed. Run optimize/install.sh saver, then the same command again." >&2
+    return 1
+  fi
+  out=$(sed -n '/data="/,$p' <<< "$raw" | sed '1s/.*data="//; $s/"$//')
   echo "$out"
   [[ "$out" != error:* ]]
 }
@@ -84,6 +88,7 @@ case "${1:-}" in
     n=$(count)
     [ "$n" -gt 0 ] || { echo "error: no photos on the TV yet (photos.sh add FILE...)"; exit 1; }
     was=$(send "--es op list" | sed -n 's/^mode: \([a-z]*\).*/\1/p')
+    [ -n "$was" ] || { echo "!! photos.sh: the TV did not say its photo mode, so nothing was changed. Run the same command again." >&2; exit 1; }
     if [ "$was" != only ]; then   # only theirs rotate, so what is on screen is one of them; the owner's mode comes back after
       trap 'send "--es op mode --es mode ${was:-mix}" > /dev/null || true; cleanup' EXIT
       send "--es op mode --es mode only" > /dev/null

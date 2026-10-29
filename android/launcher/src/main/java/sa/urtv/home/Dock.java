@@ -47,13 +47,20 @@ final class Dock {
      * others are not in it.
      */
     static List<ResolveInfo> catalogue(Context c) {
-        return scan(c, null);
+        return scan(c, null, null);
+    }
+
+    /** The launchable apps hidden with the "hidden" list (dock.sh hide, or the × of «تعديل التطبيقات»): «المخفية» lists these. */
+    static List<ResolveInfo> hiddenApps(Context c) {
+        List<ResolveInfo> out = new ArrayList<>();
+        scan(c, null, out);
+        return out;
     }
 
     /** The launchable apps that are not on the home screen, package -> why. */
     static Map<String, String> leftOut(Context c) {
         Map<String, String> why = new LinkedHashMap<>();
-        scan(c, why);
+        scan(c, why, null);
         return why;
     }
 
@@ -64,7 +71,7 @@ final class Dock {
      * settings are among them. On top of that rule: the hidden apps in config.xml, other home screens, and what was
      * hidden or shown from ADB (optimize/dock.sh hide / show).
      */
-    private static List<ResolveInfo> scan(Context c, Map<String, String> why) {
+    private static List<ResolveInfo> scan(Context c, Map<String, String> why, List<ResolveInfo> hiddenOut) {
         PackageManager pm = c.getPackageManager();
         Set<String> config = new HashSet<>(Arrays.asList(c.getResources().getStringArray(R.array.hidden_apps)));
         Set<String> hidden = prefSet(c, "hidden"), shown = prefSet(c, "shown");
@@ -83,12 +90,13 @@ final class Dock {
             }
         }
         Map<String, ResolveInfo> out = new LinkedHashMap<>();
+        Set<String> seenHidden = new HashSet<>();   // a hidden app found as a TV activity is not counted again as an ordinary one
         for (String category : new String[] {Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER}) {
             Intent q = new Intent(Intent.ACTION_MAIN).addCategory(category);
             for (ResolveInfo ri : pm.queryIntentActivities(q, PackageManager.GET_RESOLVED_FILTER)) {
                 String p = ri.activityInfo.packageName;
-                if (p.equals(c.getPackageName()) || out.containsKey(p) || (why != null && why.containsKey(p))) continue;
-                String reason = hidden.contains(p) ? "hidden with dock.sh hide"
+                if (p.equals(c.getPackageName()) || out.containsKey(p) || (why != null && why.containsKey(p)) || seenHidden.contains(p)) continue;
+                String reason = hidden.contains(p) ? "hidden with dock.sh hide or the × of «تعديل التطبيقات»"
                         : shown.contains(p) ? null
                         : config.contains(p) ? "hidden in config.xml"
                         : homes.contains(p) ? "a home screen"
@@ -96,6 +104,7 @@ final class Dock {
                                 ? "no TV activity, and the TV's own home lists only TV apps" : null;
                 if (reason == null) out.put(p, ri);
                 else if (why != null) why.put(p, reason);
+                if (hidden.contains(p) && seenHidden.add(p) && hiddenOut != null) hiddenOut.add(ri);
             }
         }
         return new ArrayList<>(out.values());
@@ -114,6 +123,37 @@ final class Dock {
         drop.removeAll(pkgs);
         prefs(c).edit().putString(hide ? "hidden" : "shown", String.join(",", add))
                 .putString(hide ? "shown" : "hidden", String.join(",", drop)).apply();
+        c.sendBroadcast(new Intent(CHANGED).setPackage(c.getPackageName()));
+    }
+
+    /** «كل التطبيقات» in the owner's order («تعديل التطبيقات»), or null: by name, as always (AppsEdit.arrange). */
+    static String appsOrder(Context c) {
+        return prefs(c).getString("apps_order", null);
+    }
+
+    /**
+     * What «تعديل التطبيقات» did, kept at once and the home screen told once: the grid's order (null: as it was), the apps hidden and
+     * shown again (the lists dock.sh hide / show keep; a hidden app never keeps a place in the order), and the favourites (null: as they were).
+     */
+    static void saveApps(Context c, List<String> order, List<String> hide, List<String> show, List<String> row) {
+        SharedPreferences.Editor e = prefs(c).edit();
+        if (order != null) e.putString("apps_order", String.join(",", order));
+        if (!hide.isEmpty() || !show.isEmpty()) {   // as hideOrShow (dock.sh hide / show), both in this one edit
+            Set<String> hidden = prefSet(c, "hidden"), shown = prefSet(c, "shown");
+            hidden.addAll(hide);
+            hidden.removeAll(show);
+            shown.removeAll(hide);
+            shown.addAll(show);
+            e.putString("hidden", String.join(",", hidden)).putString("shown", String.join(",", shown));
+        }
+        if (row != null) e.putString("dock", String.join(",", row));
+        e.apply();
+        c.sendBroadcast(new Intent(CHANGED).setPackage(c.getPackageName()));
+    }
+
+    /** «رجوع للترتيب الأصلي»: «كل التطبيقات» by name again (what is hidden stays hidden: «المخفية» brings it back). */
+    static void resetAppsOrder(Context c) {
+        prefs(c).edit().remove("apps_order").apply();
         c.sendBroadcast(new Intent(CHANGED).setPackage(c.getPackageName()));
     }
 

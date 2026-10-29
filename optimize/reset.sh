@@ -6,6 +6,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PY:-optimize/venv/bin/python}"
+. optimize/home-journal.sh
+stock_re='launcherx|tvlauncher'; stockpkg=$(jget stock | cut -d/ -f1); [[ "$stockpkg" =~ ^[A-Za-z0-9_.]+$ ]] && stock_re="$stock_re|$stockpkg"   # a TV with its own home app
 tv() { "$PY" -I optimize/tv.py "$@"; }
 
 echo "1/4 Stock home first (never leave the TV without one)…"
@@ -14,14 +16,17 @@ for extra in optimize/lists/mine*.txt; do   # local lists, e.g. mine-bloat.txt; 
   [ -f "$extra" ] && lists+=("$extra")
 done
 [ -s "${URTV_RUN_DIR:-optimize/run}/community-applied.txt" ] && lists+=("${URTV_RUN_DIR:-optimize/run}/community-applied.txt")   # a community list the setup used
-optimize/restore.sh "${lists[@]}" > /dev/null
+# restore's own problems (a file it could not read, a note about a legacy install) must be seen, and must not stop the reset before it has put the home back
+restore_rc=0
+restore_out=$(optimize/restore.sh "${lists[@]}" 2>&1) || restore_rc=$?
+{ grep -E '^(!!|Note:)' <<< "$restore_out" || true; } >&2
 stock=no
 for _ in 1 2 3 4; do   # a cold stock home can take a while to come up
   tv "input keyevent KEYCODE_HOME" > /dev/null
   sleep 6
-  home=$(tv "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN" | grep -E 'launcherx|tvlauncher' | tail -n 1 || true)
+  home=$(tv "cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN" | grep -E "$stock_re" | tail -n 1 || true)
   here=$(tv "dumpsys activity activities | grep -E 'mResumedActivity|topResumedActivity'" | head -n 1 || true)
-  if [ -n "$home" ] && grep -qE 'launcherx|tvlauncher' <<< "$here"; then
+  if [ -n "$home" ] && grep -qE "$stock_re" <<< "$here"; then
     stock=yes; break
   fi
 done
@@ -58,7 +63,10 @@ fi
 # drops an uninstalled app's service from the list by itself, and the switch would be left on
 RUNDIR="${URTV_RUN_DIR:-optimize/run}"
 if [ -f "$RUNDIR/accessibility-before.txt" ]; then
-  svcs=$(tv "settings get secure enabled_accessibility_services" | tail -n 1 | tr -d '\r' || true)
+  svcs=$(tv "settings get secure enabled_accessibility_services" 2> /dev/null | tail -n 1 | tr -d '\r' || true)
+  if [ -z "$svcs" ]; then   # only the word «null» means no service is on; an empty answer is «the TV did not say»
+    echo "!! enabled_accessibility_services: the TV did not say which accessibility services are on, so our sleep service and the accessibility switch were left as they are: run optimize/reset.sh again if the sleep service must go"
+  else
   [ "$svcs" != null ] || svcs=""
   rest=$(tr ':' '\n' <<< "$svcs" | grep -v '^sa\.urtv\.home/' | grep . | paste -sd: - || true)
   if [ -n "$rest" ]; then
@@ -72,16 +80,46 @@ if [ -f "$RUNDIR/accessibility-before.txt" ]; then
       elif [[ "$before" =~ ^[0-9]+$ ]]; then echo "settings put secure accessibility_enabled $before"; fi
     } | tv --batch > /dev/null
   fi
+  fi
+fi
+# «حماية العائلة (DNS)»: the Private DNS the TV had comes back (the script's record and the home app's own, which only the app can put
+# back), and only when that is confirmed the permission is taken back and the app removed: without it the original would be lost
+# a failed question is not «the app is not installed»: removing the app would lose its record of the original Private DNS
+home_list=$(tv "pm list packages; echo END_OF_LIST" 2> /dev/null | tr -d '\r') || home_list=""
+# the answer counts only when it is read to its end marker and holds android itself (an empty reply is «the TV did not say», not «not installed»)
+if [ "$(tail -n 1 <<< "$home_list")" != END_OF_LIST ] || ! grep -qx "package:android" <<< "$home_list"; then
+  echo "!! familydns: could not ask the TV whether the home app is installed, so nothing was removed. Run optimize/reset.sh again."
+  exit 1
+fi
+if [ -f "${URTV_RUN_DIR:-optimize/run}/family-dns-journal.txt" ] || grep -qx "package:sa.urtv.home" <<< "$home_list"; then
+  if ! optimize/familydns.sh off; then
+    echo "!! familydns: the TV's Private DNS could not be put back, so nothing more was removed (the original setting is still recorded): run optimize/dock.sh familydns off, then optimize/reset.sh again"
+    exit 1
+  fi
+fi
+if [ -f "${URTV_RUN_DIR:-optimize/run}/grants-journal.txt" ]; then
+  while read -r perm; do [[ "$perm" =~ ^android\.permission\.[A-Z_]+$ ]] && tv "pm revoke sa.urtv.home $perm" > /dev/null 2>&1 || true; done < "${URTV_RUN_DIR:-optimize/run}/grants-journal.txt"
 fi
 echo "3/4 Removing our apps (old and new names; missing ones are skipped)…"
 # the appop the launcher was given for the adhan (it vanishes with the app anyway)
-tv "appops set sa.urtv.home SCHEDULE_EXACT_ALARM default" > /dev/null 2>&1 || true
+sdk=$(tv "getprop ro.build.version.sdk" 2> /dev/null | tr -dc '0-9' || true)
+if [ "${sdk:-0}" -ge 31 ]; then tv "appops set sa.urtv.home SCHEDULE_EXACT_ALARM default" > /dev/null 2>&1 || true; fi
+# and «install unknown apps» (the TV's own update): put back exactly the mode install.sh found, then forget it
+appop_file="${URTV_RUN_DIR:-optimize/run}/install-appop.txt"      # APPOP-BEGIN (the same place install.sh keeps it)
+if [ -s "$appop_file" ]; then
+  appop_mode=$(tr -d '\r\n ' < "$appop_file")
+  if [[ "$appop_mode" =~ ^(allow|ignore|deny|default|foreground)$ ]]; then
+    tv "appops set sa.urtv.home REQUEST_INSTALL_PACKAGES $appop_mode" > /dev/null 2>&1 && rm -f "$appop_file" || true
+  fi
+fi   # APPOP-END
 for p in sa.urtv.home sa.urtv.screensaver sa.urtv.listening sa.yourtv.home sa.yourtv.screensaver com.abdullah.tvhome com.abdullah.tvsaver; do
   tv "pm uninstall $p" | grep -q Success && echo "   removed $p" || true
 done
 # TV Bro and SmartTube: only if the setup put them there (not in the TV's package list saved before it)
 for p in com.phlox.tvwebbrowser org.smarttube.stable; do
-  if [ -f "${URTV_RUN_DIR:-optimize/run}/backup.txt" ] && ! grep -qx "package:$p" "${URTV_RUN_DIR:-optimize/run}/backup.txt"; then
+  # only against a real package list: a backup saved while the TV answered nothing would make every app look «installed by the setup»
+  if [ -f "${URTV_RUN_DIR:-optimize/run}/backup.txt" ] && [ "$(grep -c '^package:' "${URTV_RUN_DIR:-optimize/run}/backup.txt" || true)" -ge 20 ] \
+     && ! grep -qx "package:$p" "${URTV_RUN_DIR:-optimize/run}/backup.txt"; then
     tv "pm uninstall $p" | grep -q Success && echo "   removed $p" || true
   fi
 done
@@ -112,4 +150,9 @@ fi
 
 "$PY" -I optimize/offlist.py clear 2> /dev/null || true   # the apps kept on by request: a reset starts like new
 echo "Done. Still disabled on this TV (made so by the manufacturer, or by something else):"
+optimize/settle.sh wait 2> /dev/null || true
 tv "pm list packages -d" | sed 's/^package:/   /'
+if [ "$restore_rc" != 0 ]; then
+  echo "!! reset: everything else was done, but optimize/restore.sh reported a problem (the !! line above): fix it, then run optimize/restore.sh again."
+  exit "$restore_rc"
+fi

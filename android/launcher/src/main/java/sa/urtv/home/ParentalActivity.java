@@ -27,7 +27,8 @@ import java.util.Map;
  * what the home screen opens, not a lock on the TV; the line under the title says so.
  */
 public class ParentalActivity extends Activity {
-    private static final int GOLD = 0xFFD6AF6B, INK = 0xFF04120C, TEXT = 0xFFF6EFE0, DIM = 0xFFC6BBA4;
+    private int GOLD, INK, TEXT, DIM;   // from the glass look (glass(), before anything is drawn)
+    private GlassStyle.Look look;
 
     private Map<String, String> apps;
     private LinearLayout list;
@@ -45,8 +46,7 @@ public class ParentalActivity extends Activity {
         apps = Dock.launchable(this);
 
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0xFF0A2016, 0xFF04120C, 0xFF020806}));
+        glass(scroll);   // the glass look: the home's photo, small and blurred once, under its veil
         scroll.setVerticalScrollBarEnabled(false);
         FrameLayout frame = new FrameLayout(this);
         scroll.addView(frame);
@@ -59,6 +59,7 @@ public class ParentalActivity extends Activity {
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         col.addView(list, new LinearLayout.LayoutParams(-1, -2));
+        scroll.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // the D-pad ids of these rows are left-to-right: pinned, so a TV set to Arabic does not mirror the rows under them
         setContentView(scroll);
         screen = scroll;
     }
@@ -142,7 +143,9 @@ public class ParentalActivity extends Activity {
             case ParentalPolicy.TASKS: return "المهام";
             case ParentalPolicy.SAVER: return "شاشة التوقف";
             case ParentalPolicy.LISTEN: return "تلاوة وأذان";
-            default: return "مؤقت النوم";
+            case ParentalPolicy.CENTER: return "مركز التحكم";
+            case ParentalPolicy.SLEEP: return "مؤقت النوم";
+            default: return pill;
         }
     }
 
@@ -204,9 +207,6 @@ public class ParentalActivity extends Activity {
         t.setFocusable(true);
         t.setClickable(true);
         t.setId(View.generateViewId());
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(14));
-        t.setBackground(bg);
         t.setTag(on);
         t.setOnFocusChangeListener((v, has) -> paint(t, Boolean.TRUE.equals(t.getTag()), has));
         paint(t, on, false);
@@ -215,9 +215,10 @@ public class ParentalActivity extends Activity {
 
     private void paint(TextView t, boolean on, boolean focused) {
         t.setTag(on);
-        GradientDrawable bg = (GradientDrawable) t.getBackground();
-        bg.setColor(focused ? GOLD : on ? 0x33D6AF6B : 0x14FFFFFF);
-        bg.setStroke(dp(2), focused || on ? GOLD : 0x1FD6AF6B);
+        // focused: the solid focus fill; on: the panel with a ring in the accent; off: the panel
+        GradientDrawable bg = focused ? GlassPaint.fill(this, look.focus, 14, 0) : GlassPaint.panel(this, look, 14);
+        if (!focused && on) bg.setStroke(dp(2), look.accent);
+        t.setBackground(bg);
         t.setTextColor(focused ? INK : on ? GOLD : TEXT);
     }
 
@@ -304,4 +305,10 @@ public class ParentalActivity extends Activity {
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
 
     private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
+
+    /** The glass look on this page (GlassSource: the home's photo under its veil, or the look's solid colour), and this screen's colours from it. */
+    private void glass(View page) {
+        look = GlassSource.page(this, page);
+        GOLD = look.accent; INK = look.onFocus; TEXT = look.text; DIM = look.sub;
+    }
 }

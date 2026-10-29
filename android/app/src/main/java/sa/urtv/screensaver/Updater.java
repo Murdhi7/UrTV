@@ -21,6 +21,7 @@ final class Updater {
     private static final String RECENT = "تم الفحص مؤخراً";
     private static final String LATEST_URL = "https://github.com/tshi-dev/UrTV/releases/latest";
     private static final String VERSION_URL = "https://github.com/tshi-dev/UrTV/releases/download/apk-latest/version.txt";
+    private static final String NEXT_VERSION_URL = "https://github.com/tshi-dev/UrTV/releases/download/apk-next/version.txt";
 
     private Updater() {}
 
@@ -46,6 +47,7 @@ final class Updater {
         final Context app = c.getApplicationContext();
         Prefs prefs = new Prefs(app);
         if (!prefs.autoUpdate()) return;
+        if (!displayOn(app)) return;   // standby: not now; the next screensaver start asks (lastCheck is not touched)
         if (System.currentTimeMillis() - prefs.raw().getLong("lastCheck", 0) < INTERVAL_MS) return;
         if (!DUE_RUNNING.compareAndSet(false, true)) return;
         new Thread(new Runnable() {
@@ -57,6 +59,16 @@ final class Updater {
                 }
             }
         }).start();
+    }
+
+    /** PowerManager.isInteractive(); true when it cannot be read (a check is not lost for that). */
+    private static boolean displayOn(Context c) {
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) c.getSystemService(Context.POWER_SERVICE);
+            return pm == null || pm.isInteractive();
+        } catch (RuntimeException e) {
+            return true;
+        }
     }
 
     /** Blocking; call off the main thread. Returns an Arabic status line for the settings screen. */
@@ -115,16 +127,23 @@ final class Updater {
      * so its tag is not a version), else the numbered tag /releases/latest points to. Keeps the old value on any failure.
      */
     private static void checkLatest(Context c) {
-        String v = latestFromAsset();
-        if (v == null) v = latestFromRedirect();
+        boolean next = "next".equals(new Prefs(c).updateChannel());   // the test channel (agents only): apk-next's version.txt, never the latest's redirect
+        String v = latestFromAsset(next ? NEXT_VERSION_URL : VERSION_URL);
+        if (v == null && !next) v = latestFromRedirect();
         if (v == null) return;
-        new Prefs(c).raw().edit().putString("latestVersion", v).putLong("latestCheck", System.currentTimeMillis()).apply();
+        new Prefs(c).raw().edit().putString("latestVersion", v).putString("latestChannel", next ? "next" : "latest").putLong("latestCheck", System.currentTimeMillis()).apply();
     }
 
-    private static String latestFromAsset() {
+    /** After the update channel was changed (agents only): read the newest version of the new channel's release in the background. */
+    static void refreshLatestAsync(Context c) {
+        final Context app = c.getApplicationContext();
+        new Thread(new Runnable() { @Override public void run() { checkLatest(app); } }).start();
+    }
+
+    private static String latestFromAsset(String url) {
         HttpURLConnection con = null;
         try {
-            con = (HttpURLConnection) new URL(VERSION_URL).openConnection();   // GitHub redirects to its CDN: followed
+            con = (HttpURLConnection) new URL(url).openConnection();   // GitHub redirects to its CDN: followed
             con.setConnectTimeout(10000);
             con.setReadTimeout(10000);
             if (con.getResponseCode() != HttpURLConnection.HTTP_OK) return null;
@@ -172,13 +191,12 @@ final class Updater {
 
     /** The three lines under the settings: this app's version, the newest release, and how to update. */
     static String[] versionLines(Context c) {
-        String mine = BuildConfig.VERSION_NAME;
-        String latest = new Prefs(c).raw().getString("latestVersion", null);
-        Integer newer = Versions.compare(latest, mine);   // major first, then minor: 4.0 is newer than 3.12
-        String available = latest == null || Versions.parse(latest) == null ? "لم يُفحص بعد"
-            : newer == null || newer <= 0 ? "لا يوجد أحدث" : arabic(latest);
+        int mine = BuildConfig.VERSION_CODE;   // the build; the name is the VERSION file's («4.0»), never taken apart
+        int newest = Versions.buildOf(new Prefs(c).latestVersion());   // version.txt is "3.<build>": the build is what grows
+        String available = newest < 0 ? "لم يُفحص بعد"
+            : newest <= mine ? "لا يوجد أحدث" : arabic(Versions.display(BuildConfig.MARKETING, newest));
         return new String[] {
-            "الإصدار الحالي: " + arabic(mine),
+            "الإصدار الحالي: " + arabic(Versions.display(BuildConfig.MARKETING, mine)),
             "الإصدار المتاح: " + available,
             "طريقة التحديث: اطلب من مساعد الذكاء الاصطناعي «حدّث تلفزيوني»، وإعداداتك كلها تبقى.",
         };

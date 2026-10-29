@@ -13,7 +13,7 @@ tmp = tempfile.mkdtemp()
 log = os.path.join(tmp, "sent.txt")
 fake = os.path.join(tmp, "fakepy")
 with open(fake, "w") as f:
-    f.write('#!/usr/bin/env bash\nprintf "%s\\n" "$3" >> "$SENT"\ncase "$3" in "settings get"*) echo "${GETS:-null}" ;; *) echo \'Broadcast completed: result=0, data="sleep: ok"\' ;; esac\n')
+    f.write('#!/usr/bin/env bash\nprintf "%s\\n" "$3" >> "$SENT"\ncase "$3" in "settings get"*";"*) echo "${GETS-null}"; echo "${GETS2-null}" ;; "settings get"*) echo "${GETS-null}" ;; *) echo \'Broadcast completed: result=0, data="sleep: ok"\' ;; esac\n')
 os.chmod(fake, 0o755)
 
 failed = 0
@@ -44,11 +44,25 @@ check("sleep-setup: nothing enabled yet: turns on the sleep service alone, and a
       rc == 0 and sent == ["settings get secure enabled_accessibility_services; settings get secure accessibility_enabled",
                            "settings put secure enabled_accessibility_services '" + SVC + "'", "settings put secure accessibility_enabled 1",
                            "settings get secure enabled_accessibility_services"], sent)
+rc, out, sent = run("sleep-setup", gets="")
+check("sleep-setup: an empty answer (the TV did not say) is NOT «no service on»: stops with a !! line, nothing is put",
+      rc == 1 and "!! enabled_accessibility_services: the TV did not say" in out and not any("settings put" in x for x in sent), (out, sent))
 rc, out, sent = run("sleep-setup", gets="com.other/com.other.Svc")
 check("sleep-setup: another accessibility service is kept, ours added after it",
       rc == 0 and sent[1] == "settings put secure enabled_accessibility_services 'com.other/com.other.Svc:" + SVC + "'", sent)
 rc, out, sent = run("sleep-setup", gets="com.other/com.other.Svc:" + SVC)
 check("sleep-setup: already on: the list is left as it is", rc == 0 and "already" in out and not any("enabled_accessibility_services com" in x for x in sent[1:]), (out, sent))
+TYPE = "sa.urtv.home/sa.urtv.home.TypeService"
+rc, out, sent = run("type-setup")
+check("type-setup: the typing service is turned on on its own (not the sleep one), and accessibility",
+      rc == 0 and sent[1] == "settings put secure enabled_accessibility_services '" + TYPE + "'" and SVC not in " ".join(sent) and "typing service is on" in out, (out, sent))
+rc, out, sent = run("type-setup", gets="com.other/com.other.Svc:" + SVC)
+check("type-setup: the sleep service and others stay in the list, the typing service is added after them",
+      rc == 0 and sent[1] == "settings put secure enabled_accessibility_services 'com.other/com.other.Svc:" + SVC + ":" + TYPE + "'", sent)
+rc, out, sent = run("type-setup", gets="")
+check("type-setup: an empty answer stops with a !! line, nothing is put", rc == 1 and "!! enabled_accessibility_services: the TV did not say" in out and not any("settings put" in x for x in sent), (out, sent))
+rc, out, sent = run("type-setup", gets="com.other/com.other.Svc:" + TYPE)
+check("type-setup: already on: the list is left as it is", rc == 0 and "already" in out and not any("enabled_accessibility_services com" in x for x in sent[1:]), (out, sent))
 
 print("\n" + (f"{failed} failed" if failed else "dock sleep: all passed"))
 raise SystemExit(1 if failed else 0)

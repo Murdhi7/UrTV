@@ -26,6 +26,8 @@
 
 <sub>ويندوز: ركّب Git وPython أول (`winget install --source winget Git.Git Python.Python.3.12`). Gemini CLI مجاني وناس قالوا يشتغل؛ ما جرّبناه.</sub>
 
+> **ما عندك كمبيوتر؟** تقدر تجهّز التلفزيون من **التلفزيون نفسه** (حمّل التطبيقين بتطبيق Downloader وافتح «إعداد تلفزيوني»)، أو من **جوال أندرويد** (Termux) أو **آيفون/آيباد** (iSH). التفاصيل: [`docs/PHONE-SETUP.md`](docs/PHONE-SETUP.md).
+
 ### ③ الصق هذا
 
 > ركّب تلفزيوني من https://github.com/tshi-dev/UrTV: انسخ المستودع واتبع `docs/SETUP-PROMPT.md` خطوة بخطوة. أنت على كمبيوتر متصل بنفس شبكة الواي فاي حقت التلفزيون.
@@ -62,6 +64,8 @@ Settings → About → press OK on **Build** 7 times. Then go to **Developer opt
 
 <sub>Windows: install Git and Python first (`winget install --source winget Git.Git Python.Python.3.12`). Gemini CLI is free and reported to work; not tested by us.</sub>
 
+> **No computer?** Set the TV up from **the TV itself** (install the two apps with the Downloader app and open «إعداد تلفزيوني»), from an **Android phone** (Termux) or from an **iPhone/iPad** (iSH). Details: [`docs/PHONE-SETUP.md`](docs/PHONE-SETUP.md).
+
 ### ③ Paste this
 
 > Set up my TV with https://github.com/tshi-dev/UrTV: clone it and follow `docs/SETUP-PROMPT.md` step by step. You are on a computer on the same Wi-Fi as the TV.
@@ -83,7 +87,7 @@ Redo the whole setup with one command, settings kept.
 
 **Safe:** nothing is uninstalled; AirPlay, Chromecast and voice are never touched; a 5-minute safety switch puts the
 stock home back if ours doesn't come up. The apps are built and signed by GitHub Actions from this repo (version
-3.N = the build number). The full prompt: [docs/SETUP-PROMPT.md](docs/SETUP-PROMPT.md). To build a different
+4.0, build N: `VERSION` names it, the build number is the Actions run). The full prompt: [docs/SETUP-PROMPT.md](docs/SETUP-PROMPT.md). To build a different
 screen: [docs/RECREATE-PROMPT.md](docs/RECREATE-PROMPT.md).
 
 ## What you get
@@ -97,8 +101,8 @@ screen: [docs/RECREATE-PROMPT.md](docs/RECREATE-PROMPT.md).
 
 **Download the apps yourself:** [releases/apk-latest](https://github.com/tshi-dev/UrTV/releases/tag/apk-latest)
 (install with `adb install`; the agent route above also sets everything up).
-Every build is also kept as a numbered release (`v3.N`, the screensaver and home version), to go back
-to one: `APK_TAG=v3.N optimize/install.sh all`.
+Every build is also kept as a numbered release (`v4.0.N`: the version and the build; the older ones are `v3.N`), to go back
+to one: `APK_TAG=v4.0.N optimize/install.sh all`.
 
 The home screen carries «تلاوة وأذان»: forty reciters (114 surahs each), live Quran radio, and the five daily
 adhans at Umm al-Qura times with a choice of 21 recordings.
@@ -134,7 +138,7 @@ Everything is scriptable over ADB, made for slow Wi-Fi (retries, resumable uploa
 | `docs/FEATURES.md` | كل ميزة بالعربي: وش تسوي، ووين تغيّرها، ووش يكتب الوكيل |
 | `AGENTS.md` | for AI agents, read first: where to start and the rules agents broke in reports |
 | `docs/SETTINGS.md` | every setting and feature with its command, for agents: use these, never build your own |
-| `optimize/saver.sh` | screensaver settings: `show`, `cities`, `city`, `find-team`, `teams`, `leagues`, `card`, `home-card`, `greeting`, `events`, `genres`, `langs`, `minrating`, `photos`, `idle`, `digits`, `hijrioffset`, `clock24`, `national`, `cardstyle`, `markets` (`off`/`on`), `clocksize`, `mkstyle`, `stocks`, `slot`, `countdown`, `tasks`, `export` / `import` (move the settings to a second TV, `import` previews until `--yes`), `update` |
+| `optimize/saver.sh` | screensaver settings: `show`, `cities`, `city`, `find-team`, `teams`, `leagues`, `card`, `home-card`, `greeting`, `listenpill`, `updatebell`, `events`, `genres`, `langs`, `minrating`, `photos`, `idle`, `digits`, `hijrioffset`, `clock24`, `national`, `cardstyle`, `markets` (`off`/`on`), `clocksize`, `mkstyle`, `stocks`, `slot`, `countdown`, `tasks`, `export` / `import` (move the settings to a second TV, `import` previews until `--yes`), `update` |
 | `optimize/photos.sh` | the owner's own photos, 1 to 10: `add FILE...`, `list`, `del N`, `clear`, `mode mix\|only`, `show` |
 | `optimize/dock.sh` | favourites row: `show`, `apps`, `set`, `reset`; `hidden`, `hide PKG`, `show PKG` for apps left off the home screen |
 | `optimize/music.sh` | «تلاوة وأذان» over ADB: `status`, `reciters`, `stations`, `surah`, `radio`, `pause`, `resume`, `seek`, `sleep`, `adhan` (`now`, `on`/`off`, `voice N`) |
@@ -142,6 +146,7 @@ Everything is scriptable over ADB, made for slow Wi-Fi (retries, resumable uploa
 | `optimize/community.sh` | a TV our lists do not know: the tested list for exactly its model from [CleanYourTV](https://github.com/Gathin23/cleanyourtv) (MIT; `optimize/lists/community/`, made by `.github/tools/community_lists.py`) |
 | `optimize/autostart.sh` | TCL only: allows our two apps to start at boot (the adhan after a restart, the sleep service), writes it to disk, and reports it |
 | `optimize/keep.sh` | turn back on anything protected (AirPlay, casting, voice, updates…) that something turned off · `off`: what the setup turned off, by name · `restore <pkg>`: an app the person wants back, remembered so `run.sh again` leaves it on |
+| `docs/NETWORK.md` | every network request the apps make: host, trigger, when it runs, what is sent, and why it is allowed to run in the background or not |
 | `docs/TVS.md` | what was seen on each TV model (ADB port, home switch, what to watch out for) |
 | `optimize/reset.sh` | back to stock: lists re-enabled, stock home and screensaver back, our apps removed |
 | `optimize/share.sh` | if the owner wants: `--preview` writes how the setup went and prints exactly what would be sent, `--send` sends it: TV model, time per step, what failed, memory before/after, nothing personal; anonymous to the author (from their phone by a QR code if this computer is offline). `--problem`: a problem report any time, even from another computer; agents report problems this way, never as GitHub issues |
@@ -168,8 +173,8 @@ tests/run.sh          every check: build, data, fonts, scripts, private data, «
 ```
 
 A push to `master` builds both APKs in GitHub Actions, once `tests/run.sh` has passed in the same run, and publishes them
-to `apk-latest` (with a `version.txt`, the number the settings screen shows as the newest) and a numbered `v3.N`
-release; a push to `next` publishes `apk-next` instead (a test build, no wait for the checks). `tests/run.sh` runs on `master`, `next`,
+to `apk-latest` (with a `version.txt`, always `3.<build>`: the build the settings screen shows as the newest, and what every app built from 142 on
+reads; machine-only, people see «4.0») and a numbered `v4.0.N` release (the name comes from the `VERSION` file); a push to `next` publishes `apk-next` instead (a test build, no wait for the checks). `tests/run.sh` runs on `master`, `next`,
 `content` and pull requests. Local Android build (needs the SDK): `python3 src/build.py && gradle -p android assembleRelease`
 (signed with the debug key; the release key lives only in the repository's secrets).
 

@@ -4,6 +4,9 @@
 
     <uses-permission android:name="android.permission.INTERNET" />   <!-- hosted wallpapers, the optional card -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- «أكمل المشاهدة»: the TV's Watch Next list; asked once in WatchNextActivity, nothing read without it -->
+    <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Android 11 only reveals the Wi-Fi name to apps holding location; granted over ADB at install. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -22,9 +25,32 @@
     <!-- the adhan sets the TV's volume to its own level and puts it back afterwards -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
+    <!-- «حماية العائلة (DNS)»: Private DNS (Settings.Global). Granted only over ADB by `optimize/dock.sh familydns grant`;
+         without it the feature says so and does nothing. -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+    <!-- «تحكم من الجوال»: changes the city and the home cards through the screensaver's provider (signature permission, same key) -->
+    <uses-permission android:name="sa.urtv.screensaver.PHONE_SETTINGS" />
+    <!-- «تحديث تلفزيونك» from the phone: hands the APKs it downloaded to Android's own install screen, where the owner confirms -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- the screensaver (same signing key) asks what is playing, for its «يُتلى الآن» card -->
     <permission
         android:name="sa.urtv.home.READ_NOW_PLAYING"
+        android:protectionLevel="signature" />
+
+    <!-- opens «حماية العائلة»: the screensaver app (same signing key) holds it, so nothing else can start that screen -->
+    <permission
+        android:name="sa.urtv.home.FAMILY_DNS"
+        android:protectionLevel="signature" />
+
+    <!-- the glass look's small blurred backdrop of the home's photo: only our two apps (same signing key) may read it (GlassProvider) -->
+    <permission
+        android:name="sa.urtv.home.READ_GLASS"
+        android:protectionLevel="signature" />
+
+    <!-- «تحديث تلفزيوني»: only our two apps (same signing key) may open the update screen -->
+    <permission
+        android:name="sa.urtv.home.OPEN_UPDATE"
         android:protectionLevel="signature" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -84,6 +110,55 @@
             </intent-filter>
         </activity>
 
+        <!-- «تلفزيونك»: a tile for the TV's own home screen (the apps row of Google TV), for the one in four setups that keeps the stock home
+             (setupwraith / launcherx): without it UrTV's home could not be opened at all. It opens the same MainActivity by component, with no
+             HOME category, so it never changes which home is the default (the HOME entry above is the only one) and cannot loop with the HOME
+             intent; MainActivity says Back leaves it when it is not the default home. Our own «كل التطبيقات» skips our package (Dock.scan). -->
+        <activity-alias
+            android:name=".HomeTile"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="تلفزيونك"
+            android:icon="@mipmap/ic_launcher"
+            android:banner="@drawable/banner">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- «إعداد تلفزيوني»: the setup done by the TV itself over its own local adb, no computer. A launcher entry of its own (apps row), so it is there
+             right after the APK is installed with the TV's Downloader app, before this app is Home. Nothing outside the app can start the run: the
+             buttons are on this screen. -->
+        <activity
+            android:name=".setup.SetupActivity"
+            android:exported="true"
+            android:label="إعداد تلفزيوني"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- the in-app safety switch of the home switch: puts the stock home back after 5 minutes unless it was confirmed (ours only) -->
+        <receiver android:name=".setup.SetupRevertReceiver" android:exported="false" />
+        <!-- the TV started again in the middle of a home switch: the safety switch comes back and the stock home is put back (only the system sends this) -->
+        <receiver
+            android:name=".setup.SetupBootReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
         <!-- «ترتيب المفضلة»: the favourites as a list; also opened from the screensaver's settings -->
         <activity
             android:name=".DockActivity"
@@ -91,6 +166,55 @@
             android:label="ترتيب المفضلة"
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.Material.NoActionBar" />
+
+        <!-- «أكمل المشاهدة»: the one question for the TV's Watch Next list; opened from the screensaver's settings row, behind its PIN like DockActivity -->
+        <activity
+            android:name=".WatchNextActivity"
+            android:exported="true"
+            android:label="أكمل المشاهدة"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
+        <!-- «أسماء المصادر»: a name for each TV input (HDMI 1 -> PS5), opened from the screensaver's settings; asks for the PIN itself like DockActivity -->
+        <activity
+            android:name=".InputNamesActivity"
+            android:exported="true"
+            android:label="أسماء المصادر"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
+        <!-- «حماية العائلة (DNS)»: Private DNS to AdGuard Family, opened from the screensaver's settings -->
+        <activity
+            android:name=".FamilyDnsActivity"
+            android:exported="true"
+            android:permission="sa.urtv.home.FAMILY_DNS"
+            android:label="حماية العائلة"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
+        <!-- «تحكم من الجوال»: the owner's switch and the pairing screen. Nothing listens until «تشغيل» is pressed there. Exported only so the
+             screensaver's settings can open it, as with DockActivity. -->
+        <activity
+            android:name=".PhoneActivity"
+            android:exported="true"
+            android:label="تحكم من الجوال"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
+        <!-- «تحديث تلفزيوني»: the version, the check and the update. Exported only so the screensaver's settings can open it, behind a signature
+             permission (same key): no other app can. -->
+        <activity
+            android:name=".UpdateActivity"
+            android:exported="true"
+            android:permission="sa.urtv.home.OPEN_UPDATE"
+            android:label="تحديث تلفزيوني"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
+        <!-- the installer's answer for «تحديث تلفزيونك» (only reached through the app's own PendingIntent) -->
+        <receiver
+            android:name=".phone.PhoneInstallReceiver"
+            android:exported="false" />
 
         <!-- «الرقابة الأبوية»: the PIN, the locks and kids mode; it asks for the PIN itself once one is set -->
         <activity
@@ -121,7 +245,10 @@
                 <action android:name="sa.urtv.home.HIDDEN" />
                 <action android:name="sa.urtv.home.HIDE" />
                 <action android:name="sa.urtv.home.SHOW" />
+                <action android:name="sa.urtv.home.FAMILY_DNS" />
                 <action android:name="sa.urtv.home.PIN_SET" />
+                <action android:name="sa.urtv.home.PIN_LOCK" />
+                <action android:name="sa.urtv.home.PIN_UNLOCK" />
                 <action android:name="sa.urtv.home.PIN_STATUS" />
                 <action android:name="sa.urtv.home.PIN_OFF" />
                 <action android:name="sa.urtv.home.PIN_RESET" />
@@ -140,6 +267,19 @@
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/sleep_service" />
+        </service>
+
+        <!-- The phone remote's typing into other apps: a second accessibility service, on only when the owner turns it on (or
+             optimize/dock.sh type-setup). It reads no event (it only asks Android for window changes, to know which app is in front) and looks at the screen only when a phone sends text: see TypeService. -->
+        <service
+            android:name=".TypeService"
+            android:exported="true"
+            android:label="@string/type_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/type_service" />
         </service>
 
         <!-- the «تلاوة» screens: the Quran recitations and the radio, inside the home screen (the «تلاوة» pill).
@@ -219,6 +359,13 @@
             android:authorities="sa.urtv.home.nowplaying"
             android:exported="true"
             android:readPermission="sa.urtv.home.READ_NOW_PLAYING" />
+
+        <!-- the glass backdrop for the screensaver app's settings: read only, signature permission -->
+        <provider
+            android:name=".GlassProvider"
+            android:authorities="sa.urtv.home.glass"
+            android:exported="true"
+            android:permission="sa.urtv.home.READ_GLASS" />
 
         <provider
             android:name=".tilawah.OwnAdhanProvider"

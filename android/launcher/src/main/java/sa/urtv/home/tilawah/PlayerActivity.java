@@ -40,10 +40,12 @@ public class PlayerActivity extends Activity {
     };
 
     @Override protected void onCreate(Bundle state) {
+        setTheme(Ui.theme(this));   // «المظهر»: the look and the light of now, before anything is drawn
         super.onCreate(state);
         sa.urtv.home.Digits.init(this);   // the screensaver's «الأرقام» setting
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_player);
+        Ui.glassPage(this, R.id.bg);   // the glass page
         cat = Catalog.get(this);
         openedAt = SystemClock.elapsedRealtime();
 

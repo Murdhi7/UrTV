@@ -11,25 +11,22 @@ import android.content.SharedPreferences;
 public final class AdhanSync {
     private AdhanSync() { }
 
-    /** Sets the alarm again when the place, zone, adjustments or method in this fragment are not the ones it was last set with. */
-    public static void onConfig(Context c, String fragment) {
-        Place p = Place.get(c, fragment);
-        String now = identity(p);
-        SharedPreferences sp = c.getSharedPreferences("tilawah", Context.MODE_PRIVATE);
+    /**
+     * Sets the alarm again when the place, zone, adjustments or method in this fragment are not the ones it was last set from. The fragment is
+     * null when the read failed or only an old copy of it is left (the ticket is the one taken before that read began): then the alarm stays as it was set and the remembered place serves the rest.
+     */
+    public static void onConfig(Context c, String fragment, long ticket) {
+        Place p = Place.get(c, fragment, ticket);   // a null fragment: the last good place
         PrayerTimes.refreshIfDue(c, p);   // Aladhan's times for today, once the TV is online: the home screen agrees with the page
-        if (now.equals(sp.getString("sched_identity", ""))) return;
-        sp.edit().putString("sched_identity", now).apply();
-        AdhanScheduler.schedule(c);
+        Adhan.prefetchIfSkipped(c);   // a recording skipped in standby comes now; nothing is asked when none was skipped
+        if (fragment == null) return;   // a failed read says nothing about the alarm
+        SharedPreferences sp = c.getSharedPreferences("tilawah", Context.MODE_PRIVATE);
+        if (!SchedIdentity.due(sp.getString("sched_identity", ""), p.identity())) return;
+        AdhanScheduler.schedule(c, p);   // records the identity of the place it is set from
     }
 
     /** The shell asks: whatever the settings say now, set the alarm for it. */
     static void reschedule(Context c) {
-        SharedPreferences sp = c.getSharedPreferences("tilawah", Context.MODE_PRIVATE);
-        sp.edit().putString("sched_identity", identity(Place.get(c))).apply();
-        AdhanScheduler.schedule(c);
-    }
-
-    private static String identity(Place p) {
-        return PrayerMath.identity(p.lat, p.lng, p.tz, PrayerAdjust.text(p.adj), p.method);
+        AdhanScheduler.schedule(c, Place.get(c));
     }
 }

@@ -2,12 +2,14 @@
 # Measure the TV's memory and load, fairly.
 #   optimize/measure.sh before                 restart, 3 minutes on the home screen, then read (about 5 minutes)
 #   optimize/measure.sh after --now            read right away, no restart
+#   optimize/measure.sh power                  what UrTV holds right now: Doze, wake locks, alarms, jobs (read-only, see optimize/power.sh)
 #   optimize/measure.sh saver --screensaver    start the screensaver, read after 60 s while it runs, then leave it
 # The TV is kept awake while it settles (its screensaver timeout is stretched, then put back), so a screensaver
 # kicking in can't spoil an idle reading. Writes optimize/run/ram-<label>.txt, adds a line to optimize/run/summary.md.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PY:-optimize/venv/bin/python}"
+[ "${1:-}" != power ] || exec optimize/power.sh   # what UrTV holds right now (Doze, wake locks, alarms, jobs); read-only
 label="${1:?usage: optimize/measure.sh LABEL [--now|--screensaver]}"
 mode="${2:-}"
 RUN="${URTV_RUN_DIR:-optimize/run}"
@@ -35,7 +37,17 @@ if [ "$mode" = --screensaver ]; then
   echo "screensaver running; reading in 60 s…"
   sleep "${SAVER_S:-60}"
 else
+  # Wireless debugging (TLS, pairing) gets a NEW port when the TV restarts, so the connection is lost and the tools cannot find the TV again (37 reports ended with
+  # «TV did not come back within 5 min», mostly Android 14): there, measure without the restart and say so. Anything but a plain «adb» answer counts as wireless.
   if [ "$mode" != --now ]; then
+    transport=$(tv --transport 2> /dev/null | tail -n 1) || transport=wireless
+    if [ "$transport" != adb ]; then
+      echo "This TV is connected by Wireless debugging (its port changes when it restarts), so it is not restarted: $label is measured now, without the restart and the 3-minute wait. The reading can be a little higher than after a restart."
+      mode=--now
+    fi
+  fi
+  if [ "$mode" != --now ]; then
+    optimize/settle.sh wait 2> /dev/null || true   # a restart before Android has written the package state can lose what was disabled
     tv --reboot
   fi
   # the TV's own value is kept in a file while it is stretched, and put back exactly (null: deleted, not guessed); if this run
@@ -50,9 +62,13 @@ else
   }
   put_timeout_back
   timeout=$(tv "settings get system screen_off_timeout" | tr -d '\r' | tail -n 1)
-  echo "${timeout:-null}" > "$keep"
-  tv "settings put system screen_off_timeout 1800000" > /dev/null        # 30 min: stay on the home screen
-  trap put_timeout_back EXIT
+  case "$timeout" in
+    null|[0-9]*)   # the TV said its value (null: not set): stretched, and put back exactly
+      echo "$timeout" > "$keep"
+      tv "settings put system screen_off_timeout 1800000" > /dev/null        # 30 min: stay on the home screen
+      trap put_timeout_back EXIT ;;
+    *) echo "!! screen_off_timeout: the TV did not say its value, so it was not stretched and a screensaver may spoil this reading" ;;
+  esac
   tv "input keyevent KEYCODE_HOME" > /dev/null
   if [ "$mode" != --now ]; then
     echo "letting the TV settle for 3 minutes (kept awake)…"
