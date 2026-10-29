@@ -761,7 +761,7 @@ const TEAM_BADGES = (()=>{ try{ return JSON.parse(localStorage.getItem('teamBadg
 const BADGE_REQUESTED = new Set();
 const BADGE_RETRY_AFTER = {};
 let BADGE_QUEUE = Promise.resolve(), BADGE_LAST_LOOKUP = 0;
-function validBadge(url){ return typeof url === 'string' && /^https:\/\/www\.thesportsdb\.com\//i.test(url); }
+function validBadge(url){ return typeof url === 'string' && /^https:\/\/(?:www|r2)\.thesportsdb\.com\//i.test(url); }
 function requestTeamBadge(id){
   if(!id || TEAM_BADGES[id] || BADGE_REQUESTED.has(id) || Date.now() < (BADGE_RETRY_AFTER[id] || 0)) return;
   BADGE_REQUESTED.add(id);
