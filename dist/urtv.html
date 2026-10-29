@@ -91,6 +91,7 @@
     border-radius:12px;
     padding:1.7vh 1.4vw;
   }
+  .week.match-panel{width:min(840px,52vw);padding:1.85vh 1.55vw}
   .week .hd{
     display:flex;align-items:center;gap:.7em;margin-bottom:1vh;
     font-size:clamp(12px,1vw,18px);font-weight:500;letter-spacing:.18em;color:#D6AF6B;
@@ -115,8 +116,8 @@
   .week li.mg{display:block;padding:.65vh 0}
   .week li.mg .mr{display:flex;align-items:center;gap:.62em;max-width:none;overflow:visible;padding:0;margin:0;white-space:nowrap}
   .week li.mg .mr>*{flex:0 0 auto;max-width:none;overflow:visible;text-overflow:clip;padding:0;margin:0}
-  .week li.mg .mr .dt{flex:1 1 auto;margin-inline-start:auto;min-width:0;text-align:left;font-size:.84em;overflow:hidden;text-overflow:ellipsis}
-  .week li.mg .mr .mwhen{flex:1 0 auto;display:block;margin:0;text-align:center;font-size:.84em;font-style:normal;color:#A79C85;white-space:nowrap}
+  .week li.mg .mr .dt{flex:0 0 auto;margin-inline-start:auto;min-width:0;text-align:left;font-size:.84em;overflow:hidden;text-overflow:ellipsis}
+  .week li.mg .mr .mwhen{flex:0 1 auto;display:block;margin:0;text-align:right;font-size:.84em;font-style:normal;color:#A79C85;white-space:nowrap}
   .week li.mg .tm{display:inline-flex;align-items:center;gap:.28em}
   .week li.mg .team-crest{width:1.18em;height:1.18em;margin:0;object-fit:contain}
   .week li.mg .mr.nocr .team-crest{display:none}
@@ -1139,6 +1140,7 @@ const PANEL_TITLE = {shows:'هذا الأسبوع', prayers:'مواقيت الي
 function renderPanel(animate){
   const ul = document.getElementById('week-list'), hd = document.getElementById('week-hd');
   const P = CONFIG.panel;
+  document.querySelector('.week')?.classList.toggle('match-panel', P === 'matches');
   if(P === 'shows'){ renderWeekPage(animate); return; }
   let rows = [];
   if(P === 'prayers') rows = prayerRows();
