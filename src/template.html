@@ -525,6 +525,7 @@ function shortRemaining(ms){
 
 function alignFooterPanels(){
   const narrow = window.matchMedia('(max-aspect-ratio:5/4)').matches;
+  // «الإزاحة المميزة»: keep the countdown/Ramadan/matches group 8% left of its clock-aligned position.
   const nudge = narrow ? 0 : Math.round(window.innerWidth * .08);
   const cityEl = document.getElementById('clock-sub');
   const work = document.querySelector('.bottom .p-work');
