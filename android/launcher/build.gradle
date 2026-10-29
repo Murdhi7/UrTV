@@ -42,7 +42,10 @@ android {
 
     // wallpapers are the screensaver's Saudi photos, copied in at build time
     sourceSets {
-        main { assets.srcDirs += ["$buildDir/generated/wallpapers", "$buildDir/generated/web"] }
+        main {
+            assets.srcDirs += ["$buildDir/generated/wallpapers", "$buildDir/generated/web"]
+            assets.exclude 'quran/**'   // the personal build has no recitation screens or their catalogue
+        }
     }
 
     compileOptions {

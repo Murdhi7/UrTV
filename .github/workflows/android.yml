@@ -2,7 +2,7 @@ name: Build APKs
 
 on:
   push:
-    branches: [master, next]   # next: a test build in apk-next, before anything reaches apk-latest
+    branches: [master, next, codex/urtv-4-no-tilawah]   # the personal branch builds artifacts only; master/next keep their release channels
     paths: ['src/**', 'assets/**', 'android/**', 'VERSION', '.github/workflows/android.yml']
   workflow_dispatch:
 
@@ -72,6 +72,8 @@ jobs:
       - name: Build APKs
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          URTV_PERSONAL: ${{ github.ref_name == 'codex/urtv-4-no-tilawah' && '1' || '0' }}
+          URTV_OWNER: ${{ github.ref_name == 'codex/urtv-4-no-tilawah' && 'Murdhi7' || 'tshi-dev' }}
           URTV_BRANCH: ${{ github.ref_name }}   # the screensaver fetches its page from the branch it was built from
         run: gradle -p android assembleRelease --no-daemon
 

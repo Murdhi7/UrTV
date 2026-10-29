@@ -16,6 +16,11 @@ public final class AdhanSync {
      * null when the read failed or only an old copy of it is left (the ticket is the one taken before that read began): then the alarm stays as it was set and the remembered place serves the rest.
      */
     public static void onConfig(Context c, String fragment, long ticket) {
+        if (!c.getResources().getBoolean(sa.urtv.home.R.bool.show_listening)) {
+            new Prefs(c).setAdhanOn(false);
+            AdhanScheduler.schedule(c);   // cancel any alarm left by an older installation
+            return;
+        }
         Place p = Place.get(c, fragment, ticket);   // a null fragment: the last good place
         PrayerTimes.refreshIfDue(c, p);   // Aladhan's times for today, once the TV is online: the home screen agrees with the page
         Adhan.prefetchIfSkipped(c);   // a recording skipped in standby comes now; nothing is asked when none was skipped

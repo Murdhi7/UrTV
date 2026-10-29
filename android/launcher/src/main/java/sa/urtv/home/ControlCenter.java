@@ -104,7 +104,7 @@ final class ControlCenter {
             Tile saver = tile("saver", "شاشة التوقف", "مطوّلًا: الإعدادات", R.drawable.ic_screensaver, () -> { dismiss(); host.openSaver(); });
             saver.setOnLongClickListener(v -> { dismiss(); host.openSaverSettings(); return true; });
             tiles.add(saver);
-            tiles.add(tile("ours", "إعدادات تلفزيونك", "الأذان والمفضلة والمظهر", R.drawable.ic_home, () -> { dismiss(); host.openOurSettings(); }));
+            tiles.add(tile("ours", "إعدادات تلفزيونك", "المفضلة والمظهر", R.drawable.ic_home, () -> { dismiss(); host.openOurSettings(); }));
         }
         tiles.add(tile("tv", "الإعدادات", "إعدادات التلفزيون", R.drawable.ic_settings,
                 () -> { dismiss(); host.launchGuarded(ParentalPolicy.PILL_TV_SETTINGS, new Intent(Settings.ACTION_SETTINGS), "إعدادات التلفزيون"); }));
