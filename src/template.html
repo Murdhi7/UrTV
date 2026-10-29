@@ -1363,7 +1363,7 @@ function photoSet(n){
   }
   return pick;
 }
-let BG_SLOT = -1, PREFETCHED = false;
+let BG_SLOT = -1, BG_REQUEST = 0, PREFETCHED = false;
 function applyBackground(force){
   try {
     const p = riyadhParts();
@@ -1371,6 +1371,7 @@ function applyBackground(force){
     const slot = riyadhDayNumber() * (1440 / slotMin) + Math.floor((p.h * 60 + p.mi) / slotMin);
     if(slot === BG_SLOT && !force) return;
     BG_SLOT = slot;
+    const request = ++BG_REQUEST;
     const set = REMOTE_BGS.length ? photoSet(REMOTE_BGS.length).map(k => REMOTE_BGS[k]) : [];
     const local = BGS[slot % BGS.length];
     if(!set.length){ showBackground(local.u, local); return; }
@@ -1378,15 +1379,21 @@ function applyBackground(force){
     // First photo: wait briefly for the hosted one (the app serves it from disk at once) so the screen
     // doesn't flash a bundled photo first; slow network → bundled one, swapped when the hosted one arrives.
     let done = false;
-    const fallback = () => { if(!done && !document.querySelector('.photo').style.backgroundImage) showBackground(local.u, local); };
+    const fallback = () => { if(!done && request === BG_REQUEST) showBackground(local.u, local); };
     const t = setTimeout(fallback, 1200);
     const img = new Image();
-    img.onload = () => { done = true; clearTimeout(t); showBackground(url, b); };
+    img.onload = () => { done = true; clearTimeout(t); if(request === BG_REQUEST) showBackground(url, b); };
     img.onerror = () => { clearTimeout(t); fallback(); done = true; };
     img.src = url;
     // fetch the rest of the set once, quietly, so the app has each one on disk before its turn
     if(!PREFETCHED){ PREFETCHED = true; setTimeout(() => set.forEach(x => { new Image().src = PHOTO_BASE + x.f; }), 20000); }
   } catch(e) {}
+}
+
+function scheduleBackgroundRotation(){
+  const p = riyadhParts(), slotMin = CONFIG.photoMinutes;
+  const delay = ((slotMin - (p.mi % slotMin)) * 60 - p.s) * 1000 + 50;
+  setTimeout(() => { applyBackground(false); scheduleBackgroundRotation(); }, Math.max(1000, delay));
 }
 
 // Last painted panels, shown at once on the next start while fresh data loads.
@@ -1418,7 +1425,7 @@ function boot(){
   document.title = 'شاشة تلفزيونك';
   applyBackground(true);
   loadPhotoIndex().then(() => applyBackground(true));
-  setInterval(() => applyBackground(false), 60*1000);
+  scheduleBackgroundRotation();
   tickClock(); tickDates(); tickRamadan(); tickWork();
   TICKERS.forEach(loadTicker);
   if(CONFIG.panel === 'none') document.querySelector('.week').style.display = 'none';
