@@ -1253,10 +1253,11 @@ const crestNet = seen => r => {
   r.fulfill({ contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: badgePng });
   return true;
 };
-const CREST_GAMES = (names) => `NEXT_LIST = { '136013': ${JSON.stringify(names.map(([h, a, hb, ab], i) => ({
+// base: the page's own clock when the test fixes it (HOME_NOW); games from the real clock fell outside the page's week once the real date moved on
+const CREST_GAMES = (names, base = Date.now()) => `NEXT_LIST = { '136013': ${JSON.stringify(names.map(([h, a, hb, ab], i) => ({
   idEvent: 'c' + i, strHomeTeam: h, strAwayTeam: a, idHomeTeam: String(100 + 2 * i), idAwayTeam: String(101 + 2 * i),
   strHomeTeamBadge: hb ? BADGE(100 + 2 * i) : null, strAwayTeamBadge: ab ? BADGE(101 + 2 * i) : null,
-  strTimestamp: new Date(Date.now() + (3 + 30 * i) * 36e5).toISOString() })))} };`;
+  strTimestamp: new Date(base + (3 + 30 * i) * 36e5).toISOString() })))} };`;
 const SHORT_GAMES = [['Al-Hilal', 'Al-Nassr', true, true], ['Al-Ahli', 'Al-Ittihad', true, false]];   // the second game's guest has no crest
 const LONG_GAMES = [['Manchester United', 'Borussia Monchengladbach', true, true], ['Paris Saint-Germain', 'Bayern Munich', true, true],
                     ['Real Madrid', 'Manchester City', true, true]];
@@ -2341,7 +2342,7 @@ const homeCards = async (cards, W, { style = 'current', tight = false, extra = '
   const n = cards.split(',').length, [bw, bh] = homeBox(n, W, tight), seen = [];
   const o = await open('tv.html', `home_panel=${cards}&widget=1&cardstyle=${style}&digits=${digits}&${extra}`,
     { width: width || bw, height: height || bh, now: HOME_NOW, net: crestNet(seen) });
-  await o.p.evaluate(HOME_SEED({ isha }) + (games ? CREST_GAMES(games) : '') + ' renderPanel(false);');
+  await o.p.evaluate(HOME_SEED({ isha }) + (games ? CREST_GAMES(games, HOME_NOW.getTime()) : '') + ' renderPanel(false);');
   if (games) { await o.p.evaluate(() => { for (let k = 0; k < 6; k++) { for (const c of CARDS) if (c.eff === 'matches') { c.ul.__h = null; } } renderPanel(false, 'matches'); }); }
   await o.p.waitForTimeout(150);
   return { ...o, n, bw: width || bw, bh: height || bh };
@@ -4142,7 +4143,7 @@ const CARD_KINDS_TEST = ['shows','prayers','forecast','hourly','prayerrow','next
   const STYLES = ['current', 'dark1', 'glass1', 'dark3', 'glass3'];
   const KINDS = CARD_KINDS_TEST.filter(k => k !== 'nextprayer');   // the home screen's only
   const EXTRA = 'teams=136013&stocks=2222,1120,AAPL&slot=weather&tasks=' + encodeURIComponent(TASKS12.slice(0, 5).join('\n'));
-  const SEED = HOME_SEED() + CREST_GAMES(LONG_GAMES);
+  const SEED = HOME_SEED() + CREST_GAMES(LONG_GAMES, HOME_NOW.getTime());
   const openSaver = async (hash, w, h, now = HOME_NOW) => {
     const o = await open('tv.html', `${EXTRA}&${hash}`, { width: w, height: h, now, net: crestNet([]) });
     await o.p.evaluate(SEED);
