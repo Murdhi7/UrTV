@@ -16,6 +16,7 @@ android {
             screensaverPermission: "${screensaverAppId}.READ_CONFIG",
             screensaverAuthority: "${screensaverAppId}.config"
         ]
+        resValue "string", "dream_settings_activity", "${screensaverAppId}/sa.urtv.screensaver.SettingsActivity"
         minSdk 21
         targetSdk 34
         // CI passes its run number so every build installs over the previous one; 3.x since the new signing key,
